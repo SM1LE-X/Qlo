@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, ExternalLink, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/card";
 import { CopyHash } from "@/components/ui/copy-hash";
+import { SmoothAccordion } from "@/components/ui/smooth-accordion";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { TactileButton } from "@/components/ui/tactile-button";
 import {
@@ -292,6 +293,70 @@ export default function StoryPage() {
           </table>
         </div>
       </SpotlightCard>
+
+      {/* Deep Cryptographic & Audit Q&A */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-[#09090B]">
+            Deep Cryptographic &amp; Security Audit Q&amp;A
+          </h2>
+          <p className="text-xs text-[#52525B]">
+            Detailed answers on arithmetic constraints, key lifecycle, and Base Sepolia finality guarantees.
+          </p>
+        </div>
+
+        <SmoothAccordion
+          defaultOpen={["q-nullifier"]}
+          items={[
+            {
+              id: "q-nullifier",
+              title: "How do deterministic Poseidon(3) nullifiers prevent double-billing without exposing claim details?",
+              badge: "Anti-Replay",
+              content: (
+                <>
+                  Each settled claim emits <code className="font-semibold text-[#09090B]">nullifier = Poseidon(policySalt, policyId, recordCommitment)</code>.
+                  Because the hospital cannot invent a fresh nonce per transaction, re-submitting the same encrypted CMS-1500 bill produces the exact same nullifier scalar and reverts deterministically inside{" "}
+                  <code className="font-semibold text-[#09090B]">ClaimsVault.sol</code> without revealing the procedure CPT code or diagnosis.
+                </>
+              ),
+            },
+            {
+              id: "q-bits",
+              title: "Why is the SHA-256 recordCommitment truncated to 248 bits?",
+              badge: "BN254 Field Safety",
+              content: (
+                <>
+                  BN254 scalar arithmetic operates modulo a 254-bit prime (~253.6 bits effective range).
+                  Truncating the SHA-256 hash of the canonical ciphertext + metadata strictly to the lower 248 bits (31 bytes) guarantees injective field embedding without wrap-around collisions across both Noir/Circom circuits and Solidity storage.
+                </>
+              ),
+            },
+            {
+              id: "q-zkey",
+              title: "How is proving key supply-chain tampering prevented in the browser?",
+              badge: "Trusted Setup",
+              content: (
+                <>
+                  At runtime, <code className="font-semibold text-[#09090B]">verifyZkeyIntegrity()</code> streams{" "}
+                  <code className="font-semibold text-[#09090B]">/zk/ClaimValidity.zkey</code>, hashes every byte via WebCrypto SHA-256, and verifies it against the ceremony digest embedded in{" "}
+                  <code className="font-semibold text-[#09090B]">DEPLOYMENT.zkeySha256</code> before Web Worker witnesses are generated.
+                </>
+              ),
+            },
+            {
+              id: "q-frontrun",
+              title: "Why does public signal [6] enforce msg.sender == hospitalAddress?",
+              badge: "MEV Defense",
+              content: (
+                <>
+                  If the hospital payout address were an unconstrained parameter, a mempool observer could copy a hospital&apos;s valid Groth16 proof, substitute their own payout address, and drain the claim settlement. Binding{" "}
+                  <code className="font-semibold text-[#09090B]">uint160(msg.sender)</code> directly inside the Groth16 circuit invalidates any copied proof sent from an unauthorized wallet.
+                </>
+              ),
+            },
+          ]}
+        />
+      </section>
     </div>
   );
 }

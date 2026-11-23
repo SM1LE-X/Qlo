@@ -18,10 +18,14 @@ import { Badge } from "@/components/ui/card";
 import { CopyHash } from "@/components/ui/copy-hash";
 import { DecryptedText } from "@/components/ui/decrypted-text";
 import { NumberTicker, SlidingCountdown } from "@/components/ui/number-ticker";
+import { SmoothAccordion } from "@/components/ui/smooth-accordion";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
+import { StatCard } from "@/components/ui/stat-card";
+import { Stepper } from "@/components/ui/stepper";
 import { TactileButton } from "@/components/ui/tactile-button";
 import { WalletPassCard } from "@/components/ui/wallet-pass-card";
 import canonicalFixtures from "@/lib/canonicalFixtures.json";
+import { ACCREDITED_PROVIDERS, COVERED_CLINICAL_SCHEDULE } from "@/lib/clinicalCatalog";
 import { fetchPatientAuditEvents } from "@/lib/chainEvents";
 import { CONTRACTS, IS_CHAIN_DEPLOYED, explorerTxUrl } from "@/lib/contracts";
 import {
@@ -492,30 +496,55 @@ export default function PatientPage() {
         ) : null}
       </div>
 
+      {/* Patient Workflow Stepper */}
+      <Stepper
+        current={grantExpiresAt > nowSec ? 3 : registeredRecordId ? 2 : encrypted ? 1 : 0}
+        steps={[
+          { title: "Intake & Local OCR", description: "CMS-1500 parsed in browser" },
+          { title: "AES-256-GCM Encrypt", description: "IndexedDB + IPFS CIDv1" },
+          { title: "Register & Wrap DEK", description: "Commit on HealthRecords.sol" },
+          { title: "Active Hospital Grant", description: "Time-bounded consent key" },
+        ]}
+      />
+
       {/* Patient Overview KPI Bar */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <SpotlightCard accent="emerald" className="p-4 space-y-1">
-          <div className="text-xs text-[#52525B]">Encrypted Vault Records</div>
-          <div className="text-2xl font-bold text-[#09090B]">
-            <NumberTicker value={vaultItems.length} />
-          </div>
-        </SpotlightCard>
-        <SpotlightCard accent="emerald" className="p-4 space-y-1">
-          <div className="text-xs text-[#52525B]">Active Provider Grants</div>
-          <div className="text-2xl font-bold text-[#0F766E]">
-            <NumberTicker value={activeGrantsCount} />
-          </div>
-        </SpotlightCard>
-        <SpotlightCard accent="neutral" className="p-4 space-y-1">
-          <div className="text-xs text-[#52525B]">Settled Claims</div>
-          <div className="text-2xl font-bold text-[#09090B]">
-            <NumberTicker value={settledClaimsCount} />
-          </div>
-        </SpotlightCard>
-        <SpotlightCard accent="neutral" className="p-4 space-y-1">
-          <div className="text-xs text-[#52525B]">Envelope Cipher</div>
-          <div className="text-lg font-bold font-mono-tabular text-[#09090B]">AES-256-GCM</div>
-        </SpotlightCard>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          label="Encrypted Vault Records"
+          valueText={<NumberTicker value={vaultItems.length} />}
+          sublabel="IndexedDB qlo-vault-v1"
+          deltaText="Local Only"
+          deltaTone="emerald"
+          trend={[1, 1, 2, 2, 3, Math.max(1, vaultItems.length)]}
+          accentColor="#047857"
+        />
+        <StatCard
+          label="Active Provider Grants"
+          valueText={<NumberTicker value={activeGrantsCount} />}
+          sublabel={secondsRemaining > 0 ? "ECDH wrapped key live" : "Ready to delegate"}
+          deltaText={secondsRemaining > 0 ? "Active" : "Standby"}
+          deltaTone={secondsRemaining > 0 ? "teal" : "neutral"}
+          trend={[0, 1, 0, 1, activeGrantsCount, activeGrantsCount]}
+          accentColor="#0F766E"
+        />
+        <StatCard
+          label="Settled Claims"
+          valueText={<NumberTicker value={settledClaimsCount} />}
+          sublabel="Zero-PHI disbursements"
+          deltaText="Base Sepolia"
+          deltaTone="neutral"
+          trend={[0, 1, 1, 2, 2, Math.max(0, settledClaimsCount)]}
+          accentColor="#0F4C81"
+        />
+        <StatCard
+          label="Envelope Cipher"
+          valueText="AES-256-GCM"
+          sublabel="ECDH P-256 ephemeral wrap"
+          deltaText="0 Bytes Sent"
+          deltaTone="emerald"
+          trend={[256, 256, 256, 256, 256, 256]}
+          accentColor="#047857"
+        />
       </div>
 
       {/* Main Studio Grid */}
@@ -768,7 +797,46 @@ export default function PatientPage() {
               {registeredRecordId ? ` (Record #${registeredRecordId})` : ""}
             </TactileButton>
 
-            <div className="space-y-2 border-t border-[#F4F4F5] pt-3">
+            <div className="space-y-2.5 border-t border-[#F4F4F5] pt-3">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-medium text-[#52525B]">Accredited Provider Directory</span>
+                  <span className="font-mono-tabular text-[#71717A]">
+                    {ACCREDITED_PROVIDERS.length} verified on-chain
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {ACCREDITED_PROVIDERS.map((prov) => {
+                    const selected =
+                      prov.address.toLowerCase() === targetHospital.toLowerCase();
+                    return (
+                      <button
+                        key={prov.address}
+                        type="button"
+                        onClick={() => setTargetHospital(prov.address)}
+                        className={`rounded-xl border px-3 py-2 text-left transition-colors cursor-pointer ${
+                          selected
+                            ? "border-[#0F766E] bg-[#F0FDFA]/80"
+                            : "border-[#E4E4E7] bg-[#FAFAFA] hover:border-[#D4D4D8] hover:bg-white"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="truncate font-semibold text-[#09090B] text-[11px]">
+                            {prov.name}
+                          </span>
+                          <span className="shrink-0 rounded bg-[#ECFDF5] px-1.5 py-0.5 font-mono-tabular text-[9px] font-semibold text-[#047857]">
+                            NPI
+                          </span>
+                        </div>
+                        <div className="mt-0.5 truncate text-[10px] text-[#52525B]">
+                          {prov.specialty} · {prov.city}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <label
                 htmlFor="hosp-addr"
                 className="text-[#52525B] font-medium flex items-center justify-between gap-2"
@@ -917,6 +985,112 @@ export default function PatientPage() {
         </div>
         <AuditTimeline items={auditItems} />
       </SpotlightCard>
+
+      {/* Plain-English Covered Benefits Schedule */}
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold text-[#09090B]">
+              Covered Clinical Benefits Schedule
+            </h2>
+            <p className="text-xs text-[#52525B]">
+              Every procedure below is pre-committed in the Poseidon Depth-6 benefit Merkle tree and settles automatically without exposing diagnoses.
+            </p>
+          </div>
+          <Badge variant="emerald">{COVERED_CLINICAL_SCHEDULE.length} Approved CPT Codes</Badge>
+        </div>
+
+        <SmoothAccordion
+          defaultOpen={["cat-Emergency"]}
+          items={[
+            {
+              id: "cat-Emergency",
+              title: "Emergency & Acute Cardiac Care",
+              subtitle: "Priority high-severity & urgent ED stabilization",
+              badge: "CPT 99285 · 99284",
+              content: (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {COVERED_CLINICAL_SCHEDULE.filter((c) => c.category === "Emergency").map((item) => (
+                    <div
+                      key={item.code}
+                      className="rounded-xl border border-[#E4E4E7] bg-white p-3.5 space-y-1"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-[#09090B]">{item.title}</span>
+                        <span className="font-mono-tabular text-[11px] font-semibold text-[#0F766E]">
+                          CPT {item.code}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#52525B]">{item.summary}</p>
+                      <div className="text-[10px] font-mono-tabular text-[#047857]">
+                        {item.copayTier} · {item.typicalTurnaround}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ),
+            },
+            {
+              id: "cat-Specialty",
+              title: "Outpatient Consultations, Cardiology & Orthopedic Care",
+              subtitle: "Follow-up specialist clinics, 12-lead ECG, and closed fracture reduction",
+              badge: "CPT 99214 · 93000 · 27750",
+              content: (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {COVERED_CLINICAL_SCHEDULE.filter((c) =>
+                    ["Outpatient", "Cardiology", "Orthopedic"].includes(c.category)
+                  ).map((item) => (
+                    <div
+                      key={item.code}
+                      className="rounded-xl border border-[#E4E4E7] bg-white p-3.5 space-y-1"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-[#09090B]">{item.title}</span>
+                        <span className="font-mono-tabular text-[11px] font-semibold text-[#0F766E]">
+                          CPT {item.code}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#52525B]">{item.summary}</p>
+                      <div className="text-[10px] font-mono-tabular text-[#047857]">
+                        {item.copayTier} · {item.typicalTurnaround}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ),
+            },
+            {
+              id: "cat-Diagnostics",
+              title: "Diagnostic Radiology & Clinical Pathology Panels",
+              subtitle: "Chest imaging, metabolic chemistry panels, and specimen draws",
+              badge: "CPT 71046 · 80053 · 36415",
+              content: (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {COVERED_CLINICAL_SCHEDULE.filter((c) =>
+                    ["Radiology", "Pathology"].includes(c.category)
+                  ).map((item) => (
+                    <div
+                      key={item.code}
+                      className="rounded-xl border border-[#E4E4E7] bg-white p-3.5 space-y-1"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-[#09090B]">{item.title}</span>
+                        <span className="font-mono-tabular text-[11px] font-semibold text-[#0F766E]">
+                          CPT {item.code}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#52525B]">{item.summary}</p>
+                      <div className="text-[10px] font-mono-tabular text-[#047857]">
+                        {item.copayTier} · {item.typicalTurnaround}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ),
+            },
+          ]}
+        />
+      </section>
     </div>
   );
 }

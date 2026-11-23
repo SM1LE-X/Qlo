@@ -17,12 +17,16 @@ import { Badge } from "@/components/ui/card";
 import { DecryptedText } from "@/components/ui/decrypted-text";
 import { NumberTicker } from "@/components/ui/number-ticker";
 import { OrbitalProver } from "@/components/ui/orbital-prover";
+import { PaymentNotificationBanner } from "@/components/ui/payment-notification-banner";
 import { PaymentReceiptPrinter } from "@/components/ui/payment-receipt-printer";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
+import { StatCard } from "@/components/ui/stat-card";
+import { Stepper } from "@/components/ui/stepper";
 import { TactileButton } from "@/components/ui/tactile-button";
 import { BorderBeam, Terminal } from "@/components/ui/terminal";
 import { TransitionPanel } from "@/components/ui/transition-panel";
 import canonicalFixtures from "@/lib/canonicalFixtures.json";
+import { getCptLabel, getProviderDisplayName } from "@/lib/clinicalCatalog";
 import { CONTRACTS, IS_CHAIN_DEPLOYED, explorerTxUrl } from "@/lib/contracts";
 import {
   decryptClinicalPayload,
@@ -624,30 +628,54 @@ export default function HospitalPage() {
         </div>
       </div>
 
+      {/* Clearinghouse Settlement Stepper */}
+      <Stepper
+        current={settledTx ? 3 : proverOutput ? 2 : decryptedClaim ? 1 : 0}
+        steps={[
+          { title: "Unwrap Record", description: "Verify patient grant & DEK" },
+          { title: "Prove 8 Predicates", description: "4,349 R1CS in Web Worker" },
+          { title: "Settle Escrow ETH", description: "Instant ClaimsVault payout" },
+        ]}
+      />
+
       {/* Provider Revenue KPI Bar */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <SpotlightCard accent="emerald" className="p-4 space-y-1">
-          <div className="text-xs text-[#52525B]">Settled Revenue</div>
-          <div className="text-2xl font-bold text-[#047857]">
-            <NumberTicker value={providerRevenueEth} decimals={4} suffix=" ETH" />
-          </div>
-        </SpotlightCard>
-        <SpotlightCard accent="neutral" className="p-4 space-y-1">
-          <div className="text-xs text-[#52525B]">Approved Claims</div>
-          <div className="text-2xl font-bold text-[#09090B]">
-            <NumberTicker value={settledClaimsCount} />
-          </div>
-        </SpotlightCard>
-        <SpotlightCard accent="neutral" className="p-4 space-y-1">
-          <div className="text-xs text-[#52525B]">Last Proof Latency</div>
-          <div className="text-2xl font-bold font-mono-tabular text-[#09090B]">
-            {proverOutput ? `${proverOutput.elapsedMs} ms` : "< 500 ms"}
-          </div>
-        </SpotlightCard>
-        <SpotlightCard accent="emerald" className="p-4 space-y-1">
-          <div className="text-xs text-[#52525B]">Accreditation</div>
-          <div className="text-lg font-bold text-[#0F766E]">Merkle Verified</div>
-        </SpotlightCard>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          label="Settled Revenue"
+          valueText={<NumberTicker value={providerRevenueEth} decimals={4} suffix=" ETH" />}
+          sublabel="Direct escrow payout"
+          deltaText="Instant Finality"
+          deltaTone="emerald"
+          trend={[0.01, 0.015, 0.02, 0.025, 0.03, Math.max(0.01, providerRevenueEth)]}
+          accentColor="#047857"
+        />
+        <StatCard
+          label="Approved Claims"
+          valueText={<NumberTicker value={settledClaimsCount} />}
+          sublabel="Touchless auto-adjudicated"
+          deltaText="0 Denials"
+          deltaTone="teal"
+          trend={[1, 2, 2, 3, 4, Math.max(1, settledClaimsCount)]}
+          accentColor="#0F766E"
+        />
+        <StatCard
+          label="Last Proof Latency"
+          valueText={proverOutput ? `${proverOutput.elapsedMs} ms` : "< 500 ms"}
+          sublabel="Groth16 BN254 Web Worker"
+          deltaText="Client-Side"
+          deltaTone="neutral"
+          trend={[490, 440, 415, 395, 380, proverOutput?.elapsedMs ?? 365]}
+          accentColor="#0F4C81"
+        />
+        <StatCard
+          label="Accreditation"
+          valueText="Merkle Verified"
+          sublabel="Poseidon(addr, NPI) root"
+          deltaText="Active Leaf"
+          deltaTone="emerald"
+          trend={[1, 1, 1, 1, 1, 1]}
+          accentColor="#047857"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -791,13 +819,22 @@ export default function HospitalPage() {
           </div>
 
           {settledTx && proverOutput ? (
-            <PaymentReceiptPrinter
-              txHash={settledTx}
-              explorerUrl={IS_CHAIN_DEPLOYED ? explorerTxUrl(settledTx) : undefined}
-              amountEth={settledAmountEth}
-              hospitalAddress={hospitalAddr}
-              nullifier={proverOutput.publicSignals[2]}
-            />
+            <div className="space-y-3">
+              <PaymentNotificationBanner
+                appName="ClaimsVault Instant Payout"
+                amount={`${settledAmountEth} ETH`}
+                from={`Payer Escrow → ${getProviderDisplayName(hospitalAddr)}`}
+                time="Settled via Groth16"
+                showTriggerLabel="Show payout alert"
+              />
+              <PaymentReceiptPrinter
+                txHash={settledTx}
+                explorerUrl={IS_CHAIN_DEPLOYED ? explorerTxUrl(settledTx) : undefined}
+                amountEth={settledAmountEth}
+                hospitalAddress={hospitalAddr}
+                nullifier={proverOutput.publicSignals[2]}
+              />
+            </div>
           ) : null}
 
           <Terminal lines={terminalLines} />
