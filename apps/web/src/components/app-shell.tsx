@@ -2,20 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity,
   AlertTriangle,
+  ArrowLeftRight,
   Bell,
   CheckCircle2,
   ChevronRight,
   Compass,
   Cpu,
+  ExternalLink,
+  FileCode2,
   FileLock2,
+  FileText,
+  KeyRound,
   Landmark,
   Menu,
   Search,
+  ShieldAlert,
   ShieldCheck,
   Wallet,
   X,
@@ -25,6 +31,7 @@ import { baseSepolia } from "wagmi/chains";
 import { DEPLOYMENT, IS_CHAIN_DEPLOYED } from "@/lib/contracts";
 import { loadLocalChainMirror, type LocalChainMirror } from "@/lib/localState";
 import { motionTransitions } from "@/lib/motion-tokens";
+import { fetchRelayState } from "@/lib/relayClient";
 import { listVaultEntries } from "@/lib/storage";
 import { cn, formatWeiToEth, shortHex } from "@/lib/utils";
 import { verifyZkeyIntegrity } from "@/lib/zkeyIntegrity";
@@ -38,21 +45,94 @@ import {
 } from "./ui/onboarding-guide";
 import { TactileButton } from "./ui/tactile-button";
 
-const WORKSPACE_META: Record<string, { title: string; section: string }> = {
-  "/patient": { title: "Patient Vault", section: "Records & Consent" },
-  "/hospital": { title: "Provider Clearinghouse", section: "Proving & Settlement" },
-  "/insurer": { title: "Payer Treasury & Ledger", section: "Escrow & Privacy Audit" },
-  "/story": { title: "Security Trust Center", section: "Cryptography & Compliance" },
+interface PortalNavSection {
+  href: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  pill?: string;
+}
+
+interface PortalProfile {
+  brand: string;
+  subBrand: string;
+  actorLabel: string;
+  orgBadge: string;
+  orgSub: string;
+  title: string;
+  section: string;
+  badgeColor: string;
+  accentText: string;
+}
+
+const STAKEHOLDER_SWITCH_OPTIONS = [
+  {
+    href: "/patient",
+    label: "Patient Member",
+    org: "Qlo Care · Member #2026001",
+    icon: FileLock2,
+    tone: "text-[#0F766E] bg-[#F0FDFA] border-[#99F6E4]",
+  },
+  {
+    href: "/hospital",
+    label: "Hospital Billing (RCM)",
+    org: "Qlo Clearinghouse · NPI Verified",
+    icon: Cpu,
+    tone: "text-[#0F4C81] bg-[#F0F9FF] border-[#BAE6FD]",
+  },
+  {
+    href: "/insurer",
+    label: "Payer Insurer Ops",
+    org: "Qlo Treasury · Payer ID QLO-84532",
+    icon: Landmark,
+    tone: "text-[#047857] bg-[#ECFDF5] border-[#A7F3D0]",
+  },
+] as const;
+
+const PORTAL_PROFILES: Record<string, PortalProfile> = {
+  "/patient": {
+    brand: "Qlo Care",
+    subBrand: "Member Portal",
+    actorLabel: "Acting as: Patient",
+    orgBadge: "Member #2026001",
+    orgSub: "Private Client Vault",
+    title: "Patient Portal",
+    section: "Records & Consent",
+    badgeColor: "bg-[#0F766E]",
+    accentText: "text-[#0F766E]",
+  },
+  "/hospital": {
+    brand: "Qlo Clearinghouse",
+    subBrand: "Provider RCM",
+    actorLabel: "Acting as: Hospital RCM",
+    orgBadge: "Accredited Provider",
+    orgSub: "NPI Verified · Proving Core",
+    title: "Hospital Clearinghouse",
+    section: "Groth16 Proving & Settlement",
+    badgeColor: "bg-[#0F4C81]",
+    accentText: "text-[#0F4C81]",
+  },
+  "/insurer": {
+    brand: "Qlo Treasury",
+    subBrand: "Payer Operations",
+    actorLabel: "Acting as: Insurer Ops",
+    orgBadge: "Qlo Health Plan",
+    orgSub: "Payer ID QLO-84532",
+    title: "Insurer Treasury",
+    section: "Escrow & Calldata Audit",
+    badgeColor: "bg-[#047857]",
+    accentText: "text-[#047857]",
+  },
 };
 
 /**
- * Dual-surface SaaS Chrome:
- * - `/` renders the public landing navbar + 4-column enterprise footer.
- * - Workspace routes render a persistent SaaS sidebar + breadcrumb bar + Notification Bell + wallet dock.
+ * Dual-surface multi-stakeholder chrome:
+ * - Public pages (`/` and `/story`) render public top navigation + enterprise 4-column footer.
+ * - Authenticated stakeholder portals (`/patient`, `/hospital`, `/insurer`) render isolated role-specific sidebars,
+ *   domain identity badges, a cross-tab Stakeholder Switcher, and live Zero-PHI clearinghouse relay sync.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const isHome = pathname === "/";
+  const isPublicPage = pathname === "/" || pathname === "/story";
 
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -62,6 +142,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
 
@@ -87,22 +168,37 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const syncCounts = () => {
-      setMirror(loadLocalChainMirror());
-      listVaultEntries()
-        .then((items) => setVaultCount(items.length))
-        .catch(() => undefined);
+    let active = true;
+    const syncCounts = async () => {
+      if (active) {
+        setMirror(loadLocalChainMirror());
+      }
+      const [localEntries, remoteMirror] = await Promise.all([
+        listVaultEntries().catch(() => []),
+        !IS_CHAIN_DEPLOYED ? fetchRelayState() : Promise.resolve(null),
+      ]);
+      if (!active) return;
+      setVaultCount(localEntries.length);
+      if (remoteMirror) {
+        setMirror(remoteMirror);
+      }
     };
     syncCounts();
     window.addEventListener("storage", syncCounts);
-    const id = setInterval(syncCounts, 2500);
+    const id = setInterval(syncCounts, 3500);
     return () => {
+      active = false;
       window.removeEventListener("storage", syncCounts);
       clearInterval(id);
     };
   }, [pathname]);
 
-  if (isHome) {
+  useEffect(() => {
+    setNotifOpen(false);
+    setRoleMenuOpen(false);
+  }, [pathname]);
+
+  if (isPublicPage) {
     return (
       <div className="min-h-screen flex flex-col">
         <Navbar />
@@ -125,21 +221,21 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
 
               <div className="space-y-2">
-                <div className="font-semibold text-[#09090B]">Workspaces</div>
+                <div className="font-semibold text-[#09090B]">Stakeholder Portals</div>
                 <ul className="space-y-1.5 text-[#52525B]">
                   <li>
                     <Link href="/patient" className="hover:text-[#0F766E] transition-colors">
-                      Patient Record Vault
+                      Patient Member Portal
                     </Link>
                   </li>
                   <li>
                     <Link href="/hospital" className="hover:text-[#0F766E] transition-colors">
-                      Provider Clearinghouse Prover
+                      Hospital RCM Clearinghouse
                     </Link>
                   </li>
                   <li>
                     <Link href="/insurer" className="hover:text-[#0F766E] transition-colors">
-                      Payer Treasury &amp; Ledger
+                      Insurer Treasury &amp; Audit
                     </Link>
                   </li>
                 </ul>
@@ -187,18 +283,48 @@ export function AppShell({ children }: { children: ReactNode }) {
     : 0;
   const settledCount = mirror?.settledClaims.length ?? 0;
   const recentAudit = mirror?.auditLogs.slice(0, 5) ?? [];
-  const meta = WORKSPACE_META[pathname] ?? { title: "Workspace", section: "Qlo Platform" };
 
-  const workspaceLinks = [
-    { href: "/patient", label: "Patient Vault", icon: FileLock2, pill: String(vaultCount) },
-    { href: "/hospital", label: "Provider Clearinghouse", icon: Cpu, pill: String(activeGrantsCount) },
-    {
-      href: "/insurer",
-      label: "Payer Treasury",
-      icon: Landmark,
-      pill: settledCount > 0 ? `${settledCount} settled` : formatWeiToEth(mirror?.insurerEscrowWei ?? "1000000000000000000", 2) + " ETH",
-    },
-  ];
+  const profile = PORTAL_PROFILES[pathname] ?? {
+    brand: "Qlo Platform",
+    subBrand: "Workspace",
+    actorLabel: "Workspace",
+    orgBadge: "Zero-PHI",
+    orgSub: "Sandbox Environment",
+    title: "Workspace",
+    section: "Qlo Platform",
+    badgeColor: "bg-[#09090B]",
+    accentText: "text-[#0F766E]",
+  };
+
+  let portalSections: PortalNavSection[] = [];
+  if (pathname === "/patient") {
+    portalSections = [
+      { href: "/patient#patient-intake", label: "Intake & Local OCR", icon: FileText },
+      { href: "/patient#patient-consent", label: "Encryption & Consent", icon: KeyRound },
+      { href: "/patient#patient-vault", label: "Encrypted Vault", icon: FileLock2, pill: String(vaultCount) },
+      { href: "/patient#patient-audit", label: "Access Audit Trail", icon: Activity },
+      { href: "/patient#patient-benefits", label: "Covered Benefits", icon: ShieldCheck },
+    ];
+  } else if (pathname === "/hospital") {
+    portalSections = [
+      { href: "/hospital#hospital-queue", label: "Authorized Claims Inbox", icon: FileLock2, pill: String(activeGrantsCount) },
+      { href: "/hospital#hospital-prover", label: "Groth16 Eligibility Prover", icon: Cpu },
+      { href: "/hospital#hospital-standards", label: "X12 837P & FHIR R4", icon: FileCode2 },
+      { href: "/hospital#hospital-guardrails", label: "Policy & Fraud Guardrails", icon: ShieldAlert },
+    ];
+  } else if (pathname === "/insurer") {
+    portalSections = [
+      {
+        href: "/insurer#insurer-reserves",
+        label: "Escrow Reserves",
+        icon: Landmark,
+        pill: `${formatWeiToEth(mirror?.insurerEscrowWei ?? "1000000000000000000", 2)} ETH`,
+      },
+      { href: "/insurer#insurer-analytics", label: "Liquidity & Cap Mix", icon: Activity },
+      { href: "/insurer#insurer-ledger", label: "Disbursement Ledger", icon: CheckCircle2, pill: String(settledCount) },
+      { href: "/insurer#insurer-audit", label: "Zero-PHI Calldata Audit", icon: ShieldCheck },
+    ];
+  }
 
   const protocolLinks = [
     { href: "/story", label: "Trust Center", icon: ShieldCheck },
@@ -207,16 +333,31 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const sidebarContent = (
     <div className="flex h-full flex-col justify-between p-4">
-      <div className="space-y-6">
+      <div className="space-y-5">
         <Link href="/" className="flex items-center gap-2.5 px-2 pt-1">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#09090B] text-white font-mono-tabular font-bold text-sm">
+          <div
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-xl text-white font-mono-tabular font-bold text-sm",
+              profile.badgeColor
+            )}
+          >
             Q
           </div>
           <div className="leading-tight">
-            <div className="text-sm font-bold text-[#09090B]">Qlo Health</div>
-            <div className="text-[10px] font-medium text-[#71717A]">Claims Platform</div>
+            <div className="text-sm font-bold text-[#09090B]">{profile.brand}</div>
+            <div className="text-[10px] font-medium text-[#71717A]">{profile.subBrand}</div>
           </div>
         </Link>
+
+        {/* Organization / Stakeholder Identity Card */}
+        <div className="rounded-xl border border-[#E4E4E7] bg-white px-3 py-2.5 shadow-2xs space-y-0.5">
+          <div className={cn("text-[11px] font-semibold", profile.accentText)}>
+            {profile.orgBadge}
+          </div>
+          <div className="text-[10px] font-mono-tabular text-[#71717A] truncate">
+            {profile.orgSub}
+          </div>
+        </div>
 
         <button
           type="button"
@@ -232,37 +373,35 @@ export function AppShell({ children }: { children: ReactNode }) {
           </kbd>
         </button>
 
+        {/* Role-Isolated Section Links */}
         <div className="space-y-1">
           <div className="px-2 pb-1 text-[10px] font-mono-tabular font-semibold uppercase tracking-[0.14em] text-[#71717A]">
-            Workspaces
+            {profile.subBrand}
           </div>
-          {workspaceLinks.map((item) => {
+          {portalSections.map((item, idx) => {
             const Icon = item.icon;
-            const active = pathname === item.href;
+            const active = idx === 0;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setMobileNavOpen(false)}
                 className={cn(
-                  "relative flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition-colors",
-                  active ? "text-[#09090B]" : "text-[#52525B] hover:bg-white/70 hover:text-[#09090B]"
+                  "flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition-colors",
+                  active
+                    ? "bg-white border border-[#E4E4E7] text-[#09090B] shadow-2xs"
+                    : "text-[#52525B] hover:bg-white/70 hover:text-[#09090B]"
                 )}
               >
-                {active ? (
-                  <motion.span
-                    layoutId="sidebar-active"
-                    transition={motionTransitions.springMorph}
-                    className="absolute inset-0 rounded-xl bg-white border border-[#E4E4E7] shadow-2xs"
-                  />
+                <span className="flex items-center gap-2.5 min-w-0">
+                  <Icon className={cn("h-4 w-4 shrink-0", active ? profile.accentText : "text-[#71717A]")} />
+                  <span className="truncate">{item.label}</span>
+                </span>
+                {item.pill !== undefined ? (
+                  <span className="rounded-full bg-[#F4F4F5] px-2 py-0.5 font-mono-tabular text-[10px] text-[#52525B] shrink-0">
+                    {item.pill}
+                  </span>
                 ) : null}
-                <span className="relative z-10 flex items-center gap-2.5">
-                  <Icon className={cn("h-4 w-4", active ? "text-[#0F766E]" : "text-[#71717A]")} />
-                  {item.label}
-                </span>
-                <span className="relative z-10 rounded-full bg-[#F4F4F5] px-2 py-0.5 font-mono-tabular text-[10px] text-[#52525B]">
-                  {item.pill}
-                </span>
               </Link>
             );
           })}
@@ -274,18 +413,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           {protocolLinks.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setMobileNavOpen(false)}
-                className={cn(
-                  "relative flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition-colors",
-                  active ? "text-[#09090B] bg-white border border-[#E4E4E7] shadow-2xs" : "text-[#52525B] hover:bg-white/70 hover:text-[#09090B]"
-                )}
+                className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-[#52525B] hover:bg-white/70 hover:text-[#09090B] transition-colors"
               >
-                <Icon className={cn("h-4 w-4", active ? "text-[#0F766E]" : "text-[#71717A]")} />
+                <Icon className="h-4 w-4 text-[#71717A]" />
                 {item.label}
               </Link>
             );
@@ -365,7 +500,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex bg-[#FAFAFA]">
-      {/* Persistent Desktop Left Sidebar */}
+      {/* Persistent Role-Isolated Desktop Left Sidebar */}
       <aside className="hidden lg:flex lg:w-64 lg:shrink-0 lg:flex-col border-r border-[#E4E4E7] bg-[#F4F4F5]/75 sticky top-0 h-screen">
         {sidebarContent}
       </aside>
@@ -421,11 +556,87 @@ export function AppShell({ children }: { children: ReactNode }) {
                 Qlo
               </Link>
               <ChevronRight className="h-3.5 w-3.5 text-[#A1A1AA]" />
-              <span className="font-semibold text-[#09090B]">{meta.title}</span>
-              <span className="hidden sm:inline text-[#71717A]">· {meta.section}</span>
+              <span className="font-semibold text-[#09090B]">{profile.title}</span>
+              <span className="hidden sm:inline text-[#71717A]">· {profile.section}</span>
             </div>
 
             <div className="relative flex items-center gap-2">
+              {/* Stakeholder Portal Switcher */}
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-label="Switch stakeholder portal"
+                  onClick={() => {
+                    setRoleMenuOpen((prev) => !prev);
+                    setNotifOpen(false);
+                  }}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E4E4E7] bg-white px-2.5 text-xs font-medium text-[#09090B] hover:bg-[#F4F4F5] transition-colors cursor-pointer"
+                >
+                  <ArrowLeftRight className="h-3.5 w-3.5 text-[#0F766E]" />
+                  <span className="hidden md:inline">{profile.actorLabel}</span>
+                </button>
+
+                {roleMenuOpen ? (
+                  <div className="absolute right-0 top-10 w-80 rounded-2xl border border-[#E4E4E7] bg-white p-3 shadow-[0_16px_44px_-12px_rgba(15,23,42,0.22)] z-50 space-y-2">
+                    <div className="border-b border-[#F4F4F5] pb-2 text-[11px]">
+                      <div className="font-semibold text-[#09090B]">Switch Stakeholder Portal</div>
+                      <div className="text-[#71717A]">
+                        Open portals side-by-side to run 3 separate people across windows.
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      {STAKEHOLDER_SWITCH_OPTIONS.map((opt) => {
+                        const Icon = opt.icon;
+                        const active = pathname === opt.href;
+                        return (
+                          <div
+                            key={opt.href}
+                            className={cn(
+                              "flex items-center justify-between gap-2 rounded-xl border p-2 text-xs",
+                              active
+                                ? "border-[#0F766E]/40 bg-[#F0FDFA]/50"
+                                : "border-[#F4F4F5] bg-[#FAFAFA] hover:border-[#E4E4E7]"
+                            )}
+                          >
+                            <Link
+                              href={opt.href}
+                              onClick={() => setRoleMenuOpen(false)}
+                              className="flex items-center gap-2.5 min-w-0 flex-1"
+                            >
+                              <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border", opt.tone)}>
+                                <Icon className="h-3.5 w-3.5" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-semibold text-[#09090B] truncate flex items-center gap-1.5">
+                                  <span>{opt.label}</span>
+                                  {active ? (
+                                    <span className="text-[10px] font-mono-tabular text-[#047857]">
+                                      Current
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className="text-[10px] text-[#71717A] truncate">{opt.org}</div>
+                              </div>
+                            </Link>
+
+                            <a
+                              href={opt.href}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={`Open ${opt.label} in new browser tab`}
+                              aria-label={`Open ${opt.label} in new browser tab`}
+                              className="shrink-0 rounded-lg border border-[#E4E4E7] bg-white p-1.5 text-[#52525B] hover:text-[#09090B] transition-colors"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
               <button
                 type="button"
                 onClick={() => setOnboardingOpen(true)}
@@ -447,7 +658,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               <button
                 type="button"
                 aria-label="Toggle workspace notifications"
-                onClick={() => setNotifOpen((prev) => !prev)}
+                onClick={() => {
+                  setNotifOpen((prev) => !prev);
+                  setRoleMenuOpen(false);
+                }}
                 className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-[#E4E4E7] bg-white text-[#52525B] hover:bg-[#F4F4F5] hover:text-[#09090B] transition-colors cursor-pointer"
               >
                 <Bell className="h-4 w-4" />

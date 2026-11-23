@@ -6,9 +6,11 @@ import {
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
+  Download,
   Eye,
   EyeOff,
   Landmark,
+  RefreshCw,
   Search,
   ShieldCheck,
 } from "lucide-react";
@@ -27,7 +29,9 @@ import canonicalFixtures from "@/lib/canonicalFixtures.json";
 import { getProviderDisplayName } from "@/lib/clinicalCatalog";
 import { fetchSettledClaimsEvents } from "@/lib/chainEvents";
 import { CONTRACTS, DEPLOYMENT, IS_CHAIN_DEPLOYED, explorerTxUrl } from "@/lib/contracts";
+import { generateX12835Era } from "@/lib/healthcareStandards";
 import { loadLocalChainMirror, saveLocalChainMirror, type LocalSettledClaim } from "@/lib/localState";
+import { fetchRelayState, postRelayAction } from "@/lib/relayClient";
 import { formatWeiToEth, parseEthToWei, shortHex } from "@/lib/utils";
 
 const PHI_CANARIES = ["I21.0", "I25.10", "99285", "99214", "Aspirin", "Ticagrelor", "SYNTH-CASE"];
@@ -77,7 +81,8 @@ export default function InsurerPage() {
   const [phiHits, setPhiHits] = useState<string[] | null>(null);
 
   const refreshStats = async () => {
-    const mirror = loadLocalChainMirror();
+    const remote = !IS_CHAIN_DEPLOYED ? await fetchRelayState() : null;
+    const mirror = remote ?? loadLocalChainMirror();
     setSettledList(mirror.settledClaims);
     if (mirror.settledClaims.length > 0 && !selectedClaim) {
       const first = mirror.settledClaims[0];
@@ -153,10 +158,17 @@ export default function InsurerPage() {
       await publicClient.waitForTransactionReceipt({ hash });
       toast.success(`Deposited ${depositEth} ETH into ClaimsVault escrow`);
     } else {
-      const mirror = loadLocalChainMirror();
-      mirror.insurerEscrowWei = (BigInt(mirror.insurerEscrowWei) + val).toString();
-      saveLocalChainMirror(mirror);
-      toast.success(`Added ${depositEth} ETH to local escrow mirror`);
+      const updated = await postRelayAction({
+        action: "deposit",
+        amountWei: val.toString(),
+      });
+      if (!updated) {
+        const mirror = loadLocalChainMirror();
+        mirror.insurerEscrowWei = (BigInt(mirror.insurerEscrowWei) + val).toString();
+        saveLocalChainMirror(mirror);
+      }
+      window.dispatchEvent(new Event("storage"));
+      toast.success(`Added ${depositEth} ETH to clearinghouse escrow`);
     }
     await refreshStats();
   };
@@ -177,15 +189,27 @@ export default function InsurerPage() {
       await publicClient.waitForTransactionReceipt({ hash });
       toast.success(`Withdrew ${withdrawEth} ETH from ClaimsVault escrow`);
     } else {
-      const mirror = loadLocalChainMirror();
-      const bal = BigInt(mirror.insurerEscrowWei);
-      if (bal < val) {
-        toast.error("Insufficient escrow balance to withdraw");
+      try {
+        const updated = await postRelayAction({
+          action: "withdraw",
+          amountWei: val.toString(),
+        });
+        if (!updated) {
+          const mirror = loadLocalChainMirror();
+          const bal = BigInt(mirror.insurerEscrowWei);
+          if (bal < val) {
+            toast.error("Insufficient escrow balance to withdraw");
+            return;
+          }
+          mirror.insurerEscrowWei = (bal - val).toString();
+          saveLocalChainMirror(mirror);
+        }
+        window.dispatchEvent(new Event("storage"));
+        toast.success(`Withdrew ${withdrawEth} ETH from clearinghouse escrow`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Insufficient escrow balance to withdraw");
         return;
       }
-      mirror.insurerEscrowWei = (bal - val).toString();
-      saveLocalChainMirror(mirror);
-      toast.success(`Withdrew ${withdrawEth} ETH from local escrow mirror`);
     }
     await refreshStats();
   };
@@ -321,7 +345,7 @@ export default function InsurerPage() {
       </div>
 
       {/* Top 3 Porcelain Treasury Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div id="insurer-reserves" className="grid grid-cols-1 md:grid-cols-3 gap-4 scroll-mt-20">
         <SpotlightCard accent="emerald" className="p-6 space-y-3">
           <div className="text-xs font-medium text-[#52525B]">Insurer Escrow Balance</div>
           <div className="text-3xl font-bold tracking-tight text-[#047857]">
@@ -398,7 +422,7 @@ export default function InsurerPage() {
       </div>
 
       {/* Treasury Analytics Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+      <div id="insurer-analytics" className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch scroll-mt-20">
         <div className="lg:col-span-7">
           <InteractiveAreaChart
             className="h-full"
@@ -481,7 +505,7 @@ export default function InsurerPage() {
       </div>
 
       {/* OpenSourceUI Light Settled Claims Ledger Table */}
-      <SpotlightCard accent="neutral" className="overflow-hidden">
+      <SpotlightCard id="insurer-ledger" accent="neutral" className="overflow-hidden scroll-mt-20">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#F4F4F5] px-6 py-4">
           <div>
             <h2 className="text-sm font-semibold text-[#09090B]">Settled Claims Ledger</h2>
@@ -491,6 +515,14 @@ export default function InsurerPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            <TactileButton
+              size="sm"
+              variant="secondary"
+              onClick={() => refreshStats()}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Sync Ledger
+            </TactileButton>
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#71717A]" />
               <input
@@ -586,13 +618,35 @@ export default function InsurerPage() {
                         +{formatWeiToEth(row.amountWei, 4)} ETH
                       </td>
                       <td className="px-6 py-3 text-right">
-                        <TactileButton
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => inspectClaimRow(row)}
-                        >
-                          Inspect
-                        </TactileButton>
+                        <div className="inline-flex items-center justify-end gap-1.5">
+                          <TactileButton
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                              const eraText = generateX12835Era(
+                                row,
+                                getProviderDisplayName(row.hospital)
+                              );
+                              const blob = new Blob([eraText], { type: "text/plain" });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement("a");
+                              a.href = url;
+                              a.download = `qlo-835-era-${row.nullifier.slice(0, 10)}.edi`;
+                              a.click();
+                              URL.revokeObjectURL(url);
+                            }}
+                          >
+                            <Download className="h-3 w-3" />
+                            835 ERA
+                          </TactileButton>
+                          <TactileButton
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => inspectClaimRow(row)}
+                          >
+                            Inspect
+                          </TactileButton>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -632,6 +686,7 @@ export default function InsurerPage() {
       </SpotlightCard>
 
       {/* OpenSourceUI Light macOS BrowserMockupCard framing the Split-Screen Inspector */}
+      <div id="insurer-audit" className="scroll-mt-20">
       <BrowserMockupCard
         url={
           selectedClaim && IS_CHAIN_DEPLOYED
@@ -761,6 +816,7 @@ export default function InsurerPage() {
           </div>
         </div>
       </BrowserMockupCard>
+      </div>
     </div>
   );
 }

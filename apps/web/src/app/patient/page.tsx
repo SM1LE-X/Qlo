@@ -44,6 +44,11 @@ import {
 } from "@/lib/intake";
 import { loadLocalChainMirror, saveLocalChainMirror } from "@/lib/localState";
 import {
+  fetchRelayState,
+  postRelayAction,
+  pushCiphertextToRelay,
+} from "@/lib/relayClient";
+import {
   computeDeterministicCidV1,
   listVaultEntries,
   saveEncryptedRecordToVault,
@@ -84,7 +89,8 @@ export default function PatientPage() {
   const completeness = validateCms1500Completeness(claim);
 
   const syncOverviewState = async () => {
-    const mirror = loadLocalChainMirror();
+    const remote = !IS_CHAIN_DEPLOYED ? await fetchRelayState() : null;
+    const mirror = remote ?? loadLocalChainMirror();
     const now = Math.floor(Date.now() / 1000);
     setActiveGrantsMap(mirror.grants);
     setActiveGrantsCount(Object.values(mirror.grants).filter((g) => g.expiresAt > now).length);
@@ -291,39 +297,49 @@ export default function PatientPage() {
           ...prev,
         ]);
       } else {
-        const mirror = loadLocalChainMirror();
+        const updatedMirror = await postRelayAction({
+          action: "registerRecord",
+          recordCommitmentHex: encrypted.recordCommitmentHex,
+          cid,
+          patient: address || canonicalFixtures.accounts.patient,
+        });
+        const mirror = updatedMirror ?? loadLocalChainMirror();
         const existing = mirror.records.find(
           (r) => r.recordCommitmentHex.toLowerCase() === encrypted.recordCommitmentHex.toLowerCase()
         );
         const recId = existing ? existing.recordId : String(mirror.nextRecordId);
-        if (!existing) {
-          mirror.nextRecordId += 1;
-          mirror.records.push({
-            recordId: recId,
-            patient: address || canonicalFixtures.accounts.patient,
-            recordCommitmentHex: encrypted.recordCommitmentHex,
-            cid,
-            createdAt: Math.floor(Date.now() / 1000),
-          });
+        if (!updatedMirror) {
+          if (!existing) {
+            mirror.nextRecordId += 1;
+            mirror.records.push({
+              recordId: recId,
+              patient: address || canonicalFixtures.accounts.patient,
+              recordCommitmentHex: encrypted.recordCommitmentHex,
+              cid,
+              createdAt: Math.floor(Date.now() / 1000),
+            });
+          }
+          const entry: AuditEventItem = {
+            id: `reg-${Date.now()}`,
+            kind: "registered",
+            title: `Record #${recId} Registered (Local Sandbox)`,
+            detail: `CIDv1 ${cid} | 248-bit Commit ${encrypted.recordCommitmentHex}`,
+            timestamp: new Date().toLocaleTimeString(),
+          };
+          mirror.auditLogs = [entry, ...mirror.auditLogs];
+          saveLocalChainMirror(mirror);
         }
-        const entry: AuditEventItem = {
-          id: `reg-${Date.now()}`,
-          kind: "registered",
-          title: `Record #${recId} Registered (Local Sandbox)`,
-          detail: `CIDv1 ${cid} | 248-bit Commit ${encrypted.recordCommitmentHex}`,
-          timestamp: new Date().toLocaleTimeString(),
-        };
-        mirror.auditLogs = [entry, ...mirror.auditLogs];
-        saveLocalChainMirror(mirror);
         setRegisteredRecordId(recId);
         if (vaultEntry) {
           const updated = { ...vaultEntry, recordId: recId };
           setVaultEntry(updated);
           await saveEncryptedRecordToVault(updated);
+          await pushCiphertextToRelay(updated);
         }
+        window.dispatchEvent(new Event("storage"));
         setAuditItems(mirror.auditLogs);
         await syncOverviewState();
-        toast.success(`Registered encrypted record #${recId} in local consent mirror`);
+        toast.success(`Registered encrypted record #${recId} & published Zero-PHI ciphertext bundle`);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Registration failed");
@@ -350,6 +366,14 @@ export default function PatientPage() {
         if (onChainPub && onChainPub.length >= 132) {
           hospitalPubHex = onChainPub;
           setPubKeySource("On-Chain HospitalRegistry");
+        }
+      }
+      if (!hospitalPubHex && !IS_CHAIN_DEPLOYED) {
+        const relayState = await fetchRelayState();
+        const remoteKey = relayState?.hospitalPubKeys?.[targetHospital.toLowerCase()];
+        if (remoteKey && remoteKey.length >= 132) {
+          hospitalPubHex = remoteKey;
+          setPubKeySource("Clearinghouse Directory ECDH");
         }
       }
       if (!hospitalPubHex) {
@@ -391,21 +415,47 @@ export default function PatientPage() {
           ...prev,
         ]);
       } else {
-        const mirror = loadLocalChainMirror();
-        mirror.hospitalPubKeys[targetHospital.toLowerCase()] = hospitalPubHex;
-        mirror.grants[`${registeredRecordId}:${targetHospital.toLowerCase()}`] = {
+        if (vaultEntry) {
+          const entryWithTarget: StoredVaultEntry = {
+            ...vaultEntry,
+            recordId: registeredRecordId,
+            hospitalAddress: targetHospital,
+          };
+          setVaultEntry(entryWithTarget);
+          await saveEncryptedRecordToVault(entryWithTarget);
+          await pushCiphertextToRelay(entryWithTarget);
+        }
+
+        const updatedMirror = await postRelayAction({
+          action: "grant",
+          recordId: registeredRecordId,
+          hospitalAddress: targetHospital,
           expiresAt,
+          grantMinutes,
           encryptedDekHex,
-        };
-        const logEntry: AuditEventItem = {
-          id: `grant-${Date.now()}`,
-          kind: "granted",
-          title: `Access Granted (${grantMinutes}m) — Record #${registeredRecordId}`,
-          detail: `Hospital ${targetHospital} | ECDH P-256 Wrapped DEK (${(encryptedDekHex.length - 2) / 2} bytes)`,
-          timestamp: new Date().toLocaleTimeString(),
-        };
-        mirror.auditLogs = [logEntry, ...mirror.auditLogs];
-        saveLocalChainMirror(mirror);
+          recordCommitmentHex: encrypted.recordCommitmentHex,
+          hospitalPubKeyHex: hospitalPubHex,
+        });
+
+        const mirror = updatedMirror ?? loadLocalChainMirror();
+        if (!updatedMirror) {
+          mirror.hospitalPubKeys[targetHospital.toLowerCase()] = hospitalPubHex;
+          mirror.grants[`${registeredRecordId}:${targetHospital.toLowerCase()}`] = {
+            expiresAt,
+            encryptedDekHex,
+          };
+          const logEntry: AuditEventItem = {
+            id: `grant-${Date.now()}`,
+            kind: "granted",
+            title: `Access Granted (${grantMinutes}m) — Record #${registeredRecordId}`,
+            detail: `Hospital ${targetHospital} | ECDH P-256 Wrapped DEK (${(encryptedDekHex.length - 2) / 2} bytes)`,
+            timestamp: new Date().toLocaleTimeString(),
+          };
+          mirror.auditLogs = [logEntry, ...mirror.auditLogs];
+          saveLocalChainMirror(mirror);
+        }
+
+        window.dispatchEvent(new Event("storage"));
         setGrantExpiresAt(expiresAt);
         setAuditItems(mirror.auditLogs);
         await syncOverviewState();
@@ -446,17 +496,25 @@ export default function PatientPage() {
           ...prev,
         ]);
       } else {
-        const mirror = loadLocalChainMirror();
-        delete mirror.grants[`${registeredRecordId}:${targetHospital.toLowerCase()}`];
-        const logEntry: AuditEventItem = {
-          id: `rev-${Date.now()}`,
-          kind: "revoked",
-          title: `Access Revoked — Record #${registeredRecordId}`,
-          detail: `Hospital ${targetHospital} blocked; wrapped DEK deleted`,
-          timestamp: new Date().toLocaleTimeString(),
-        };
-        mirror.auditLogs = [logEntry, ...mirror.auditLogs];
-        saveLocalChainMirror(mirror);
+        const updatedMirror = await postRelayAction({
+          action: "revoke",
+          recordId: registeredRecordId,
+          hospitalAddress: targetHospital,
+        });
+        const mirror = updatedMirror ?? loadLocalChainMirror();
+        if (!updatedMirror) {
+          delete mirror.grants[`${registeredRecordId}:${targetHospital.toLowerCase()}`];
+          const logEntry: AuditEventItem = {
+            id: `rev-${Date.now()}`,
+            kind: "revoked",
+            title: `Access Revoked — Record #${registeredRecordId}`,
+            detail: `Hospital ${targetHospital} blocked; wrapped DEK deleted`,
+            timestamp: new Date().toLocaleTimeString(),
+          };
+          mirror.auditLogs = [logEntry, ...mirror.auditLogs];
+          saveLocalChainMirror(mirror);
+        }
+        window.dispatchEvent(new Event("storage"));
         setGrantExpiresAt(0);
         setAuditItems(mirror.auditLogs);
         await syncOverviewState();
@@ -549,7 +607,11 @@ export default function PatientPage() {
 
       {/* Main Studio Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <SpotlightCard accent="emerald" className="lg:col-span-7 p-6 space-y-5">
+        <SpotlightCard
+          id="patient-intake"
+          accent="emerald"
+          className="lg:col-span-7 p-6 space-y-5 scroll-mt-20"
+        >
           <div className="border-b border-[#F4F4F5] pb-4">
             <h2 className="text-sm font-semibold text-[#09090B]">
               1. CMS-1500 Claim Intake &amp; Local OCR
@@ -717,7 +779,7 @@ export default function PatientPage() {
         </SpotlightCard>
 
         {/* Right: Wallet Pass + Encryption + Consent Control */}
-        <div className="lg:col-span-5 space-y-5">
+        <div id="patient-consent" className="lg:col-span-5 space-y-5 scroll-mt-20">
           <WalletPassCard
             policyId={claim.insuredPolicyId || "2026001"}
             patientAlias={claim.patientAlias || "SYNTH-CASE"}
@@ -883,6 +945,25 @@ export default function PatientPage() {
                   </button>
                 ))}
               </div>
+              {/* SMART-on-FHIR Plain-Language Consent Disclosure */}
+              <div className="rounded-xl border border-[#99F6E4] bg-[#F0FDFA]/60 p-3 space-y-1 text-[11px]">
+                <div className="font-semibold text-[#0F766E]">
+                  Consent Scope Disclosure (SMART-on-FHIR Standard)
+                </div>
+                <p className="text-[#52525B] leading-relaxed">
+                  Authorizes{" "}
+                  <span className="font-semibold text-[#09090B]">
+                    {ACCREDITED_PROVIDERS.find(
+                      (p) => p.address.toLowerCase() === targetHospital.toLowerCase()
+                    )?.name ?? targetHospital}
+                  </span>{" "}
+                  to unwrap record{" "}
+                  <span className="font-mono-tabular font-semibold text-[#09090B]">
+                    #{registeredRecordId || "—"}
+                  </span>{" "}
+                  for <span className="font-semibold text-[#09090B]">{grantMinutes} minutes</span> exclusively to compute a zero-knowledge eligibility proof. Insurer sees <span className="font-semibold text-[#047857]">0 clinical bytes</span>.
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -908,7 +989,7 @@ export default function PatientPage() {
       </div>
 
       {/* Real Encrypted Records Vault Table */}
-      <SpotlightCard accent="neutral" className="p-6 space-y-4">
+      <SpotlightCard id="patient-vault" accent="neutral" className="p-6 space-y-4 scroll-mt-20">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F4F4F5] pb-3">
           <div>
             <h2 className="text-sm font-semibold text-[#09090B]">My Encrypted Records Vault</h2>
@@ -981,7 +1062,7 @@ export default function PatientPage() {
       </SpotlightCard>
 
       {/* Immutable Event Audit Log */}
-      <SpotlightCard accent="neutral" className="p-6 space-y-4">
+      <SpotlightCard id="patient-audit" accent="neutral" className="p-6 space-y-4 scroll-mt-20">
         <div className="flex items-center justify-between border-b border-[#F4F4F5] pb-3">
           <h2 className="text-sm font-semibold text-[#09090B]">
             Immutable Access &amp; Consent Audit Log
@@ -992,7 +1073,7 @@ export default function PatientPage() {
       </SpotlightCard>
 
       {/* Plain-English Covered Benefits Schedule */}
-      <section className="space-y-3">
+      <section id="patient-benefits" className="space-y-3 scroll-mt-20">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-sm font-semibold text-[#09090B]">

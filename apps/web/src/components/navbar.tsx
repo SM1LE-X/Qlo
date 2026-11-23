@@ -21,6 +21,7 @@ import { baseSepolia } from "wagmi/chains";
 import { IS_CHAIN_DEPLOYED } from "@/lib/contracts";
 import { loadLocalChainMirror } from "@/lib/localState";
 import { motionTransitions } from "@/lib/motion-tokens";
+import { fetchRelayState } from "@/lib/relayClient";
 import { listVaultEntries } from "@/lib/storage";
 import { cn, shortHex } from "@/lib/utils";
 import { verifyZkeyIntegrity } from "@/lib/zkeyIntegrity";
@@ -31,14 +32,14 @@ import { TactileButton } from "./ui/tactile-button";
 
 const NAV_LINKS = [
   { href: "/", label: "Overview", icon: Activity },
-  { href: "/patient", label: "Patient Vault", icon: FileLock2 },
-  { href: "/hospital", label: "Clearinghouse", icon: Cpu },
-  { href: "/insurer", label: "Payer Treasury", icon: Landmark },
+  { href: "/patient", label: "Patient Portal", icon: FileLock2 },
+  { href: "/hospital", label: "Hospital RCM", icon: Cpu },
+  { href: "/insurer", label: "Insurer Treasury", icon: Landmark },
   { href: "/story", label: "Trust Center", icon: ShieldCheck },
 ];
 
 /**
- * Clean light frosted product header for Qlo's public landing page (/).
+ * Clean light frosted product header for Qlo's public routes (/ and /story).
  */
 export function Navbar() {
   const pathname = usePathname();
@@ -70,27 +71,18 @@ export function Navbar() {
         if (active) setZkeyStatus("mismatch");
       });
 
-    const syncOnboarding = () => {
-      const mirror = loadLocalChainMirror();
+    const syncOnboarding = async () => {
+      const remote = !IS_CHAIN_DEPLOYED ? await fetchRelayState() : null;
+      const mirror = remote ?? loadLocalChainMirror();
       const now = Math.floor(Date.now() / 1000);
       const hasActiveGrant = Object.values(mirror.grants).some((g) => g.expiresAt > now);
-      listVaultEntries()
-        .then((items) => {
-          if (!active) return;
-          setOnboardingStats({
-            vaultCount: items.length,
-            hasActiveGrant,
-            settledCount: mirror.settledClaims.length,
-          });
-        })
-        .catch(() => {
-          if (!active) return;
-          setOnboardingStats({
-            vaultCount: 0,
-            hasActiveGrant,
-            settledCount: mirror.settledClaims.length,
-          });
-        });
+      const items = await listVaultEntries().catch(() => []);
+      if (!active) return;
+      setOnboardingStats({
+        vaultCount: items.length,
+        hasActiveGrant,
+        settledCount: mirror.settledClaims.length,
+      });
     };
 
     syncOnboarding();
@@ -106,16 +98,16 @@ export function Navbar() {
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-[#E4E4E7]/85 bg-white/85 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl flex-nowrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-5 shrink-0">
-            <Link href="/" className="flex items-center gap-2.5 group shrink-0">
+        <div className="mx-auto flex max-w-7xl flex-nowrap items-center justify-between gap-2 px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-3.5 shrink-0">
+            <Link href="/" className="flex items-center gap-2 group shrink-0">
               <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#09090B] text-white font-mono-tabular font-bold text-sm shadow-xs">
                 Q
               </div>
               <div className="leading-tight">
                 <div className="text-sm font-bold tracking-tight text-[#09090B]">Qlo</div>
                 <div className="text-[10px] font-medium text-[#71717A] whitespace-nowrap">
-                  Zero-Knowledge Clearinghouse
+                  ZK Clearinghouse
                 </div>
               </div>
             </Link>
@@ -151,12 +143,12 @@ export function Navbar() {
             </nav>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => setOnboardingOpen(true)}
               aria-label="Open onboarding guide"
-              className="hidden sm:inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#E4E4E7] bg-white px-2.5 py-1 text-[11px] font-medium text-[#52525B] hover:border-[#D4D4D8] hover:text-[#09090B] transition-colors cursor-pointer"
+              className="hidden sm:inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-[#E4E4E7] bg-white px-2 py-1 text-[11px] font-medium text-[#52525B] hover:border-[#D4D4D8] hover:text-[#09090B] transition-colors cursor-pointer"
             >
               <Compass className="h-3.5 w-3.5 text-[#0F766E]" />
               <span>Guide</span>
@@ -166,7 +158,7 @@ export function Navbar() {
               type="button"
               onClick={() => setCmdOpen(true)}
               aria-label="Open command menu"
-              className="hidden lg:inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#E4E4E7] bg-[#FAFAFA] px-2.5 py-1 text-[11px] font-mono-tabular text-[#52525B] hover:border-[#D4D4D8] hover:text-[#09090B] transition-colors cursor-pointer"
+              className="hidden xl:inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#E4E4E7] bg-[#FAFAFA] px-2 py-1 text-[11px] font-mono-tabular text-[#52525B] hover:border-[#D4D4D8] hover:text-[#09090B] transition-colors cursor-pointer"
             >
               <Search className="h-3 w-3" />
               <kbd className="rounded bg-[#E4E4E7]/70 px-1 text-[10px]">⌘K</kbd>
@@ -193,7 +185,7 @@ export function Navbar() {
               </Badge>
             ) : (
               <Badge variant="neutral" className="hidden sm:inline-flex whitespace-nowrap">
-                Sandbox Mode
+                Sandbox
               </Badge>
             )}
 

@@ -7,8 +7,11 @@ import {
   AlertOctagon,
   CheckCircle2,
   Cpu,
+  Download,
+  FileCode2,
   KeyRound,
   Landmark,
+  RefreshCw,
   ShieldAlert,
   Upload,
 } from "lucide-react";
@@ -27,13 +30,22 @@ import { TactileButton } from "@/components/ui/tactile-button";
 import { BorderBeam, Terminal } from "@/components/ui/terminal";
 import { TransitionPanel } from "@/components/ui/transition-panel";
 import canonicalFixtures from "@/lib/canonicalFixtures.json";
-import { getCptLabel, getProviderDisplayName } from "@/lib/clinicalCatalog";
+import {
+  ACCREDITED_PROVIDERS,
+  getCptLabel,
+  getProviderDisplayName,
+} from "@/lib/clinicalCatalog";
 import { CONTRACTS, IS_CHAIN_DEPLOYED, explorerTxUrl } from "@/lib/contracts";
 import {
   decryptClinicalPayload,
   getOrCreateHospitalKeypair,
   unwrapDekForHospital,
 } from "@/lib/crypto";
+import {
+  cms1500ToFhirClaim,
+  cms1500ToX12837P,
+  generateX12835Era,
+} from "@/lib/healthcareStandards";
 import { validateCms1500Completeness, type Cms1500Claim } from "@/lib/intake";
 import { loadLocalChainMirror, saveLocalChainMirror } from "@/lib/localState";
 import { motionTransitions } from "@/lib/motion-tokens";
@@ -44,8 +56,14 @@ import {
   type ProverOutput,
 } from "@/lib/prover";
 import {
+  fetchHospitalRelayVault,
+  fetchRelayState,
+  postRelayAction,
+} from "@/lib/relayClient";
+import {
   importAndVerifyQloBundle,
   listVaultEntries,
+  saveEncryptedRecordToVault,
   type StoredVaultEntry,
 } from "@/lib/storage";
 import { formatWeiToEth, parseEthToWei } from "@/lib/utils";
@@ -94,31 +112,99 @@ export default function HospitalPage() {
     status: "idle",
     detail: "",
   });
+  const [standardsTab, setStandardsTab] = useState<"fhir" | "x12">("fhir");
+  const [refreshingInbox, setRefreshingInbox] = useState(false);
 
-  const syncMetrics = () => {
-    const mirror = loadLocalChainMirror();
+  const syncMetrics = (customMirror?: ReturnType<typeof loadLocalChainMirror> | null) => {
+    const mirror = customMirror ?? loadLocalChainMirror();
     const totalWei = mirror.settledClaims.reduce((acc, c) => acc + BigInt(c.amountWei), 0n);
     setProviderRevenueEth(Number(formatWeiToEth(totalWei, 4)));
     setSettledClaimsCount(mirror.settledClaims.length);
   };
 
+  const refreshHospitalInbox = async (targetAddr = hospitalAddr, forceSyncKey = false) => {
+    setRefreshingInbox(true);
+    try {
+      const kp = await getOrCreateHospitalKeypair(targetAddr);
+      setHospitalPubKeyHex(kp.publicKeyHex);
+
+      if (!IS_CHAIN_DEPLOYED) {
+        const [localItems, relayedItems, remoteMirror] = await Promise.all([
+          listVaultEntries().catch(() => [] as StoredVaultEntry[]),
+          fetchHospitalRelayVault(targetAddr),
+          fetchRelayState(),
+        ]);
+
+        if (
+          forceSyncKey ||
+          !remoteMirror?.hospitalPubKeys?.[targetAddr.toLowerCase()]
+        ) {
+          await postRelayAction({
+            action: "publishPubKey",
+            hospitalAddress: targetAddr,
+            publicKeyHex: kp.publicKeyHex,
+            force: forceSyncKey,
+          });
+        }
+
+        const mergedByCommit = new Map<string, StoredVaultEntry>();
+        for (const item of localItems) {
+          mergedByCommit.set(item.recordCommitmentHex.toLowerCase(), item);
+        }
+        for (const rel of relayedItems) {
+          const key = rel.recordCommitmentHex.toLowerCase();
+          const existing = mergedByCommit.get(key);
+          if (!existing) {
+            mergedByCommit.set(key, rel);
+            await saveEncryptedRecordToVault(rel).catch(() => undefined);
+          } else if (!existing.recordId && rel.recordId) {
+            mergedByCommit.set(key, { ...existing, recordId: rel.recordId });
+          }
+        }
+
+        const mergedList = Array.from(mergedByCommit.values()).sort((a, b) =>
+          b.createdAt.localeCompare(a.createdAt)
+        );
+        setEntries(mergedList);
+        setSelectedEntry((prev) => {
+          if (
+            prev &&
+            mergedList.some(
+              (x) =>
+                x.recordCommitmentHex.toLowerCase() ===
+                prev.recordCommitmentHex.toLowerCase()
+            )
+          ) {
+            return (
+              mergedList.find(
+                (x) =>
+                  x.recordCommitmentHex.toLowerCase() ===
+                  prev.recordCommitmentHex.toLowerCase()
+              ) ?? mergedList[0] ?? null
+            );
+          }
+          return mergedList[0] ?? null;
+        });
+        syncMetrics(remoteMirror);
+      } else {
+        const localItems = await listVaultEntries().catch(() => [] as StoredVaultEntry[]);
+        setEntries(localItems);
+        if (localItems.length > 0) setSelectedEntry(localItems[0]);
+        syncMetrics();
+      }
+    } finally {
+      setRefreshingInbox(false);
+    }
+  };
+
   useEffect(() => {
-    listVaultEntries().then((items) => {
-      setEntries(items);
-      if (items.length > 0) setSelectedEntry(items[0]);
-    });
-    syncMetrics();
-  }, []);
+    refreshHospitalInbox(hospitalAddr, false).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hospitalAddr]);
 
   useEffect(() => {
     if (address) setHospitalAddr(address);
   }, [address]);
-
-  useEffect(() => {
-    getOrCreateHospitalKeypair(hospitalAddr)
-      .then((kp) => setHospitalPubKeyHex(kp.publicKeyHex))
-      .catch(() => undefined);
-  }, [hospitalAddr]);
 
   const appendLog = (text: string, tone: "info" | "ok" | "warn" | "err" = "info") => {
     setTerminalLines((prev) => [...prev, { text, tone }]);
@@ -140,10 +226,16 @@ export default function HospitalPage() {
       await publicClient.waitForTransactionReceipt({ hash });
       toast.success("Registered ECDH P-256 public key in HospitalRegistry");
     } else {
+      await postRelayAction({
+        action: "publishPubKey",
+        hospitalAddress: hospitalAddr,
+        publicKeyHex: hospitalPubKeyHex,
+        force: true,
+      });
       const mirror = loadLocalChainMirror();
       mirror.hospitalPubKeys[hospitalAddr.toLowerCase()] = hospitalPubKeyHex;
       saveLocalChainMirror(mirror);
-      toast.success("Synced Hospital ECDH P-256 public key locally");
+      toast.success("Synced Hospital ECDH P-256 public key to clearinghouse directory");
     }
   };
 
@@ -194,7 +286,8 @@ export default function HospitalPage() {
         }
         encryptedDekHex = dekBytes;
       } else {
-        const mirror = loadLocalChainMirror();
+        const remote = await fetchRelayState();
+        const mirror = remote ?? loadLocalChainMirror();
         const rec = mirror.records.find(
           (r) => r.recordCommitmentHex.toLowerCase() === selectedEntry.recordCommitmentHex.toLowerCase()
         );
@@ -208,17 +301,24 @@ export default function HospitalPage() {
           );
         }
         encryptedDekHex = grant.encryptedDekHex;
-        mirror.auditLogs = [
-          {
-            id: `acc-${Date.now()}`,
-            kind: "accessed",
-            title: `Hospital Accessed Record #${rec.recordId}`,
-            detail: `Unwrapped ECDH DEK for ${hospitalAddr}`,
-            timestamp: new Date().toLocaleTimeString(),
-          },
-          ...mirror.auditLogs,
-        ];
-        saveLocalChainMirror(mirror);
+        const updatedMirror = await postRelayAction({
+          action: "logAccess",
+          recordId: rec.recordId,
+          hospitalAddress: hospitalAddr,
+        });
+        if (!updatedMirror) {
+          mirror.auditLogs = [
+            {
+              id: `acc-${Date.now()}`,
+              kind: "accessed",
+              title: `Hospital Accessed Record #${rec.recordId}`,
+              detail: `Unwrapped ECDH DEK for ${hospitalAddr}`,
+              timestamp: new Date().toLocaleTimeString(),
+            },
+            ...mirror.auditLogs,
+          ];
+          saveLocalChainMirror(mirror);
+        }
       }
 
       const kp = await getOrCreateHospitalKeypair(hospitalAddr);
@@ -258,22 +358,31 @@ export default function HospitalPage() {
         appendLog(`Logged RecordAccessed(${recId.toString()}) on Base Sepolia: ${hash}`, "ok");
         toast.success("Logged immutable RecordAccessed audit event on Base Sepolia");
       } else {
-        const mirror = loadLocalChainMirror();
+        const remote = await fetchRelayState();
+        const mirror = remote ?? loadLocalChainMirror();
         const rec = mirror.records.find(
           (r) => r.recordCommitmentHex.toLowerCase() === selectedEntry.recordCommitmentHex.toLowerCase()
         );
         const recId = rec?.recordId ?? selectedEntry.recordId ?? "?";
-        mirror.auditLogs = [
-          {
-            id: `log-acc-${Date.now()}`,
-            kind: "accessed",
-            title: `Explicit Access Audit Logged — Record #${recId}`,
-            detail: `HealthRecords.logAccess(${recId}) verified for ${hospitalAddr}`,
-            timestamp: new Date().toLocaleTimeString(),
-          },
-          ...mirror.auditLogs,
-        ];
-        saveLocalChainMirror(mirror);
+        const updatedMirror = await postRelayAction({
+          action: "logAccess",
+          recordId: recId,
+          hospitalAddress: hospitalAddr,
+        });
+        if (!updatedMirror) {
+          mirror.auditLogs = [
+            {
+              id: `log-acc-${Date.now()}`,
+              kind: "accessed",
+              title: `Explicit Access Audit Logged — Record #${recId}`,
+              detail: `HealthRecords.logAccess(${recId}) verified for ${hospitalAddr}`,
+              timestamp: new Date().toLocaleTimeString(),
+            },
+            ...mirror.auditLogs,
+          ];
+          saveLocalChainMirror(mirror);
+        }
+        window.dispatchEvent(new Event("storage"));
         appendLog(`Explicit RecordAccessed(${recId}) audit entry recorded`, "ok");
         toast.success(`Logged RecordAccessed audit entry for Record #${recId}`);
       }
@@ -305,7 +414,8 @@ export default function HospitalPage() {
           args: [commitmentBigInt],
         })) as bigint;
       } else {
-        const mirror = loadLocalChainMirror();
+        const remote = await fetchRelayState();
+        const mirror = remote ?? loadLocalChainMirror();
         priorSpentWei = BigInt(
           mirror.policySpentWei[canonicalFixtures.activePolicy.commitment] ?? "0"
         );
@@ -358,63 +468,79 @@ export default function HospitalPage() {
         appendLog(`Base Sepolia Tx Settled: ${hash}`, "ok");
         toast.success("Claim settled on Base Sepolia — ETH transferred to Hospital!");
       } else {
-        const mirror = loadLocalChainMirror();
         const nullifierStr = pubSignals[2].toString();
         const policyStr = pubSignals[1].toString();
         const amount = pubSignals[3];
-        const recId = mirror.records.find(
-          (r) => r.recordCommitmentHex.toLowerCase() === selectedEntry.recordCommitmentHex.toLowerCase()
-        )?.recordId;
-        const grant = recId ? mirror.grants[`${recId}:${hospitalAddr.toLowerCase()}`] : null;
-        if (!grant || grant.expiresAt <= Math.floor(Date.now() / 1000)) {
-          throw new Error("ClaimsVault.PatientAccessNotActive()");
-        }
-        if (mirror.nullifierUsed[nullifierStr]) {
-          throw new Error("ClaimsVault.NullifierAlreadyUsed()");
-        }
-        if (BigInt(mirror.insurerEscrowWei) < amount) {
-          throw new Error("ClaimsVault.InsufficientEscrow()");
-        }
-
         const pseudoHash = ("0x" +
           Array.from(crypto.getRandomValues(new Uint8Array(32)))
             .map((b) => b.toString(16).padStart(2, "0"))
             .join("")) as `0x${string}`;
 
-        mirror.nullifierUsed[nullifierStr] = true;
-        mirror.policySpentWei[policyStr] = (
-          BigInt(mirror.policySpentWei[policyStr] ?? "0") + amount
-        ).toString();
-        mirror.insurerEscrowWei = (BigInt(mirror.insurerEscrowWei) - amount).toString();
-        mirror.settledClaims = [
-          {
-            txHash: pseudoHash,
-            nullifier: nullifierStr,
-            policyCommitment: policyStr,
-            recordCommitmentHex: selectedEntry.recordCommitmentHex,
-            hospital: hospitalAddr,
-            amountWei: amount.toString(),
-            settledAt: Math.floor(Date.now() / 1000),
-            rawCalldataHex,
-            pubSignals: proverOutput.publicSignals,
-          },
-          ...mirror.settledClaims,
-        ];
-        mirror.auditLogs = [
-          {
-            id: `settle-${Date.now()}`,
-            kind: "settled",
-            title: `Claim Settled (+${amountFmt} ETH)`,
-            detail: `Nullifier ${nullifierStr.slice(0, 16)}... | Zero PHI emitted`,
-            timestamp: new Date().toLocaleTimeString(),
-            txHash: pseudoHash,
-          },
-          ...mirror.auditLogs,
-        ];
-        saveLocalChainMirror(mirror);
+        const relayed = await postRelayAction({
+          action: "settle",
+          recordCommitmentHex: selectedEntry.recordCommitmentHex,
+          hospitalAddress: hospitalAddr,
+          policyCommitment: policyStr,
+          nullifier: nullifierStr,
+          amountWei: amount.toString(),
+          rawCalldataHex,
+          pubSignals: proverOutput.publicSignals,
+          txHash: pseudoHash,
+        });
+
+        if (!relayed) {
+          const mirror = loadLocalChainMirror();
+          const recId = mirror.records.find(
+            (r) => r.recordCommitmentHex.toLowerCase() === selectedEntry.recordCommitmentHex.toLowerCase()
+          )?.recordId;
+          const grant = recId ? mirror.grants[`${recId}:${hospitalAddr.toLowerCase()}`] : null;
+          if (!grant || grant.expiresAt <= Math.floor(Date.now() / 1000)) {
+            throw new Error("ClaimsVault.PatientAccessNotActive()");
+          }
+          if (mirror.nullifierUsed[nullifierStr]) {
+            throw new Error("ClaimsVault.NullifierAlreadyUsed()");
+          }
+          if (BigInt(mirror.insurerEscrowWei) < amount) {
+            throw new Error("ClaimsVault.InsufficientEscrow()");
+          }
+
+          mirror.nullifierUsed[nullifierStr] = true;
+          mirror.policySpentWei[policyStr] = (
+            BigInt(mirror.policySpentWei[policyStr] ?? "0") + amount
+          ).toString();
+          mirror.insurerEscrowWei = (BigInt(mirror.insurerEscrowWei) - amount).toString();
+          mirror.settledClaims = [
+            {
+              txHash: pseudoHash,
+              nullifier: nullifierStr,
+              policyCommitment: policyStr,
+              recordCommitmentHex: selectedEntry.recordCommitmentHex,
+              hospital: hospitalAddr,
+              amountWei: amount.toString(),
+              settledAt: Math.floor(Date.now() / 1000),
+              rawCalldataHex,
+              pubSignals: proverOutput.publicSignals,
+            },
+            ...mirror.settledClaims,
+          ];
+          mirror.auditLogs = [
+            {
+              id: `settle-${Date.now()}`,
+              kind: "settled",
+              title: `Claim Settled (+${amountFmt} ETH)`,
+              detail: `Nullifier ${nullifierStr.slice(0, 16)}... | Zero PHI emitted`,
+              timestamp: new Date().toLocaleTimeString(),
+              txHash: pseudoHash,
+            },
+            ...mirror.auditLogs,
+          ];
+          saveLocalChainMirror(mirror);
+        }
+
+        window.dispatchEvent(new Event("storage"));
         setSettledAmountEth(amountFmt);
         setSettledTx(pseudoHash);
-        syncMetrics();
+        syncMetrics(relayed);
         appendLog(`Settled ${amountFmt} ETH (0 PHI bytes in calldata)`, "ok");
         toast.success(`Auto-settled ${amountFmt} ETH to Hospital!`);
       }
@@ -567,7 +693,8 @@ export default function HospitalPage() {
           );
         }
 
-        const mirror = loadLocalChainMirror();
+        const remote = await fetchRelayState();
+        const mirror = remote ?? loadLocalChainMirror();
         const recId = selectedEntry?.recordId || "1";
         const grant = mirror.grants[`${recId}:${hospitalAddr.toLowerCase()}`];
         if (!grant || grant.expiresAt <= Math.floor(Date.now() / 1000)) {
@@ -607,6 +734,15 @@ export default function HospitalPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <TactileButton
+            size="sm"
+            variant="secondary"
+            onClick={() => refreshHospitalInbox(hospitalAddr, false)}
+            disabled={refreshingInbox}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 text-[#0F766E] ${refreshingInbox ? "animate-spin" : ""}`} />
+            Refresh Inbox
+          </TactileButton>
           <TactileButton size="sm" variant="secondary" onClick={handleRegisterHospitalPubKey}>
             <KeyRound className="h-3.5 w-3.5 text-[#0F766E]" />
             Sync Hospital ECDH Key
@@ -681,11 +817,43 @@ export default function HospitalPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Authorized Records Queue */}
-        <SpotlightCard accent="neutral" className="lg:col-span-5 p-6 space-y-4 text-xs">
+        <SpotlightCard
+          id="hospital-queue"
+          accent="neutral"
+          className="lg:col-span-5 p-6 space-y-4 text-xs scroll-mt-20"
+        >
           <div className="border-b border-[#F4F4F5] pb-3">
             <h2 className="text-sm font-semibold text-[#09090B]">
               1. Fetch &amp; Unwrap Patient Record
             </h2>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-medium text-[#52525B]">Facility Identity</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {ACCREDITED_PROVIDERS.map((prov) => {
+                const selected = prov.address.toLowerCase() === hospitalAddr.toLowerCase();
+                return (
+                  <button
+                    key={prov.address}
+                    type="button"
+                    onClick={() => setHospitalAddr(prov.address)}
+                    className={`rounded-xl border px-3 py-2 text-left transition-colors cursor-pointer ${
+                      selected
+                        ? "border-[#0F4C81] bg-[#F0F9FF]/70"
+                        : "border-[#E4E4E7] bg-[#FAFAFA] hover:border-[#D4D4D8] hover:bg-white"
+                    }`}
+                  >
+                    <div className="truncate text-[11px] font-semibold text-[#09090B]">
+                      {prov.name}
+                    </div>
+                    <div className="font-mono-tabular text-[10px] text-[#52525B]">
+                      NPI {prov.licenseId}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div>
@@ -779,7 +947,11 @@ export default function HospitalPage() {
         </SpotlightCard>
 
         {/* Right: Orbital Prover + Predicates + Receipt + Dark Contrast Terminal */}
-        <SpotlightCard accent="emerald" className="lg:col-span-7 relative p-6 space-y-4">
+        <SpotlightCard
+          id="hospital-prover"
+          accent="emerald"
+          className="lg:col-span-7 relative p-6 space-y-4 scroll-mt-20"
+        >
           <BorderBeam
             active={proveStage !== "idle"}
             color={proveStage === "failed" ? "crimson" : proveStage === "done" ? "emerald" : "amber"}
@@ -851,6 +1023,41 @@ export default function HospitalPage() {
                 hospitalAddress={hospitalAddr}
                 nullifier={proverOutput.publicSignals[2]}
               />
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#A7F3D0] bg-[#ECFDF5]/50 px-4 py-2.5 text-xs">
+                <span className="text-[#047857] font-medium">
+                  Zero-PHI Electronic Remittance Advice ready for practice ledger reconciliation
+                </span>
+                <TactileButton
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    const eraText = generateX12835Era(
+                      {
+                        txHash: settledTx,
+                        nullifier: proverOutput.publicSignals[2],
+                        policyCommitment: proverOutput.publicSignals[1],
+                        recordCommitmentHex: selectedEntry?.recordCommitmentHex ?? "0x0",
+                        hospital: hospitalAddr,
+                        amountWei: proverOutput.solidity.pubSignals[3].toString(),
+                        settledAt: Math.floor(Date.now() / 1000),
+                        rawCalldataHex: proverOutput.solidity.rawCalldataHex,
+                        pubSignals: proverOutput.publicSignals,
+                      },
+                      getProviderDisplayName(hospitalAddr)
+                    );
+                    const blob = new Blob([eraText], { type: "text/plain" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `qlo-835-era-${proverOutput.publicSignals[2].slice(0, 10)}.edi`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download X12 835 ERA
+                </TactileButton>
+              </div>
             </div>
           ) : null}
 
@@ -858,8 +1065,114 @@ export default function HospitalPage() {
         </SpotlightCard>
       </div>
 
+      {/* Healthcare Standards Interoperability (HL7 FHIR R4 & ANSI X12 837P) */}
+      <SpotlightCard id="hospital-standards" accent="neutral" className="p-6 space-y-4 scroll-mt-20">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#F4F4F5] pb-3">
+          <div className="flex items-center gap-2">
+            <FileCode2 className="h-4 w-4 text-[#0F4C81]" />
+            <div>
+              <h2 className="text-sm font-semibold text-[#09090B]">
+                Healthcare Standards Interoperability (Off-Chain Clearinghouse Staging)
+              </h2>
+              <p className="text-xs text-[#52525B]">
+                Inspect and export standard HL7 FHIR R4 Claim JSON or ANSI X12 837P (005010X222A1) generated locally after DEK unwrap—never exposed on-chain.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-1">
+              {(
+                [
+                  ["fhir", "HL7 FHIR R4"],
+                  ["x12", "ANSI X12 837P"],
+                ] as const
+              ).map(([id, label]) => {
+                const active = standardsTab === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setStandardsTab(id)}
+                    className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                      active
+                        ? "bg-white text-[#09090B] shadow-2xs"
+                        : "text-[#71717A] hover:text-[#09090B]"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {decryptedClaim ? (
+              <TactileButton
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  const content =
+                    standardsTab === "fhir"
+                      ? JSON.stringify(
+                          cms1500ToFhirClaim(
+                            decryptedClaim,
+                            getProviderDisplayName(hospitalAddr)
+                          ),
+                          null,
+                          2
+                        )
+                      : cms1500ToX12837P(
+                          decryptedClaim,
+                          getProviderDisplayName(hospitalAddr),
+                          hospitalAddr
+                        );
+                  const blob = new Blob([content], {
+                    type: standardsTab === "fhir" ? "application/json" : "text/plain",
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download =
+                    standardsTab === "fhir"
+                      ? `qlo-fhir-claim-${decryptedClaim.cptCode}.json`
+                      : `qlo-x12-837p-${decryptedClaim.cptCode}.edi`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export {standardsTab === "fhir" ? "FHIR Claim" : "X12 837P"}
+              </TactileButton>
+            ) : null}
+          </div>
+        </div>
+
+        {decryptedClaim ? (
+          <pre className="max-h-64 overflow-y-auto rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-4 font-mono-tabular text-[11px] leading-relaxed text-[#09090B]">
+            {standardsTab === "fhir"
+              ? JSON.stringify(
+                  cms1500ToFhirClaim(
+                    decryptedClaim,
+                    getProviderDisplayName(hospitalAddr)
+                  ),
+                  null,
+                  2
+                )
+              : cms1500ToX12837P(
+                  decryptedClaim,
+                  getProviderDisplayName(hospitalAddr),
+                  hospitalAddr
+                )}
+          </pre>
+        ) : (
+          <div className="rounded-xl border border-dashed border-[#D4D4D8] bg-[#FAFAFA] py-6 text-center text-xs text-[#71717A]">
+            Unwrap and decrypt an authorized patient record above to stage standard HL7 FHIR R4 or ANSI X12 837P claim artifacts locally.
+          </div>
+        )}
+      </SpotlightCard>
+
       {/* Policy & Fraud Guardrail Verifier */}
-      <SpotlightCard accent="crimson" className="p-6 space-y-4">
+      <SpotlightCard id="hospital-guardrails" accent="crimson" className="p-6 space-y-4 scroll-mt-20">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F4F4F5] pb-3">
           <div className="flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-[#B91C1C]" />

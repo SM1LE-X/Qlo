@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { IS_CHAIN_DEPLOYED } from "@/lib/contracts";
 import { resetLocalChainMirror } from "@/lib/localState";
 import { motionTransitions } from "@/lib/motion-tokens";
+import { resetRelaySession } from "@/lib/relayClient";
 import { clearVaultEntries } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import { TactileButton } from "./tactile-button";
@@ -65,7 +66,7 @@ function buildMilestones(
     {
       id: "encrypt-authorize",
       stepNum: 1,
-      title: "Encrypt & Authorize",
+      title: "Patient: Encrypt & Grant",
       description:
         "Run on-device CMS-1500 OCR, seal ciphertext via AES-256-GCM, and issue a time-bounded hospital grant.",
       href: "/patient",
@@ -74,7 +75,7 @@ function buildMilestones(
     {
       id: "prove-disburse",
       stepNum: 2,
-      title: "Prove & Disburse",
+      title: "Hospital: Prove & Disburse",
       description:
         "Unwrap the granted DEK, generate an 8-predicate Groth16 Web Worker proof, and settle from ClaimsVault escrow.",
       href: "/hospital",
@@ -83,7 +84,7 @@ function buildMilestones(
     {
       id: "audit-calldata",
       stepNum: 3,
-      title: "Audit Calldata",
+      title: "Insurer: Audit Calldata",
       description:
         "Inspect raw transaction inputs in Payer Treasury to confirm zero clinical diagnoses or CPT codes leak on-chain.",
       href: "/insurer",
@@ -92,7 +93,7 @@ function buildMilestones(
     {
       id: "verify-key",
       stepNum: 4,
-      title: "Verify Circuit Key",
+      title: "Public: Verify Circuit Key",
       description:
         "Verify the browser proving key SHA-256 checksum and review the 8 public signal invariants in Trust Center.",
       href: "/story",
@@ -304,7 +305,10 @@ export function OnboardingModal({
   const handleResetSession = async () => {
     setResetting(true);
     try {
-      await clearVaultEntries().catch(() => undefined);
+      await Promise.all([
+        clearVaultEntries().catch(() => undefined),
+        resetRelaySession().catch(() => undefined),
+      ]);
       resetLocalChainMirror();
       window.localStorage.removeItem(ONBOARDING_DISMISSED_KEY);
       window.localStorage.removeItem(ONBOARDING_VISITS_KEY);
@@ -436,12 +440,24 @@ export function OnboardingModal({
                           <div className="text-[11px] font-medium text-[#047857]">
                             {role.boundary}
                           </div>
-                          <Link href={role.href} onClick={() => onOpenChange(false)}>
-                            <TactileButton size="sm" variant="primary" className="w-full">
-                              {role.cta}
-                              <ArrowRight className="h-3.5 w-3.5" />
-                            </TactileButton>
-                          </Link>
+                          <div className="flex items-center gap-2">
+                            <Link href={role.href} onClick={() => onOpenChange(false)} className="flex-1">
+                              <TactileButton size="sm" variant="primary" className="w-full">
+                                {role.cta}
+                                <ArrowRight className="h-3.5 w-3.5" />
+                              </TactileButton>
+                            </Link>
+                            <a
+                              href={role.href}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={`Open ${role.title} in new tab`}
+                              aria-label={`Open ${role.title} in new tab`}
+                              className="inline-flex h-8 items-center justify-center rounded-lg border border-[#E4E4E7] bg-white px-2.5 text-[11px] font-medium text-[#52525B] hover:border-[#D4D4D8] hover:text-[#09090B] transition-colors whitespace-nowrap"
+                            >
+                              New Tab ↗
+                            </a>
+                          </div>
                         </div>
                       </div>
                     );

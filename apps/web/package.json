@@ -8,7 +8,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "setup:ocr": "node scripts/setup-ocr.mjs",
-    "audit:browser": "node e2e/browser-audit.mjs"
+    "audit:browser": "node e2e/browser-audit.mjs",
+    "audit:multi-actor": "node e2e/multi-actor-audit.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",

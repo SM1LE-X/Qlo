@@ -159,9 +159,6 @@ export default function HomePage() {
       ? Number(formatWeiToEth(chainReads[1].result as bigint, 4))
       : localStats.escrowEth;
 
-  const currentTab = WORKSPACE_TABS.find((t) => t.id === activeWorkspace) ?? WORKSPACE_TABS[0];
-  const TabIcon = currentTab.icon;
-
   return (
     <div className="space-y-12 pt-2">
       {/* 1. Asymmetric Product Hero */}
@@ -285,80 +282,84 @@ export default function HomePage() {
         />
       </section>
 
-      {/* 3. Interactive Multi-Role Platform Workspaces Showcase */}
+      {/* 3. Three Independent Stakeholder Portals Showcase */}
       <SpotlightCard accent="neutral" className="p-6 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#F4F4F5] pb-4">
           <div>
             <h2 className="text-base font-semibold text-[#09090B]">
-              Role-Separated Clearinghouse Workspaces
+              Built for Three Independent Organizations
             </h2>
             <p className="text-xs text-[#52525B]">
-              Dedicated portals enforce cryptographic separation of duties across member, provider, and payer workflows.
+              Each party signs in to an isolated portal with strict role separation—encrypted payloads, wrapped DEKs, and settlements synchronize live across browser windows via our Zero-PHI relay.
             </p>
           </div>
-
-          <div className="inline-flex rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-1">
-            {WORKSPACE_TABS.map((tab) => {
-              const active = tab.id === activeWorkspace;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveWorkspace(tab.id)}
-                  className={`relative rounded-lg px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
-                    active ? "text-[#09090B]" : "text-[#71717A] hover:text-[#09090B]"
-                  }`}
-                >
-                  {active ? (
-                    <motion.span
-                      layoutId="home-workspace-tab"
-                      transition={motionTransitions.springMorph}
-                      className="absolute inset-0 rounded-lg bg-white border border-[#E4E4E7]/80 shadow-xs"
-                    />
-                  ) : null}
-                  <span className="relative z-10">{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
+          <Badge variant="teal">Cross-Browser Live Sync</Badge>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-          <div className="lg:col-span-7 space-y-3">
-            <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#0F766E]">
-              <TabIcon className="h-4 w-4" />
-              {currentTab.label} Workspace
-            </div>
-            <h3 className="text-xl font-bold tracking-tight text-[#09090B]">
-              {currentTab.headline}
-            </h3>
-            <p className="text-xs sm:text-sm text-[#52525B] leading-relaxed">
-              {currentTab.summary}
-            </p>
-            <div className="pt-2">
-              <Link href={currentTab.href}>
-                <TactileButton variant="emerald" size="md">
-                  {currentTab.cta}
-                  <ArrowRight className="h-4 w-4" />
-                </TactileButton>
-              </Link>
-            </div>
-          </div>
-
-          <div className="lg:col-span-5 rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-4 space-y-2.5">
-            <div className="text-[10px] font-mono-tabular uppercase tracking-wider text-[#71717A]">
-              Enforced Guarantees
-            </div>
-            {currentTab.guarantees.map((g) => (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {WORKSPACE_TABS.map((tab, idx) => {
+            const Icon = tab.icon;
+            const roleLabels = [
+              { actor: "Person 1 · Member", sees: "Plaintext CMS-1500, ICD-10, Rx & Consent Keys", hidden: "Hospital Prover & Insurer Reserve Ops" },
+              { actor: "Person 2 · Billing / RCM", sees: "Authorized Records, Groth16 Prover & 837P / FHIR", hidden: "Revoked Records & Payer Private Annual Cap" },
+              { actor: "Person 3 · Health Plan Ops", sees: "Treasury Escrow, Ledger, 835 ERA & Calldata Scan", hidden: "Member ICD-10 Diagnoses, CPT Codes & Rx" },
+            ][idx];
+            return (
               <div
-                key={g}
-                className="flex items-start gap-2 rounded-lg border border-[#E4E4E7] bg-white px-3 py-2 text-xs text-[#09090B]"
+                key={tab.id}
+                onMouseEnter={() => setActiveWorkspace(tab.id)}
+                className={`flex flex-col justify-between rounded-2xl border p-5 space-y-4 transition-colors ${
+                  activeWorkspace === tab.id
+                    ? "border-[#0F766E]/50 bg-[#F0FDFA]/30"
+                    : "border-[#E4E4E7] bg-[#FAFAFA]"
+                }`}
               >
-                <CheckCircle2 className="h-4 w-4 text-[#0F766E] shrink-0 mt-0.5" />
-                <span>{g}</span>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#E4E4E7] bg-white text-[#0F766E]">
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <span className="rounded-full border border-[#E4E4E7] bg-white px-2.5 py-0.5 text-[10px] font-mono-tabular font-semibold text-[#52525B]">
+                      {roleLabels.actor}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-bold text-[#09090B]">{tab.label}</h3>
+                    <p className="mt-1 text-xs text-[#52525B] leading-relaxed">{tab.headline}</p>
+                  </div>
+
+                  <div className="space-y-1.5 rounded-xl border border-[#E4E4E7] bg-white p-3 text-[11px]">
+                    <div>
+                      <span className="font-semibold text-[#047857]">Sees: </span>
+                      <span className="text-[#52525B]">{roleLabels.sees}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-[#B45309]">Isolated From: </span>
+                      <span className="text-[#71717A]">{roleLabels.hidden}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <Link href={tab.href} className="flex-1">
+                    <TactileButton variant={idx === 0 ? "primary" : "emerald"} size="sm" className="w-full">
+                      Enter Portal
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </TactileButton>
+                  </Link>
+                  <a
+                    href={tab.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-8 items-center justify-center rounded-lg border border-[#E4E4E7] bg-white px-2.5 text-[11px] font-medium text-[#52525B] hover:border-[#D4D4D8] hover:text-[#09090B] transition-colors whitespace-nowrap"
+                  >
+                    New Tab ↗
+                  </a>
+                </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       </SpotlightCard>
 
