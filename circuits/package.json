@@ -1,0 +1,22 @@
+{
+  "name": "@qlo/circuits",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ptau": "node scripts/download-ptau.mjs",
+    "build": "node scripts/build.mjs",
+    "fixtures": "node scripts/generate-fixtures.mjs",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "circomlib": "^2.0.5",
+    "circomlibjs": "^0.1.7",
+    "snarkjs": "^0.7.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

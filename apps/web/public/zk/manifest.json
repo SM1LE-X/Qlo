@@ -1,0 +1,15 @@
+{
+  "circuitName": "ClaimValidity",
+  "depth": 6,
+  "publicSignalsCount": 8,
+  "nConstraints": 4349,
+  "nWires": 4367,
+  "ptauFile": "ppot_0080_13.ptau",
+  "ptauCapacity": 8192,
+  "zkeySha256": "7f26163076e3dcc5e61175e96fb6ce8a95b36dac8ba27c7e7ee5edcee4771746",
+  "wasmSha256": "82896ca77243df72bcf63829e533c2af134fdab80f46bf1062ded6a8e82fc301",
+  "vkeySha256": "e0a07d15447902c6a69512fc0da6a7468e7fc67263bc76b8dbc75947dee6c2ea",
+  "zkeyBytes": 3024990,
+  "wasmBytes": 3077674,
+  "builtAt": "2026-11-22T20:34:54.294Z"
+}

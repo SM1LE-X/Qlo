@@ -1,0 +1,57 @@
+name: Qlo CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  circuits-and-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install Circom Linux binary
+        run: |
+          mkdir -p tools
+          curl -sSL https://github.com/iden3/circom/releases/latest/download/circom-linux-amd64 -o tools/circom
+          chmod +x tools/circom
+          echo "$PWD/tools" >> $GITHUB_PATH
+
+      - name: Install circuit dependencies & run soundness suite
+        run: |
+          pnpm --dir circuits install --frozen-lockfile || pnpm --dir circuits install
+          node circuits/scripts/download-ptau.mjs
+          node circuits/scripts/build.mjs
+          node circuits/scripts/generate-fixtures.mjs
+          pnpm --dir circuits test
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install Foundry OpenZeppelin & forge-std
+        working-directory: contracts
+        run: |
+          forge install OpenZeppelin/openzeppelin-contracts --no-git || true
+          forge install foundry-rs/forge-std --no-git || true
+
+      - name: Run Foundry unit, real-proof & security tests
+        run: forge test --root contracts -vvv
+
+      - name: Verify web typecheck and production Webpack build
+        run: |
+          pnpm --dir apps/web install --frozen-lockfile || pnpm --dir apps/web install
+          node apps/web/scripts/setup-ocr.mjs
+          pnpm --dir apps/web typecheck
+          pnpm --dir apps/web build

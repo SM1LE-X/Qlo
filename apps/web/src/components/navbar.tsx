@@ -1,0 +1,185 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  Cpu,
+  FileLock2,
+  Landmark,
+  Search,
+  ShieldCheck,
+  Wallet,
+} from "lucide-react";
+import { useAccount, useChainId, useConnect, useDisconnect, useSwitchChain } from "wagmi";
+import { baseSepolia } from "wagmi/chains";
+import { IS_CHAIN_DEPLOYED } from "@/lib/contracts";
+import { motionTransitions } from "@/lib/motion-tokens";
+import { cn, shortHex } from "@/lib/utils";
+import { verifyZkeyIntegrity } from "@/lib/zkeyIntegrity";
+import { Badge } from "./ui/card";
+import { CommandMenu } from "./ui/command-menu";
+import { TactileButton } from "./ui/tactile-button";
+
+const NAV_LINKS = [
+  { href: "/", label: "Overview", icon: Activity },
+  { href: "/patient", label: "Patient Vault", icon: FileLock2 },
+  { href: "/hospital", label: "Provider Billing", icon: Cpu },
+  { href: "/insurer", label: "Payer Treasury", icon: Landmark },
+  { href: "/story", label: "Trust Center", icon: ShieldCheck },
+];
+
+/**
+ * Clean light frosted product header for Qlo's public landing page (/).
+ */
+export function Navbar() {
+  const pathname = usePathname();
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const { connect, connectors } = useConnect();
+  const { disconnect } = useDisconnect();
+  const { switchChain } = useSwitchChain();
+
+  const [zkeyStatus, setZkeyStatus] = useState<"checking" | "verified" | "mismatch">("checking");
+  const [zkeySha, setZkeySha] = useState<string>("");
+  const [cmdOpen, setCmdOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    verifyZkeyIntegrity()
+      .then((res) => {
+        if (!active) return;
+        setZkeyStatus(res.verified ? "verified" : "mismatch");
+        setZkeySha(res.actualSha256);
+      })
+      .catch(() => {
+        if (active) setZkeyStatus("mismatch");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const wrongChain = isConnected && chainId !== baseSepolia.id;
+
+  return (
+    <>
+      <header className="sticky top-0 z-40 border-b border-[#E4E4E7]/85 bg-white/85 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl flex-nowrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-5 shrink-0">
+            <Link href="/" className="flex items-center gap-2.5 group shrink-0">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#09090B] text-white font-mono-tabular font-bold text-sm shadow-xs">
+                Q
+              </div>
+              <div className="leading-tight">
+                <div className="text-sm font-bold tracking-tight text-[#09090B]">Qlo</div>
+                <div className="text-[10px] font-medium text-[#71717A]">Health Claims OS</div>
+              </div>
+            </Link>
+
+            <nav
+              aria-label="Primary navigation"
+              className="hidden md:flex items-center gap-0.5 rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-1"
+            >
+              {NAV_LINKS.map((item) => {
+                const Icon = item.icon;
+                const active = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "relative inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-medium transition-colors",
+                      active ? "text-[#09090B]" : "text-[#52525B] hover:text-[#09090B]"
+                    )}
+                  >
+                    {active ? (
+                      <motion.span
+                        layoutId="qlo-active-nav"
+                        transition={motionTransitions.springMorph}
+                        className="absolute inset-0 rounded-lg bg-white shadow-xs border border-[#E4E4E7]/80"
+                      />
+                    ) : null}
+                    <Icon className={cn("relative z-10 h-3.5 w-3.5", active && "text-[#0F766E]")} />
+                    <span className="relative z-10">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setCmdOpen(true)}
+              aria-label="Open command menu"
+              className="hidden lg:inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#E4E4E7] bg-[#FAFAFA] px-2.5 py-1 text-[11px] font-mono-tabular text-[#52525B] hover:border-[#D4D4D8] hover:text-[#09090B] transition-colors cursor-pointer"
+            >
+              <Search className="h-3 w-3" />
+              <kbd className="rounded bg-[#E4E4E7]/70 px-1 text-[10px]">⌘K</kbd>
+            </button>
+
+            {zkeyStatus === "verified" ? (
+              <Badge variant="emerald" className="hidden sm:inline-flex whitespace-nowrap">
+                <CheckCircle2 className="h-3 w-3" />
+                <span className="font-mono-tabular">zkey {shortHex(zkeySha, 6, 4)}</span>
+              </Badge>
+            ) : zkeyStatus === "checking" ? (
+              <Badge variant="amber" className="hidden sm:inline-flex whitespace-nowrap">
+                Verifying zkey...
+              </Badge>
+            ) : (
+              <Badge variant="crimson" className="hidden sm:inline-flex whitespace-nowrap">
+                zkey check failed
+              </Badge>
+            )}
+
+            {IS_CHAIN_DEPLOYED ? (
+              <Badge variant="teal" className="hidden sm:inline-flex whitespace-nowrap">
+                Base Sepolia
+              </Badge>
+            ) : (
+              <Badge variant="neutral" className="hidden sm:inline-flex whitespace-nowrap">
+                Local Sandbox
+              </Badge>
+            )}
+
+            {wrongChain ? (
+              <TactileButton
+                size="sm"
+                variant="amber"
+                onClick={() => switchChain({ chainId: baseSepolia.id })}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Switch Network
+              </TactileButton>
+            ) : isConnected && address ? (
+              <TactileButton size="sm" variant="secondary" onClick={() => disconnect()}>
+                <Wallet className="h-3.5 w-3.5 text-[#0F766E]" />
+                <span className="font-mono-tabular">{shortHex(address, 6, 4)}</span>
+              </TactileButton>
+            ) : (
+              <TactileButton
+                size="sm"
+                variant="primary"
+                onClick={() => {
+                  const injectedConn = connectors[0];
+                  if (injectedConn) connect({ connector: injectedConn });
+                }}
+              >
+                <Wallet className="h-3.5 w-3.5" />
+                Connect Wallet
+              </TactileButton>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <CommandMenu open={cmdOpen} onOpenChange={setCmdOpen} />
+    </>
+  );
+}
