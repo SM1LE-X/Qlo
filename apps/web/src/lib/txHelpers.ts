@@ -7,7 +7,7 @@ import {
   type PublicClient,
   type TransactionReceipt,
 } from "viem";
-import { baseSepolia } from "wagmi/chains";
+import { sepolia } from "wagmi/chains";
 import { parseEthToWei } from "./utils";
 
 interface CustomErrorDef {
@@ -33,7 +33,7 @@ const QLO_CUSTOM_ERRORS: CustomErrorDef[] = [
     sig: "InsufficientEscrow()",
     name: "InsufficientEscrow",
     explanation:
-      "ClaimsVault.InsufficientEscrow(): Insurer escrow balance on Base Sepolia is too low for this claim or withdrawal.",
+      "ClaimsVault.InsufficientEscrow(): Insurer escrow balance on Ethereum Sepolia is too low for this claim or withdrawal.",
   },
   {
     sig: "InvalidHospitalRoot()",
@@ -51,7 +51,7 @@ const QLO_CUSTOM_ERRORS: CustomErrorDef[] = [
     sig: "ClaimTimestampOutOfWindow()",
     name: "ClaimTimestampOutOfWindow",
     explanation:
-      "ClaimsVault.ClaimTimestampOutOfWindow(): Proof timestamp fell outside Base Sepolia's freshness window; re-prove to sync block clock.",
+      "ClaimsVault.ClaimTimestampOutOfWindow(): Proof timestamp fell outside Ethereum Sepolia's freshness window; re-prove to sync block clock.",
   },
   {
     sig: "HospitalSenderMismatch()",
@@ -121,16 +121,16 @@ const ERROR_SELECTORS: Array<CustomErrorDef & { selector: string }> =
     selector: keccak256(toBytes(item.sig)).slice(0, 10).toLowerCase(),
   }));
 
-export async function ensureBaseSepoliaChain(
+export async function ensureSepoliaChain(
   chainId: number | undefined,
   switchChainAsync?: (vars: { chainId: number }) => Promise<unknown>
 ): Promise<void> {
-  if (chainId === baseSepolia.id) return;
+  if (chainId === sepolia.id) return;
   if (!switchChainAsync) {
-    throw new Error("Switch MetaMask network to Base Sepolia (Chain ID 84532) before submitting.");
+    throw new Error("Switch MetaMask network to Ethereum Sepolia (Chain ID 11155111) before submitting.");
   }
   try {
-    await switchChainAsync({ chainId: baseSepolia.id });
+    await switchChainAsync({ chainId: sepolia.id });
   } catch (err) {
     throw new Error(decodeContractError(err));
   }
@@ -196,7 +196,7 @@ export function decodeContractError(err: unknown): string {
     lower.includes("exceeds the balance") ||
     lower.includes("exceeds balance")
   ) {
-    return "Insufficient Base Sepolia ETH for gas/value. Fund wallet via a free Base Sepolia faucet.";
+    return "Insufficient Ethereum Sepolia ETH for gas/value. Fund wallet via a free Ethereum Sepolia faucet.";
   }
 
   for (const item of ERROR_SELECTORS) {
@@ -218,7 +218,7 @@ export function decodeContractError(err: unknown): string {
   if (err instanceof Error && err.message.trim()) {
     return err.message.trim().slice(0, 180);
   }
-  return "Transaction failed on Base Sepolia.";
+  return "Transaction failed on Ethereum Sepolia.";
 }
 
 export async function preflightSimulateAndWrite(params: {
@@ -267,7 +267,7 @@ export async function preflightSimulateAndWrite(params: {
 
   const receipt = await publicClient.waitForTransactionReceipt({
     hash,
-    timeout: 90_000,
+    timeout: 120_000,
   });
 
   return { hash, receipt };

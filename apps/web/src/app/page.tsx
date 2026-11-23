@@ -88,7 +88,7 @@ const COMPLIANCE_PILLARS = [
   {
     title: "Zero-PHI On-Chain Calldata",
     detail:
-      "Diagnosis codes (ICD-10), CPT procedure schedules, prescriptions, and annual caps remain strictly off-chain inside AES-256-GCM envelopes—only 8 BN254 public field signals reach Base Sepolia.",
+      "Diagnosis codes (ICD-10), CPT procedure schedules, prescriptions, and annual caps remain strictly off-chain inside AES-256-GCM envelopes—only 8 BN254 public field signals reach Ethereum Sepolia.",
     icon: Lock,
   },
   {
@@ -169,7 +169,7 @@ export default function HomePage() {
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="teal">
               <Sparkles className="h-3 w-3" />
-              Base Sepolia · Client-Side Groth16
+              Ethereum Sepolia · Client-Side Groth16
             </Badge>
             <Badge variant="neutral">MIT Licensed · Open Architecture</Badge>
             {zkeyInfo?.verified ? (
@@ -189,7 +189,7 @@ export default function HomePage() {
             <span className="text-[#09090B] font-semibold">AES-256-GCM</span> encrypted clinical records,
             on-device <span className="text-[#09090B] font-semibold">CMS-1500 OCR</span>,
             and an <span className="text-[#0F766E] font-semibold">8-predicate Groth16 clearinghouse</span> verifying
-            facility accreditation, covered CPT schedules, and private annual caps on Base Sepolia.
+            facility accreditation, covered CPT schedules, and private annual caps on Ethereum Sepolia.
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-1">
@@ -264,7 +264,7 @@ export default function HomePage() {
         <StatCard
           label="Treasury Escrow"
           valueText={<NumberTicker value={liveEscrowEth} decimals={4} suffix=" ETH" />}
-          sublabel={IS_CHAIN_DEPLOYED ? "Live Base Sepolia" : "Local Sandbox Treasury"}
+          sublabel={IS_CHAIN_DEPLOYED ? "Live Ethereum Sepolia" : "Local Sandbox Treasury"}
           deltaText="Solvent 100%"
           deltaTone="neutral"
           trend={[0.02, 0.04, 0.035, 0.045, 0.05, Math.max(0.02, liveEscrowEth)]}
@@ -292,7 +292,7 @@ export default function HomePage() {
               Three Focused Workspaces · Automatic Wallet Role Detection
             </h2>
             <p className="text-xs text-[#52525B]">
-              Connect MetaMask once via Wagmi + Viem—Qlo reads live Base Sepolia contract state (`HealthRecords`, `HospitalRegistry`, `ClaimsVault`) to surface verified `Patient`, `Approved Hospital`, and `Insurer` role badges across all 3 steps.
+              Connect MetaMask once via Wagmi + Viem—Qlo reads live Ethereum Sepolia contract state (`HealthRecords`, `HospitalRegistry`, `ClaimsVault`) to surface verified `Patient`, `Approved Hospital`, and `Insurer` role badges across all 3 steps.
             </p>
           </div>
           <Badge variant="teal">Wallet-Only Auth · Zero Login</Badge>
@@ -481,7 +481,7 @@ export default function HomePage() {
               Platform Architecture &amp; Privacy Guarantees
             </h2>
             <p className="text-xs text-[#52525B]">
-              How Qlo enforces strict confidentiality while verifying payer solvency on Base Sepolia.
+              How Qlo enforces strict confidentiality while verifying payer solvency on Ethereum Sepolia.
             </p>
           </div>
           <Link href="/story" className="text-xs font-medium text-[#0F766E] hover:underline">
@@ -494,7 +494,7 @@ export default function HomePage() {
           items={[
             {
               id: "faq-phi",
-              title: "Does any diagnosis code, CPT procedure, or medication string ever touch Base Sepolia?",
+              title: "Does any diagnosis code, CPT procedure, or medication string ever touch Ethereum Sepolia?",
               badge: "0 Bytes PHI",
               content: (
                 <>

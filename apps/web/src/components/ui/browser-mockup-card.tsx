@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
  * OpenSourceUI Light BrowserMockupCard (MIT): clean macOS browser window for the Zero-PHI Inspector.
  */
 export function BrowserMockupCard({
-  url = "base-sepolia://claimsvault/submitClaim",
+  url = "sepolia://claimsvault/submitClaim",
   rightSlot,
   children,
   className,

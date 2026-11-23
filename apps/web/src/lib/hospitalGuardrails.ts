@@ -58,7 +58,7 @@ export async function executeHospitalGuardrailCheck({
       })) as boolean;
       if (!used) {
         throw new Error(
-          "Settle the generated proof on Base Sepolia once first, then click Replay to observe ClaimsVault.NullifierAlreadyUsed()."
+          "Settle the generated proof on Ethereum Sepolia once first, then click Replay to observe ClaimsVault.NullifierAlreadyUsed()."
         );
       }
       await publicClient.simulateContract({
@@ -171,7 +171,7 @@ export async function executeHospitalGuardrailCheck({
       })) as bigint;
       if (recId === 0n) {
         throw new Error(
-          "Register the encrypted record on Base Sepolia first before probing post-revoke access."
+          "Register the encrypted record on Ethereum Sepolia first before probing post-revoke access."
         );
       }
       const active = (await publicClient.readContract({
@@ -182,11 +182,11 @@ export async function executeHospitalGuardrailCheck({
       })) as boolean;
       if (!active) {
         throw new Error(
-          "ClaimsVault.PatientAccessNotActive() — Base Sepolia HealthRecords.hasActiveAccess() returned false (wrapped DEK wiped on-chain)!"
+          "ClaimsVault.PatientAccessNotActive() — Ethereum Sepolia HealthRecords.hasActiveAccess() returned false (wrapped DEK wiped on-chain)!"
         );
       }
       throw new Error(
-        "Grant is currently active on Base Sepolia. Click 'Revoke Immediately' on /patient first, then re-test."
+        "Grant is currently active on Ethereum Sepolia. Click 'Revoke Immediately' on /patient first, then re-test."
       );
     }
 

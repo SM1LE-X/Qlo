@@ -39,7 +39,7 @@ export function cms1500ToFhirClaim(
     },
     created: cleanDate,
     insurer: {
-      display: "Qlo Health Plan (Payer ID QLO-84532)",
+      display: "Qlo Health Plan (Payer ID QLO-11155111)",
     },
     provider: {
       display: hospitalName,
@@ -123,7 +123,7 @@ export function cms1500ToX12837P(
     `NM1*41*2*${cleanHospital}*****46*${claim.renderingNpi}`,
     `NM1*85*2*${cleanHospital}*****XX*${claim.renderingNpi}`,
     `NM1*IL*1*${claim.patientAlias}*SYNTH****MI*${claim.insuredPolicyId}`,
-    `NM1*PR*2*QLO HEALTH PLAN*****PI*QLO84532`,
+    `NM1*PR*2*QLO HEALTH PLAN*****PI*QLO11155111`,
     `CLM*${claim.insuredPolicyId}-${claim.cptCode}*${charge}***11:B:1*Y*A*Y*Y`,
     `DTP*472*D8*${dateCompact}`,
     `HI*ABK:${icdClean}`,
@@ -156,13 +156,13 @@ export function generateX12835Era(
   const controlNum = "000000835";
 
   const segments = [
-    `ISA*00*          *00*          *ZZ*QLO84532       *ZZ*${settled.hospital.slice(0, 15).padEnd(15, " ")}*${yymmdd}*1035*^*00501*${controlNum}*0*T*:`,
-    `GS*HP*QLO84532*${settled.hospital.slice(0, 15)}*${yyyymmdd}*1035*835*X*005010X221A1`,
+    `ISA*00*          *00*          *ZZ*QLO11155111    *ZZ*${settled.hospital.slice(0, 15).padEnd(15, " ")}*${yymmdd}*1035*^*00501*${controlNum}*0*T*:`,
+    `GS*HP*QLO11155111*${settled.hospital.slice(0, 15)}*${yyyymmdd}*1035*835*X*005010X221A1`,
     `ST*835*0001*005010X221A1`,
-    `BPR*I*${payoutEth}*C*ACH*CCP*01*845320000*DA*CLAIMSVAULT**01*000000000*DA*${settled.hospital}*${yyyymmdd}`,
+    `BPR*I*${payoutEth}*C*ACH*CCP*01*111551110*DA*CLAIMSVAULT**01*000000000*DA*${settled.hospital}*${yyyymmdd}`,
     `TRN*1*${shortNullifier}*1QLOCLEAR`,
     `DTM*405*${yyyymmdd}`,
-    `N1*PR*QLO HEALTH PLAN*XV*QLO84532`,
+    `N1*PR*QLO HEALTH PLAN*XV*QLO11155111`,
     `N1*PE*${cleanHospital}*XX*${settled.hospital}`,
     `CLP*${shortCommit}*1*${payoutEth}*${payoutEth}*0*12*${settled.txHash.slice(0, 18)}`,
     `AMT*AU*${payoutEth}`,

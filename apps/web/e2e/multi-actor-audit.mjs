@@ -57,7 +57,7 @@ async function main() {
     assert.equal(healthRes.status, 200, "/api/health must return 200");
     const healthJson = await healthRes.json();
     assert.equal(healthJson.ok, true, "/api/health ok must be true");
-    assert.equal(Number(healthJson.chainId), 84532, "/api/health chainId must be 84532");
+    assert.equal(Number(healthJson.chainId), 11155111, "/api/health chainId must be 11155111");
 
     const phiAttemptRes = await fetch(`${BASE_URL}/api/relay/vault`, {
       method: "POST",

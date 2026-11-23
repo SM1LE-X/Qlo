@@ -41,7 +41,7 @@ import {
 } from "@/lib/storage";
 import {
   decodeContractError,
-  ensureBaseSepoliaChain,
+  ensureSepoliaChain,
   preflightSimulateAndWrite,
 } from "@/lib/txHelpers";
 import { useWalletRoles } from "@/lib/useWalletRoles";
@@ -303,7 +303,7 @@ export default function HospitalPage() {
         if (!address || !publicClient) {
           throw new Error("Connect Hospital MetaMask wallet first");
         }
-        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+        await ensureSepoliaChain(roles.chainId, switchChainAsync);
         const { hash } = await preflightSimulateAndWrite({
           publicClient,
           account: address,
@@ -314,7 +314,7 @@ export default function HospitalPage() {
           writeContractAsync,
         });
         setOnChainKeyRegistered(true);
-        appendLog(`Registered ECDH pubkey on Base Sepolia: ${hash}`, "ok");
+        appendLog(`Registered ECDH pubkey on Ethereum Sepolia: ${hash}`, "ok");
         toast.success("Registered ECDH P-256 public key in HospitalRegistry");
         await roles.refetch();
       } else {
@@ -379,7 +379,7 @@ export default function HospitalPage() {
           functionName: "commitmentToRecordId",
           args: [selectedEntry.recordCommitmentHex],
         })) as bigint;
-        if (recId === 0n) throw new Error("Record not registered on Base Sepolia");
+        if (recId === 0n) throw new Error("Record not registered on Ethereum Sepolia");
         recIdStr = recId.toString();
         const [expiresAt, dekBytes] = (await publicClient.readContract({
           address: CONTRACTS.HealthRecords.address,
@@ -448,14 +448,14 @@ export default function HospitalPage() {
     try {
       if (IS_CHAIN_DEPLOYED && publicClient) {
         if (!address) throw new Error("Connect Hospital MetaMask wallet");
-        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+        await ensureSepoliaChain(roles.chainId, switchChainAsync);
         const recId = (await publicClient.readContract({
           address: CONTRACTS.HealthRecords.address,
           abi: CONTRACTS.HealthRecords.abi,
           functionName: "commitmentToRecordId",
           args: [selectedEntry.recordCommitmentHex],
         })) as bigint;
-        if (recId === 0n) throw new Error("Record not registered on Base Sepolia");
+        if (recId === 0n) throw new Error("Record not registered on Ethereum Sepolia");
         const { hash } = await preflightSimulateAndWrite({
           publicClient,
           account: address,
@@ -465,8 +465,8 @@ export default function HospitalPage() {
           args: [recId],
           writeContractAsync,
         });
-        appendLog(`Logged RecordAccessed(${recId.toString()}) on Base Sepolia: ${hash}`, "ok");
-        toast.success("Logged immutable RecordAccessed audit event on Base Sepolia");
+        appendLog(`Logged RecordAccessed(${recId.toString()}) on Ethereum Sepolia: ${hash}`, "ok");
+        toast.success("Logged immutable RecordAccessed audit event on Ethereum Sepolia");
       } else {
         const remote = await fetchRelayState();
         const mirror = remote ?? loadLocalChainMirror();
@@ -543,7 +543,7 @@ export default function HospitalPage() {
           );
         } else {
           appendLog(
-            `Synced live Base Sepolia block clock (${latestBlock.timestamp.toString()}) & root`,
+            `Synced live Ethereum Sepolia block clock (${latestBlock.timestamp.toString()}) & root`,
             "info"
           );
         }
@@ -592,7 +592,7 @@ export default function HospitalPage() {
       const amountFmt = formatWeiToEth(pubSignals[3], 4);
       if (IS_CHAIN_DEPLOYED) {
         if (!address || !publicClient) throw new Error("Connect Hospital MetaMask wallet");
-        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+        await ensureSepoliaChain(roles.chainId, switchChainAsync);
         const { hash } = await preflightSimulateAndWrite({
           publicClient,
           account: address,
@@ -605,8 +605,8 @@ export default function HospitalPage() {
         setSettledAmountEth(amountFmt);
         setSettledTx(hash);
         await Promise.all([syncMetrics(), roles.refetch()]);
-        appendLog(`Base Sepolia Tx Settled: ${hash}`, "ok");
-        toast.success("Claim settled on Base Sepolia — ETH transferred to Hospital!");
+        appendLog(`Ethereum Sepolia Tx Settled: ${hash}`, "ok");
+        toast.success("Claim settled on Ethereum Sepolia — ETH transferred to Hospital!");
       } else {
         const nullifierStr = pubSignals[2].toString();
         const policyStr = pubSignals[1].toString();

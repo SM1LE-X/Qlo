@@ -96,7 +96,7 @@ export function PatientOverviewHeader({
           label="Settled Claims"
           valueText={<NumberTicker value={settledClaimsCount} />}
           sublabel="Zero-PHI disbursements"
-          deltaText="Base Sepolia"
+          deltaText="Sepolia"
           deltaTone="neutral"
           trend={[0, 1, 1, 2, 2, Math.max(0, settledClaimsCount)]}
           accentColor="#0F4C81"

@@ -19,4 +19,4 @@ fs_permissions = [
 ]
 
 [rpc_endpoints]
-base_sepolia = "https://sepolia.base.org"
+sepolia = "https://ethereum-sepolia-rpc.publicnode.com"

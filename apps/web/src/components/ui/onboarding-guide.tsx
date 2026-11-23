@@ -198,7 +198,7 @@ export function OnboardingChecklistRail({
         <div className="flex flex-wrap items-center gap-2.5">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-[#99F6E4] bg-[#F0FDFA] px-2.5 py-0.5 text-[11px] font-medium text-[#0F766E]">
             <Compass className="h-3 w-3" />
-            {IS_CHAIN_DEPLOYED ? "Base Sepolia Testnet" : "Sandbox Mode · No Wallet Required"}
+            {IS_CHAIN_DEPLOYED ? "Ethereum Sepolia Testnet" : "Sandbox Mode · No Wallet Required"}
           </span>
           <span className="text-xs font-mono-tabular font-medium text-[#52525B]">
             {doneCount} of {milestones.length} milestones
@@ -351,7 +351,7 @@ export function OnboardingModal({
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-[#99F6E4] bg-[#F0FDFA] px-2.5 py-0.5 text-[11px] font-medium text-[#0F766E]">
                     <ShieldCheck className="h-3 w-3" />
                     {IS_CHAIN_DEPLOYED
-                      ? "Base Sepolia Testnet"
+                      ? "Ethereum Sepolia Testnet"
                       : "Sandbox Mode — Zero Wallet Setup"}
                   </span>
                 </div>
@@ -362,7 +362,7 @@ export function OnboardingModal({
                   Qlo Clearinghouse Onboarding
                 </h2>
                 <p className="text-xs text-[#52525B]">
-                  Evaluate zero-knowledge claim adjudication locally or connect MetaMask for Base Sepolia.
+                  Evaluate zero-knowledge claim adjudication locally or connect MetaMask for Ethereum Sepolia.
                 </p>
               </div>
 

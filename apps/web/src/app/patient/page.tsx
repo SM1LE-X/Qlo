@@ -44,7 +44,7 @@ import {
 } from "@/lib/storage";
 import {
   decodeContractError,
-  ensureBaseSepoliaChain,
+  ensureSepoliaChain,
   preflightSimulateAndWrite,
 } from "@/lib/txHelpers";
 import { useWalletRoles } from "@/lib/useWalletRoles";
@@ -365,8 +365,8 @@ export default function PatientPage() {
     setBusy(true);
     try {
       if (IS_CHAIN_DEPLOYED) {
-        if (!address || !publicClient) throw new Error("Connect MetaMask on Base Sepolia first");
-        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+        if (!address || !publicClient) throw new Error("Connect MetaMask on Ethereum Sepolia first");
+        await ensureSepoliaChain(roles.chainId, switchChainAsync);
 
         const existingRecId = (await publicClient.readContract({
           address: CONTRACTS.HealthRecords.address,
@@ -380,7 +380,7 @@ export default function PatientPage() {
 
         if (existingRecId > 0n) {
           idStr = existingRecId.toString();
-          toast.success(`Record #${idStr} is already anchored on Base Sepolia`);
+          toast.success(`Record #${idStr} is already anchored on Ethereum Sepolia`);
         } else {
           const { hash } = await preflightSimulateAndWrite({
             publicClient,
@@ -399,7 +399,7 @@ export default function PatientPage() {
             args: [encrypted.recordCommitmentHex],
           })) as bigint;
           idStr = recId.toString();
-          toast.success(`Registered record #${idStr} on Base Sepolia`);
+          toast.success(`Registered record #${idStr} on Ethereum Sepolia`);
         }
 
         setRegisteredRecordId(idStr);
@@ -515,8 +515,8 @@ export default function PatientPage() {
       const expiresAt = Math.floor(Date.now() / 1000) + grantMinutes * 60;
 
       if (IS_CHAIN_DEPLOYED) {
-        if (!address || !publicClient) throw new Error("Connect MetaMask on Base Sepolia");
-        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+        if (!address || !publicClient) throw new Error("Connect MetaMask on Ethereum Sepolia");
+        await ensureSepoliaChain(roles.chainId, switchChainAsync);
 
         if (vaultEntry) {
           const entryWithTarget: StoredVaultEntry = {
@@ -544,7 +544,7 @@ export default function PatientPage() {
           writeContractAsync,
         });
         setGrantExpiresAt(expiresAt);
-        toast.success(`Granted ${grantMinutes}-minute ECDH-wrapped DEK access on Base Sepolia`);
+        toast.success(`Granted ${grantMinutes}-minute ECDH-wrapped DEK access on Ethereum Sepolia`);
         setAuditItems((prev) => [
           {
             id: `grant-${Date.now()}`,
@@ -617,8 +617,8 @@ export default function PatientPage() {
     setBusy(true);
     try {
       if (IS_CHAIN_DEPLOYED) {
-        if (!address || !publicClient) throw new Error("Connect MetaMask on Base Sepolia");
-        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+        if (!address || !publicClient) throw new Error("Connect MetaMask on Ethereum Sepolia");
+        await ensureSepoliaChain(roles.chainId, switchChainAsync);
         const { hash } = await preflightSimulateAndWrite({
           publicClient,
           account: address,
@@ -629,7 +629,7 @@ export default function PatientPage() {
           writeContractAsync,
         });
         setGrantExpiresAt(0);
-        toast.success("Access revoked on Base Sepolia — Hospital settlement now blocked!");
+        toast.success("Access revoked on Ethereum Sepolia — Hospital settlement now blocked!");
         setAuditItems((prev) => [
           {
             id: `rev-${Date.now()}`,

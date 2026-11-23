@@ -219,7 +219,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="space-y-2">
                 <div className="font-semibold text-[#09090B]">Verification</div>
                 <div className="font-mono-tabular text-[#52525B] space-y-1">
-                  <div>Chain: Base Sepolia ({DEPLOYMENT.chainId})</div>
+                  <div>Chain: Ethereum Sepolia ({DEPLOYMENT.chainId})</div>
                   <div>zkey SHA-256: {DEPLOYMENT.zkeySha256.slice(0, 12)}...</div>
                   <div className="text-[#047857]">MIT Licensed · Open Specification</div>
                 </div>
@@ -243,7 +243,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     brand: "Qlo Platform",
     subBrand: "Workspace",
     roleTitle: "Wallet Auth",
-    roleRule: "Base Sepolia (84532)",
+    roleRule: "Ethereum Sepolia (11155111)",
     badgeColor: "bg-[#09090B]",
     accentText: "text-[#0F766E]",
   };
@@ -440,7 +440,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 IS_CHAIN_DEPLOYED ? "bg-[#10B981]" : "bg-[#0F766E]"
               }`}
             />
-            {IS_CHAIN_DEPLOYED ? "Base Sepolia Live" : "Sandbox Mode"}
+            {IS_CHAIN_DEPLOYED ? "Ethereum Sepolia Live" : "Sandbox Mode"}
           </span>
           <span className="font-mono-tabular text-[10px] text-[#71717A]">
             Chain {DEPLOYMENT.chainId}
@@ -449,7 +449,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {roles.lowGasBalance ? (
           <a
-            href="https://www.alchemy.com/faucets/base-sepolia"
+            href="https://www.alchemy.com/faucets/ethereum-sepolia"
             target="_blank"
             rel="noreferrer"
             className="flex items-center justify-between gap-1 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] px-2.5 py-1.5 text-[10px] font-medium text-[#B45309] hover:bg-[#FEF3C7] transition-colors"
@@ -586,15 +586,15 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-[#B45309] shrink-0" />
                 <span>
-                  Wallet connected on wrong network (Chain ID {roles.chainId}). Switch to Base Sepolia (84532) for on-chain actions.
+                  Wallet connected on wrong network (Chain ID {roles.chainId}). Switch to Ethereum Sepolia (11155111) for on-chain actions.
                 </span>
               </div>
               <TactileButton
                 size="sm"
                 variant="amber"
-                onClick={() => roles.switchToBaseSepolia()}
+                onClick={() => roles.switchToSepolia()}
               >
-                Switch to Base Sepolia (84532)
+                Switch to Ethereum Sepolia (11155111)
               </TactileButton>
             </div>
           ) : null}

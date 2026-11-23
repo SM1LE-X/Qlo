@@ -176,7 +176,7 @@ async function main() {
             return chainId;
           }
           if (method === "net_version") {
-            return chainId === "0x14a34" ? "84532" : "1";
+            return chainId === "0xaa36a7" ? "11155111" : "1";
           }
           if (method === "wallet_switchEthereumChain") {
             const nextId = params?.[0]?.chainId;
@@ -217,7 +217,7 @@ async function main() {
     await connectBtn.waitFor({ state: "visible", timeout: 10000 });
     await connectBtn.click();
 
-    console.log("[audit:ecc] 5/5 Verifying wrong-chain Switch Network -> Base Sepolia (84532) role unlock...");
+    console.log("[audit:ecc] 5/5 Verifying wrong-chain Switch Network -> Ethereum Sepolia (11155111) role unlock...");
     const switchBtn = page.getByRole("button", { name: /Switch Network/i }).first();
     await switchBtn.waitFor({ state: "visible", timeout: 10000 });
     await switchBtn.click();

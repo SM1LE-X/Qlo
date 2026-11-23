@@ -153,11 +153,11 @@ export function WalletAuthControls({
 
       {IS_CHAIN_DEPLOYED ? (
         <Badge variant="teal" className="hidden sm:inline-flex whitespace-nowrap">
-          Base Sepolia
+          Ethereum Sepolia
         </Badge>
       ) : (
         <Badge variant="neutral" className="hidden sm:inline-flex whitespace-nowrap">
-          Base Sepolia · Sandbox
+          Ethereum Sepolia · Sandbox
         </Badge>
       )}
 
@@ -165,7 +165,7 @@ export function WalletAuthControls({
         <TactileButton
           size="sm"
           variant="amber"
-          onClick={() => roles.switchToBaseSepolia()}
+          onClick={() => roles.switchToSepolia()}
         >
           <AlertTriangle className="h-3.5 w-3.5" />
           Switch Network

@@ -22,7 +22,7 @@ export default function QloErrorBoundary({
             Workspace Recovery Boundary
           </h1>
           <p className="text-xs text-[#52525B] leading-relaxed">
-            A rendering or network exception occurred in this portal view. Your encrypted local IndexedDB vault and Base Sepolia state remain untouched.
+            A rendering or network exception occurred in this portal view. Your encrypted local IndexedDB vault and Ethereum Sepolia state remain untouched.
           </p>
         </div>
         {error?.message ? (

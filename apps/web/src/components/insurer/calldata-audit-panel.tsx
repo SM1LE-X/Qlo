@@ -59,7 +59,7 @@ export function CalldataAuditPanel({
         url={
           selectedClaim && IS_CHAIN_DEPLOYED
             ? explorerTxUrl(selectedClaim.txHash)
-            : "base-sepolia://claimsvault/submitClaim#zero-phi-audit"
+            : "sepolia://claimsvault/submitClaim#zero-phi-audit"
         }
         rightSlot={
           phiHits !== null ? (
@@ -78,7 +78,7 @@ export function CalldataAuditPanel({
               On-Chain Calldata &amp; Zero-PHI Privacy Audit
             </h2>
             <p className="text-xs text-[#52525B]">
-              Inspect raw Groth16 settlement calldata and verify 0 bytes of clinical PHI exist on Base Sepolia.
+              Inspect raw Groth16 settlement calldata and verify 0 bytes of clinical PHI exist on Ethereum Sepolia.
             </p>
           </div>
 
@@ -88,7 +88,7 @@ export function CalldataAuditPanel({
               aria-label="Settled transaction hash"
               value={txHashInput}
               onChange={(e) => onChangeTxHashInput(e.target.value)}
-              placeholder="Paste Base Sepolia settled txHash (0x...) or inspect latest claim below"
+              placeholder="Paste Ethereum Sepolia settled txHash (0x...) or inspect latest claim below"
               className="flex-1 min-w-[240px] rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] px-3 py-2 text-xs font-mono-tabular text-[#09090B] focus:border-[#0F766E] focus:outline-none"
             />
             <TactileButton size="sm" variant="primary" onClick={onInspectTx}>

@@ -18,7 +18,7 @@ import { WalletAuthControls, WorkflowStepSwitcher } from "./wallet-auth-bar";
 /**
  * Persistent light header for Qlo's public routes (/ and /story):
  * renders the 3-step switcher (1. Patient -> 2. Hospital -> 3. Insurer),
- * automatic contract role badges, Base Sepolia chain status, and a single
+ * automatic contract role badges, Ethereum Sepolia chain status, and a single
  * wallet-only Connect Wallet control.
  */
 export function Navbar() {

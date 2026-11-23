@@ -12,7 +12,7 @@
     "contracts:test": "forge test --root contracts -vvv",
     "contracts:export-abis": "node contracts/script/export-abis.mjs",
     "anvil:e2e": "node scripts/anvil-e2e.mjs",
-    "deploy:base-sepolia": "powershell -ExecutionPolicy Bypass -File scripts/deploy-base-sepolia.ps1",
+    "deploy:sepolia": "powershell -ExecutionPolicy Bypass -File scripts/deploy-sepolia.ps1",
     "verify:live": "node scripts/verify-live.mjs",
     "verify:all": "pnpm circuits:test && C:\\Users\\Delta\\.foundry\\bin\\forge.exe test --root contracts -vvv && node contracts/script/export-abis.mjs && node scripts/anvil-e2e.mjs && pnpm web:typecheck && pnpm web:build && pnpm --dir apps/web run audit:browser && pnpm --dir apps/web run audit:multi-actor && pnpm --dir apps/web test && pnpm --dir apps/web run audit:ecc",
     "web:dev": "pnpm --dir apps/web dev",

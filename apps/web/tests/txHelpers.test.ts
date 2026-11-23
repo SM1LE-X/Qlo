@@ -2,11 +2,11 @@ import { keccak256, toBytes } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import {
   decodeContractError,
-  ensureBaseSepoliaChain,
+  ensureSepoliaChain,
   validatePositiveEthInput,
 } from "@/lib/txHelpers";
 
-describe("txHelpers — Base Sepolia Validation & Error Decoding", () => {
+describe("txHelpers — Ethereum Sepolia Validation & Error Decoding", () => {
   it("validatePositiveEthInput parses valid decimal ETH amounts and rejects invalid/zero values", () => {
     expect(validatePositiveEthInput("0.01")).toBe(10_000_000_000_000_000n);
     expect(validatePositiveEthInput(" 1.25 ", "Escrow deposit")).toBe(1_250_000_000_000_000_000n);
@@ -25,7 +25,7 @@ describe("txHelpers — Base Sepolia Validation & Error Decoding", () => {
       "Transaction cancelled in wallet."
     );
     expect(decodeContractError(new Error("insufficient funds for gas * price + value"))).toContain(
-      "Insufficient Base Sepolia ETH"
+      "Insufficient Ethereum Sepolia ETH"
     );
 
     expect(decodeContractError(new Error("execution reverted: NullifierAlreadyUsed"))).toContain(
@@ -47,18 +47,18 @@ describe("txHelpers — Base Sepolia Validation & Error Decoding", () => {
     ).toContain("ClaimsVault.NullifierAlreadyUsed()");
   });
 
-  it("ensureBaseSepoliaChain skips switching on 84532 and switches cleanly from wrong chain", async () => {
+  it("ensureSepoliaChain skips switching on 11155111 and switches cleanly from wrong chain", async () => {
     const switchFn = vi.fn(async () => undefined);
-    await ensureBaseSepoliaChain(84532, switchFn);
+    await ensureSepoliaChain(11155111, switchFn);
     expect(switchFn).not.toHaveBeenCalled();
 
-    await ensureBaseSepoliaChain(1, switchFn);
-    expect(switchFn).toHaveBeenCalledWith({ chainId: 84532 });
+    await ensureSepoliaChain(1, switchFn);
+    expect(switchFn).toHaveBeenCalledWith({ chainId: 11155111 });
 
     const rejectingSwitch = vi.fn(async () => {
       throw new Error("User rejected the request (4001)");
     });
-    await expect(ensureBaseSepoliaChain(1, rejectingSwitch)).rejects.toThrow(
+    await expect(ensureSepoliaChain(1, rejectingSwitch)).rejects.toThrow(
       "Transaction cancelled in wallet."
     );
   });

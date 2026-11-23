@@ -9,7 +9,7 @@ import {
   usePublicClient,
   useSwitchChain,
 } from "wagmi";
-import { baseSepolia } from "wagmi/chains";
+import { sepolia } from "wagmi/chains";
 import canonicalFixtures from "./canonicalFixtures.json";
 import { fetchOnChainVaultSnapshot } from "./chainEvents";
 import { CONTRACTS, DEPLOYMENT, IS_CHAIN_DEPLOYED } from "./contracts";
@@ -46,7 +46,7 @@ export interface WalletRolesState {
   balanceWei: bigint | null;
   balanceEth: string | null;
   lowGasBalance: boolean;
-  switchToBaseSepolia: () => Promise<void>;
+  switchToSepolia: () => Promise<void>;
   refetch: () => Promise<void>;
 }
 
@@ -85,11 +85,11 @@ export function useWalletRoles(): WalletRolesState {
   }, []);
 
   const effectiveConnected = Boolean(mounted && isConnected && address);
-  const wrongChain = effectiveConnected && chainId !== baseSepolia.id;
+  const wrongChain = effectiveConnected && chainId !== sepolia.id;
 
   const { data: balanceData, refetch: refetchBalance } = useBalance({
     address,
-    chainId: baseSepolia.id,
+    chainId: sepolia.id,
     query: {
       enabled: effectiveConnected,
     },
@@ -255,11 +255,11 @@ export function useWalletRoles(): WalletRolesState {
       balanceWei < 2_000_000_000_000_000n
   );
 
-  const switchToBaseSepolia = useCallback(async () => {
+  const switchToSepolia = useCallback(async () => {
     try {
-      await switchChainAsync({ chainId: baseSepolia.id });
+      await switchChainAsync({ chainId: sepolia.id });
       await Promise.all([refetch(), refetchBalance()]);
-      toast.success("Switched wallet network to Base Sepolia (84532)");
+      toast.success("Switched wallet network to Ethereum Sepolia (11155111)");
     } catch (err) {
       toast.error(decodeContractError(err));
     }
@@ -289,7 +289,7 @@ export function useWalletRoles(): WalletRolesState {
     balanceWei,
     balanceEth,
     lowGasBalance,
-    switchToBaseSepolia,
+    switchToSepolia,
     refetch,
   };
 }

@@ -27,7 +27,7 @@ export function AnimatedZkFlow() {
       accent: "border-[#A7F3D0] text-[#047857] bg-[#ECFDF5]",
     },
     {
-      label: "Base Sepolia",
+      label: "Ethereum Sepolia",
       sub: "ClaimsVault + ETH",
       icon: Landmark,
       accent: "border-[#BAE6FD] text-[#0369A1] bg-[#F0F9FF]",

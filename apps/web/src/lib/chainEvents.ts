@@ -6,7 +6,7 @@ import canonicalFixtures from "./canonicalFixtures.json";
 import { CONTRACTS, DEPLOYMENT, explorerTxUrl } from "./contracts";
 import type { LocalSettledClaim } from "./localState";
 
-const MAX_LOOKBACK_BLOCKS = 67_500n; // ~37.5 hours at Base Sepolia's 2s block cadence
+const MAX_LOOKBACK_BLOCKS = 15_000n; // ~50 hours at Ethereum Sepolia's 12s block cadence
 const LOG_CHUNK_SIZE = 4_500n;
 
 export function computeSafeFromBlock(latestBlock: bigint, deployBlock = 0): bigint {
@@ -16,7 +16,7 @@ export function computeSafeFromBlock(latestBlock: bigint, deployBlock = 0): bigi
 }
 
 /**
- * Fetches contract events in reverse 4,500-block slices so free Base Sepolia RPCs
+ * Fetches contract events in reverse 4,500-block slices so free Ethereum Sepolia RPCs
  * do not fail with eth_getLogs block-range limits and transient older errors never
  * discard newer blocks.
  */

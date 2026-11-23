@@ -128,7 +128,7 @@ export const ACCREDITED_PROVIDERS: AccreditedProviderInfo[] =
       licenseId: h.licenseId,
       name: h.name,
       specialty: extra?.specialty ?? "Accredited Network Facility",
-      city: extra?.city ?? "Base Sepolia Registry",
+      city: extra?.city ?? "Ethereum Sepolia Registry",
       npiVerified: true,
     };
   });

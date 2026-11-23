@@ -20,14 +20,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Qlo — Zero-Knowledge Health Claims & Patient-Sovereign Records",
   description:
-    "Commercial zero-knowledge health insurance clearinghouse proving 8 claim coverage predicates in Groth16 with AES-256-GCM patient-owned records on Base Sepolia.",
+    "Commercial zero-knowledge health insurance clearinghouse proving 8 claim coverage predicates in Groth16 with AES-256-GCM patient-owned records on Ethereum Sepolia.",
   icons: {
     icon: "/icon.svg",
   },
   openGraph: {
     title: "Qlo — Zero-Knowledge Health Claims & Patient-Sovereign Records",
     description:
-      "Browser-local CMS-1500 OCR + AES-256-GCM encryption + 8-predicate Groth16 claim settlement on Base Sepolia with 0 bytes of PHI on-chain.",
+      "Browser-local CMS-1500 OCR + AES-256-GCM encryption + 8-predicate Groth16 claim settlement on Ethereum Sepolia with 0 bytes of PHI on-chain.",
     siteName: "Qlo",
     type: "website",
   },

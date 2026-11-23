@@ -52,12 +52,12 @@ async function rpcCall(rpcs, method, params) {
       lastErr = err;
     }
   }
-  throw new Error(`All Base Sepolia RPCs failed for ${method}: ${lastErr?.message || lastErr}`);
+  throw new Error(`All Ethereum Sepolia RPCs failed for ${method}: ${lastErr?.message || lastErr}`);
 }
 
 async function main() {
   const deployment = JSON.parse(
-    fs.readFileSync(path.join(rootDir, "deployments", "base-sepolia.json"), "utf8")
+    fs.readFileSync(path.join(rootDir, "deployments", "sepolia.json"), "utf8")
   );
   const genesis = JSON.parse(
     fs.readFileSync(path.join(rootDir, "contracts", "test", "fixtures", "genesis.json"), "utf8")
@@ -66,20 +66,20 @@ async function main() {
   assert.equal(
     deployment.deployed,
     true,
-    "deployments/base-sepolia.json has deployed=false. Run scripts/deploy-base-sepolia.ps1 first."
+    "deployments/sepolia.json has deployed=false. Run scripts/deploy-sepolia.ps1 first."
   );
-  assert.equal(Number(deployment.chainId), 84532, "Expected Base Sepolia chainId 84532");
+  assert.equal(Number(deployment.chainId), 11155111, "Expected Ethereum Sepolia chainId 11155111");
 
   const rpcs = [
-    process.env.BASE_SEPOLIA_RPC_URL,
-    "https://sepolia.base.org",
-    "https://base-sepolia-rpc.publicnode.com",
-    "https://base-sepolia.drpc.org",
+    process.env.SEPOLIA_RPC_URL,
+    "https://ethereum-sepolia-rpc.publicnode.com",
+    "https://1rpc.io/sepolia",
+    "https://sepolia.gateway.tenderly.co",
   ].filter(Boolean);
 
   const chainResp = await rpcCall(rpcs, "eth_chainId", []);
-  assert.equal(BigInt(chainResp.result), 84532n, `Unexpected chain ID from ${chainResp.rpc}`);
-  console.log(`[verify-live] Connected to Base Sepolia (84532) via ${chainResp.rpc}`);
+  assert.equal(BigInt(chainResp.result), 11155111n, `Unexpected chain ID from ${chainResp.rpc}`);
+  console.log(`[verify-live] Connected to Ethereum Sepolia (11155111) via ${chainResp.rpc}`);
 
   for (const [name, addr] of Object.entries(deployment.contracts)) {
     assert.ok(
@@ -89,7 +89,7 @@ async function main() {
     const codeResp = await rpcCall(rpcs, "eth_getCode", [addr, "latest"]);
     assert.ok(
       codeResp.result && codeResp.result !== "0x" && codeResp.result.length > 10,
-      `No contract bytecode found on Base Sepolia for ${name} at ${addr}`
+      `No contract bytecode found on Ethereum Sepolia for ${name} at ${addr}`
     );
     console.log(`[verify-live]     ${name} bytecode live at ${addr} (${(codeResp.result.length - 2) / 2} bytes)`);
   }
@@ -137,7 +137,7 @@ async function main() {
     { to: deployment.contracts.ClaimsVault, data: SELECTORS.paused },
     "latest",
   ]);
-  assert.equal(BigInt(pausedResp.result), 0n, "ClaimsVault is paused on Base Sepolia");
+  assert.equal(BigInt(pausedResp.result), 0n, "ClaimsVault is paused on Ethereum Sepolia");
   const escrowEth = Number(BigInt(escrowResp.result)) / 1e18;
   console.log(
     `[verify-live]     ClaimsVault seededInsurer=${deployment.seededInsurer} escrow=${escrowEth} ETH, totalClaimsSettled=${BigInt(settledResp.result)}, paused=false`
@@ -170,7 +170,7 @@ async function main() {
     assert.equal(healthRes.status, 200, `Expected HTTP 200 for ${liveUrl}/api/health, got ${healthRes.status}`);
     const healthJson = await healthRes.json();
     assert.equal(healthJson.ok, true, "Live /api/health returned ok != true");
-    assert.equal(Number(healthJson.chainId), 84532, "Live /api/health chainId mismatch");
+    assert.equal(Number(healthJson.chainId), 11155111, "Live /api/health chainId mismatch");
 
     const phiProbe = await fetch(`${liveUrl}/api/relay/vault`, {
       method: "POST",
@@ -195,7 +195,7 @@ async function main() {
     assert.equal(
       manifest.zkeySha256,
       deployment.zkeySha256,
-      "Live /zk/manifest.json zkeySha256 mismatch vs deployments/base-sepolia.json"
+      "Live /zk/manifest.json zkeySha256 mismatch vs deployments/sepolia.json"
     );
     console.log(`[verify-live]     All 11 web routes + /api/health + Zero-PHI relay probe + ZK/OCR assets passed!`);
   } else {

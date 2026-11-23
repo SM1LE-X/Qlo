@@ -8,7 +8,7 @@ import {PolicyRegistry} from "../src/PolicyRegistry.sol";
 import {HealthRecords} from "../src/HealthRecords.sol";
 import {ClaimsVault} from "../src/ClaimsVault.sol";
 
-contract DeployBaseSepolia is Script {
+contract DeploySepolia is Script {
     using stdJson for string;
 
     function run() external {
@@ -41,7 +41,7 @@ contract DeployBaseSepolia is Script {
         policyRegistry.registerPolicy(genesisJson.readUint(".expiredPolicyCommitment"));
 
         uint256 initialEscrow = vm.envOr("INITIAL_ESCROW_WEI", uint256(0.02 ether));
-        uint256 gasReserve = 0.004 ether;
+        uint256 gasReserve = 0.008 ether;
         if (initialEscrow > 0 && deployer.balance > gasReserve) {
             uint256 depositAmount = deployer.balance > initialEscrow + gasReserve
                 ? initialEscrow
@@ -78,9 +78,9 @@ contract DeployBaseSepolia is Script {
         string memory obj = "deployment";
         vm.serializeBool(obj, "deployed", true);
         vm.serializeUint(obj, "chainId", block.chainid);
-        vm.serializeString(obj, "network", "base-sepolia");
-        vm.serializeString(obj, "explorerBaseUrl", "https://sepolia.basescan.org");
-        vm.serializeString(obj, "sourcifyBaseUrl", "https://repo.sourcify.dev/contracts/full_match/84532");
+        vm.serializeString(obj, "network", "sepolia");
+        vm.serializeString(obj, "explorerBaseUrl", "https://sepolia.etherscan.io");
+        vm.serializeString(obj, "sourcifyBaseUrl", "https://repo.sourcify.dev/contracts/full_match/11155111");
         vm.serializeString(obj, "zkeySha256", manifestJson.readString(".zkeySha256"));
         vm.serializeAddress(obj, "seededInsurer", deployer);
         vm.serializeUint(obj, "deployBlock", block.number);
@@ -93,6 +93,6 @@ contract DeployBaseSepolia is Script {
         string memory addrsJson = vm.serializeAddress(addrs, "ClaimsVault", claimsVault);
 
         string memory finalJson = vm.serializeString(obj, "contracts", addrsJson);
-        vm.writeJson(finalJson, string.concat(vm.projectRoot(), "/../deployments/base-sepolia.json"));
+        vm.writeJson(finalJson, string.concat(vm.projectRoot(), "/../deployments/sepolia.json"));
     }
 }

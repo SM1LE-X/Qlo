@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
 const contractsDir = path.join(rootDir, "contracts");
-const deployPath = path.join(rootDir, "deployments", "base-sepolia.json");
+const deployPath = path.join(rootDir, "deployments", "sepolia.json");
 const webDeployPath = path.join(rootDir, "apps", "web", "src", "contracts", "deployment.json");
 
 const foundryBin = path.join(process.env.USERPROFILE || "C:\\Users\\Delta", ".foundry", "bin");
@@ -75,22 +75,22 @@ async function main() {
   const hadWebDeploy = fs.existsSync(webDeployPath);
   const webDeployBackup = hadWebDeploy ? fs.readFileSync(webDeployPath, "utf8") : null;
 
-  console.log("[anvil-e2e] Starting local Anvil Base Sepolia fork-chain (84532)...");
+  console.log("[anvil-e2e] Starting local Anvil Ethereum Sepolia fork-chain (11155111)...");
   const anvil = spawn(
     ANVIL,
-    ["--chain-id", "84532", "--port", "8545", "--timestamp", "1795300080", "--silent"],
+    ["--chain-id", "11155111", "--port", "8545", "--timestamp", "1795300080", "--silent"],
     { stdio: ["ignore", "pipe", "pipe"] }
   );
 
   try {
     await waitForAnvil();
 
-    console.log("[anvil-e2e] Broadcasting DeployBaseSepolia.s.sol via forge script...");
+    console.log("[anvil-e2e] Broadcasting DeploySepolia.s.sol via forge script...");
     execFileSync(
       FORGE,
       [
         "script",
-        "script/DeployBaseSepolia.s.sol:DeployBaseSepolia",
+        "script/DeploySepolia.s.sol:DeploySepolia",
         "--rpc-url",
         RPC_URL,
         "--broadcast",
@@ -118,7 +118,7 @@ async function main() {
     );
 
     assert.equal(deployed.deployed, true);
-    assert.equal(deployed.chainId, 84532);
+    assert.equal(deployed.chainId, 11155111);
 
     const { HospitalRegistry, PolicyRegistry, HealthRecords, ClaimsVault } = deployed.contracts;
 

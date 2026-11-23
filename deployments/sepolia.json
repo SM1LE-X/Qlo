@@ -1,9 +1,9 @@
 {
   "deployed": false,
-  "chainId": 84532,
-  "network": "base-sepolia",
-  "explorerBaseUrl": "https://sepolia.basescan.org",
-  "sourcifyBaseUrl": "https://repo.sourcify.dev/contracts/full_match/84532",
+  "chainId": 11155111,
+  "network": "sepolia",
+  "explorerBaseUrl": "https://sepolia.etherscan.io",
+  "sourcifyBaseUrl": "https://repo.sourcify.dev/contracts/full_match/11155111",
   "zkeySha256": "7f26163076e3dcc5e61175e96fb6ce8a95b36dac8ba27c7e7ee5edcee4771746",
   "seededInsurer": "0x0000000000000000000000000000000000000000",
   "deployBlock": 0,

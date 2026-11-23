@@ -23,7 +23,7 @@ import { loadLocalChainMirror, saveLocalChainMirror, type LocalSettledClaim } fr
 import { fetchRelayState, postRelayAction } from "@/lib/relayClient";
 import {
   decodeContractError,
-  ensureBaseSepoliaChain,
+  ensureSepoliaChain,
   preflightSimulateAndWrite,
   validatePositiveEthInput,
 } from "@/lib/txHelpers";
@@ -124,7 +124,7 @@ export default function InsurerPage() {
         if (!address || !publicClient) {
           throw new Error("Connect Insurer MetaMask wallet first");
         }
-        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+        await ensureSepoliaChain(roles.chainId, switchChainAsync);
         await preflightSimulateAndWrite({
           publicClient,
           account: address,
@@ -165,7 +165,7 @@ export default function InsurerPage() {
         if (!address || !publicClient) {
           throw new Error("Connect Insurer MetaMask wallet first");
         }
-        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+        await ensureSepoliaChain(roles.chainId, switchChainAsync);
         await preflightSimulateAndWrite({
           publicClient,
           account: address,
@@ -211,7 +211,7 @@ export default function InsurerPage() {
         if (!address || !publicClient) {
           throw new Error("Connect Insurer MetaMask wallet first");
         }
-        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+        await ensureSepoliaChain(roles.chainId, switchChainAsync);
         await preflightSimulateAndWrite({
           publicClient,
           account: address,
@@ -221,7 +221,7 @@ export default function InsurerPage() {
           args: [commit],
           writeContractAsync,
         });
-        setPolicyStatus(`Registered ${raw.slice(0, 14)}... on Base Sepolia`);
+        setPolicyStatus(`Registered ${raw.slice(0, 14)}... on Ethereum Sepolia`);
         toast.success("Registered policy commitment in PolicyRegistry");
         await Promise.all([refreshStats(), roles.refetch()]);
       } else {
@@ -258,7 +258,7 @@ export default function InsurerPage() {
         const tx = await publicClient.getTransaction({ hash: txHashInput as `0x${string}` });
         setInspectedCalldata(tx.input);
         setPhiHits(scanHexForPhi(tx.input));
-        toast.success("Fetched raw Base Sepolia transaction calldata & scanned for PHI");
+        toast.success("Fetched raw Ethereum Sepolia transaction calldata & scanned for PHI");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Unable to load tx");
       }
@@ -446,7 +446,7 @@ export default function InsurerPage() {
           <InteractiveAreaChart
             className="h-full"
             title="Escrow Reserve & Claim Disbursement Velocity"
-            subtitle="Deterministic treasury buffer trend merged with live Base Sepolia / sandbox escrow balance"
+            subtitle="Deterministic treasury buffer trend merged with live Ethereum Sepolia / sandbox escrow balance"
             defaultRange="30D"
             accentColor="#0F4C81"
             formatValue={(v) => `${v.toFixed(4)} ETH`}

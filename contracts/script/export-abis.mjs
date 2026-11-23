@@ -6,7 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "../..");
 const outDir = path.join(rootDir, "contracts", "out");
 const webContractsDir = path.join(rootDir, "apps", "web", "src", "contracts");
-const deployPath = path.join(rootDir, "deployments", "base-sepolia.json");
+const deployPath = path.join(rootDir, "deployments", "sepolia.json");
 const webDeployPath = path.join(webContractsDir, "deployment.json");
 const manifestPath = path.join(rootDir, "circuits", "build", "manifest.json");
 
@@ -45,10 +45,10 @@ if (!fs.existsSync(deployPath)) {
     : { zkeySha256: "" };
   const initialDeployment = {
     deployed: false,
-    chainId: 84532,
-    network: "base-sepolia",
-    explorerBaseUrl: "https://sepolia.basescan.org",
-    sourcifyBaseUrl: "https://repo.sourcify.dev/contracts/full_match/84532",
+    chainId: 11155111,
+    network: "sepolia",
+    explorerBaseUrl: "https://sepolia.etherscan.io",
+    sourcifyBaseUrl: "https://repo.sourcify.dev/contracts/full_match/11155111",
     zkeySha256: manifest.zkeySha256 || "",
     seededInsurer: "0x0000000000000000000000000000000000000000",
     deployBlock: 0,

@@ -40,7 +40,7 @@ const VERISURE_COMPARISON = [
   {
     dim: "Verification Trust Model",
     verisure: "EigenLayer + Othentic AVS operators + RISC0 zkVM",
-    qlo: "Trustless L2 verification directly inside ClaimsVault.sol on Base Sepolia",
+    qlo: "Trustless verification directly inside ClaimsVault.sol on Ethereum Sepolia",
   },
   {
     dim: "Patient Data Sovereignty",
@@ -136,17 +136,17 @@ export default function StoryPage() {
         )}
       </SpotlightCard>
 
-      {/* Base Sepolia Contract Registry (cleanly housed in Trust Center) */}
+      {/* Ethereum Sepolia Contract Registry (cleanly housed in Trust Center) */}
       <SpotlightCard accent="neutral" className="p-6 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F4F4F5] pb-3">
           <div>
             <h2 className="text-sm font-semibold text-[#09090B]">
-              Base Sepolia Contract Registry (Chain ID {DEPLOYMENT.chainId})
+              Ethereum Sepolia Contract Registry (Chain ID {DEPLOYMENT.chainId})
             </h2>
             <p className="text-xs text-[#52525B]">
               {IS_CHAIN_DEPLOYED
-                ? "Verified open-source Solidity 0.8.28 contracts on Sourcify & Base Sepolia."
-                : "Pre-broadcast deployment manifest — verified on Anvil local EVM; ready for Base Sepolia broadcast."}
+                ? "Verified open-source Solidity 0.8.28 contracts on Sourcify & Ethereum Sepolia."
+                : "Pre-broadcast deployment manifest — verified on Anvil local EVM; ready for Ethereum Sepolia broadcast."}
             </p>
           </div>
           <Badge variant={IS_CHAIN_DEPLOYED ? "emerald" : "neutral"}>
@@ -256,7 +256,7 @@ export default function StoryPage() {
             <div className="font-semibold text-[#047857]">4. Range-Checked Comparators &amp; Clock Window</div>
             <p className="text-[#52525B]">
               Explicit <code className="text-[#09090B] font-semibold">Num2Bits(64/96)</code> checks prevent BN254 field aliasing bugs in{" "}
-              <code className="text-[#09090B] font-semibold">LessThan</code>, and Base Sepolia enforces a 15-minute freshness window against backdated proofs.
+              <code className="text-[#09090B] font-semibold">LessThan</code>, and Ethereum Sepolia enforces a 15-minute freshness window against backdated proofs.
             </p>
           </div>
         </div>
@@ -302,7 +302,7 @@ export default function StoryPage() {
             Deep Cryptographic &amp; Security Audit Q&amp;A
           </h2>
           <p className="text-xs text-[#52525B]">
-            Detailed answers on arithmetic constraints, key lifecycle, and Base Sepolia finality guarantees.
+            Detailed answers on arithmetic constraints, key lifecycle, and Ethereum Sepolia finality guarantees.
           </p>
         </div>
 

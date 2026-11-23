@@ -1,24 +1,24 @@
 import { createConfig, fallback, http, injected } from "wagmi";
-import { baseSepolia } from "wagmi/chains";
+import { sepolia } from "wagmi/chains";
 
-const DEFAULT_BASE_SEPOLIA_RPCS = [
-  "https://sepolia.base.org",
-  "https://base-sepolia-rpc.publicnode.com",
-  "https://base-sepolia.drpc.org",
+const DEFAULT_SEPOLIA_RPCS = [
+  "https://ethereum-sepolia-rpc.publicnode.com",
+  "https://1rpc.io/sepolia",
+  "https://sepolia.gateway.tenderly.co",
 ] as const;
 
-const customRpcUrl = process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL?.trim();
+const customRpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL?.trim();
 
-export const BASE_SEPOLIA_RPCS: readonly string[] = customRpcUrl
-  ? [customRpcUrl, ...DEFAULT_BASE_SEPOLIA_RPCS]
-  : [...DEFAULT_BASE_SEPOLIA_RPCS];
+export const SEPOLIA_RPCS: readonly string[] = customRpcUrl
+  ? [customRpcUrl, ...DEFAULT_SEPOLIA_RPCS]
+  : [...DEFAULT_SEPOLIA_RPCS];
 
 export const wagmiConfig = createConfig({
-  chains: [baseSepolia],
+  chains: [sepolia],
   connectors: [injected()],
   transports: {
-    [baseSepolia.id]: fallback(
-      BASE_SEPOLIA_RPCS.map((url) =>
+    [sepolia.id]: fallback(
+      SEPOLIA_RPCS.map((url) =>
         http(url, {
           timeout: 12_000,
           retryCount: 2,
