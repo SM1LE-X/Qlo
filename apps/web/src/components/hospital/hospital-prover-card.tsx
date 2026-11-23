@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Cpu, ExternalLink, Landmark, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/card";
+import { OrbitalProver } from "@/components/ui/orbital-prover";
+import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { TactileButton } from "@/components/ui/tactile-button";
 import { Terminal } from "@/components/ui/terminal";
 import { IS_CHAIN_DEPLOYED, explorerTxUrl } from "@/lib/contracts";
@@ -11,20 +13,24 @@ import { type ProveStage, type ProverOutput } from "@/lib/prover";
 
 const PLAIN_ZK_CHECKS = [
   {
+    code: "01",
     title: "Approved Hospital",
-    detail: "Proves your hospital wallet is in the approved registry.",
+    detail: "Proves your hospital wallet & NPI sit inside the Poseidon hospitalRoot.",
   },
   {
+    code: "02",
     title: "Active Insurance Policy",
-    detail: "Proves the patient's policy exists and has not expired.",
+    detail: "Proves the patient's policy exists on-chain and has not expired.",
   },
   {
+    code: "03",
     title: "Covered Procedure",
-    detail: "Proves the procedure code is covered without revealing it.",
+    detail: "Proves the CPT procedure code is covered without exposing it.",
   },
   {
+    code: "04",
     title: "Within Limit & Not Replayed",
-    detail: "Proves the amount fits the annual cap and wasn't paid before.",
+    detail: "Proves cumulative spend fits the private annual cap with a fresh nullifier.",
   },
 ];
 
@@ -54,22 +60,27 @@ export function HospitalProverCard({
   terminalLines,
 }: HospitalProverCardProps) {
   const isProving =
+    proveStage === "building_witness" ||
     proveStage === "loading_artifacts" ||
     proveStage === "computing_witness" ||
     proveStage === "verifying_locally";
 
   return (
-    <div
+    <SpotlightCard
       id="hospital-prover"
-      className="lg:col-span-7 rounded-2xl border border-[#E4E4E7] bg-white p-6 space-y-5 shadow-2xs"
+      accent={proveStage === "done" ? "emerald" : proveStage === "failed" ? "crimson" : "neutral"}
+      className="lg:col-span-7 p-6 sm:p-7 space-y-5"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F4F4F5] pb-3">
-        <div>
-          <h2 className="text-base font-semibold text-[#09090B]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F4F4F5] pb-4">
+        <div className="space-y-0.5">
+          <div className="text-[11px] font-mono-tabular uppercase tracking-[0.14em] text-[#0F766E]">
+            02 · Groth16 Web Worker Prover
+          </div>
+          <h2 className="text-lg font-bold tracking-tight text-[#09090B]">
             2. Generate ZK Proof &amp; Collect Payout
           </h2>
           <p className="text-xs text-[#52525B]">
-            Runs privately in your browser—only the cryptographic proof goes on-chain.
+            Witness arithmetic runs strictly inside your browser—only the proof goes on-chain.
           </p>
         </div>
         {proverOutput ? (
@@ -77,39 +88,46 @@ export function HospitalProverCard({
         ) : null}
       </div>
 
+      {/* Live Orbital Cryptographic Ring */}
+      <OrbitalProver stage={proveStage} elapsedMs={proverOutput?.elapsedMs} />
+
       {/* 4 Plain-English Checks */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
         {PLAIN_ZK_CHECKS.map((item) => (
           <div
             key={item.title}
-            className={`rounded-xl border p-3.5 transition-colors ${
+            className={`rounded-2xl border p-4 transition-colors ${
               proveStage === "done"
                 ? "border-[#A7F3D0] bg-[#ECFDF5]/70"
                 : proveStage === "failed"
                 ? "border-[#FECACA] bg-[#FEF2F2]/70"
-                : "border-[#E4E4E7] bg-[#FAFAFA]"
+                : "border-[#E4E4E7] bg-[#F7F8F7]"
             }`}
           >
-            <div className="flex items-center gap-2 text-xs font-semibold text-[#09090B]">
-              <CheckCircle2
-                className={`h-4 w-4 shrink-0 ${
-                  proveStage === "done"
-                    ? "text-[#047857]"
-                    : proveStage === "failed"
-                    ? "text-[#DC2626]"
-                    : "text-[#A1A1AA]"
-                }`}
-              />
-              <span>{item.title}</span>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#09090B]">
+                <CheckCircle2
+                  className={`h-4 w-4 shrink-0 ${
+                    proveStage === "done"
+                      ? "text-[#047857]"
+                      : proveStage === "failed"
+                      ? "text-[#DC2626]"
+                      : "text-[#A1A1AA]"
+                  }`}
+                />
+                <span>{item.title}</span>
+              </div>
+              <span className="font-mono-tabular text-[10px] text-[#A1A1AA]">{item.code}</span>
             </div>
-            <p className="mt-1 text-[11px] text-[#52525B] leading-relaxed">{item.detail}</p>
+            <p className="mt-1.5 text-[11px] text-[#52525B] leading-relaxed">{item.detail}</p>
           </div>
         ))}
       </div>
 
       {/* Primary Action Buttons */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
         <TactileButton
+          size="lg"
           variant={proverOutput ? "secondary" : "primary"}
           onClick={onProve}
           disabled={!decryptedClaim || isProving}
@@ -128,6 +146,7 @@ export function HospitalProverCard({
         </TactileButton>
 
         <TactileButton
+          size="lg"
           variant="emerald"
           onClick={onSettle}
           disabled={!proverOutput || txBusy || chainSettleBlocked}
@@ -145,14 +164,15 @@ export function HospitalProverCard({
 
       {/* Payout Confirmation Banner */}
       {settledTx && proverOutput ? (
-        <div className="rounded-2xl border border-[#A7F3D0] bg-[#ECFDF5] p-4 space-y-3">
+        <div className="rounded-2xl border border-[#A7F3D0] bg-[#ECFDF5] p-5 space-y-3.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <div className="text-sm font-bold text-[#047857]">
+              <div className="text-base font-bold text-[#047857]">
                 ✓ Payout Confirmed: +{settledAmountEth} ETH
               </div>
               <div className="text-xs text-[#047857]/85">
-                Verified on-chain and transferred from ClaimsVault escrow with 0 medical data exposed.
+                Verified on Ethereum Sepolia and transferred from ClaimsVault with 0 medical bytes
+                exposed.
               </div>
             </div>
             {IS_CHAIN_DEPLOYED ? (
@@ -160,7 +180,7 @@ export function HospitalProverCard({
                 href={explorerTxUrl(settledTx)}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-lg border border-[#A7F3D0] bg-white px-2.5 py-1 text-xs font-semibold text-[#047857] hover:bg-[#F0FDFA]"
+                className="inline-flex items-center gap-1 rounded-xl border border-[#A7F3D0] bg-white px-3 py-1.5 text-xs font-semibold text-[#047857] hover:bg-[#F0FDFA]"
               >
                 Etherscan <ExternalLink className="h-3 w-3" />
               </a>
@@ -168,8 +188,8 @@ export function HospitalProverCard({
           </div>
 
           <Link href="/insurer" className="block">
-            <TactileButton variant="primary" size="sm" className="w-full">
-              Continue to Step 3: Verify Privacy on Insurer View
+            <TactileButton variant="primary" size="md" className="w-full">
+              Continue to Step 3: Verify Privacy on Insurer Audit
               <ArrowRight className="h-3.5 w-3.5" />
             </TactileButton>
           </Link>
@@ -177,14 +197,14 @@ export function HospitalProverCard({
       ) : null}
 
       {/* Collapsible Technical Prover Console */}
-      <details className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] px-3.5 py-2.5 text-xs">
-        <summary className="cursor-pointer font-medium text-[#52525B] select-none">
+      <details className="rounded-2xl border border-[#E4E4E7] bg-[#F7F8F7] px-4 py-3 text-xs">
+        <summary className="cursor-pointer font-medium text-[#3F3F46] select-none">
           Technical Proof Log ({terminalLines.length} entries)
         </summary>
         <div className="mt-3">
           <Terminal lines={terminalLines} />
         </div>
       </details>
-    </div>
+    </SpotlightCard>
   );
 }

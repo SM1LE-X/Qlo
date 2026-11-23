@@ -2,6 +2,7 @@
 
 import { CheckCircle2, Lock, ScanLine, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/card";
+import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { TactileButton } from "@/components/ui/tactile-button";
 import {
   SYNTHETIC_CMS1500_PRESETS,
@@ -10,7 +11,7 @@ import {
 } from "@/lib/intake";
 
 const INPUT_CLASS =
-  "mt-1 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 text-sm text-[#09090B] placeholder-[#A1A1AA] focus:border-[#0F766E] focus:outline-none transition-colors";
+  "mt-1.5 w-full rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] px-3.5 py-2.5 text-sm text-[#09090B] placeholder-[#A1A1AA] focus:border-[#0F766E] focus:bg-white focus:ring-2 focus:ring-[#0F766E]/10 focus:outline-none transition-all";
 
 interface Cms1500IntakeCardProps {
   claim: Cms1500Claim;
@@ -32,17 +33,21 @@ export function Cms1500IntakeCard({
   onFileSelected,
 }: Cms1500IntakeCardProps) {
   return (
-    <div
+    <SpotlightCard
       id="patient-intake"
-      className="lg:col-span-7 rounded-2xl border border-[#E4E4E7] bg-white p-6 space-y-5 shadow-2xs"
+      accent="emerald"
+      className="lg:col-span-7 p-6 sm:p-7 space-y-6"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F4F4F5] pb-4">
-        <div>
-          <h2 className="text-base font-semibold text-[#09090B]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#F4F4F5] pb-4">
+        <div className="space-y-0.5">
+          <div className="text-[11px] font-mono-tabular uppercase tracking-[0.14em] text-[#0F766E]">
+            01 · Local Medical Intake
+          </div>
+          <h2 className="text-lg font-bold tracking-tight text-[#09090B]">
             1. Medical Record Details
           </h2>
           <p className="text-xs text-[#52525B]">
-            Pick a sample medical bill or edit the fields below.
+            Pick a sample medical bill, scan an image locally with WASM OCR, or edit any field.
           </p>
         </div>
         <Badge variant="emerald">
@@ -51,11 +56,19 @@ export function Cms1500IntakeCard({
         </Badge>
       </div>
 
-      {/* Quick-Fill Preset + Optional Scan/Upload */}
-      <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-3.5 space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <div className="flex-1 min-w-[200px]">
-            <label htmlFor="preset-select" className="text-xs font-medium text-[#52525B]">
+      {/* Quick-Fill Preset + Browser-Local OCR Scanner */}
+      <div className="relative overflow-hidden rounded-2xl border border-[#E4E4E7] bg-[#F7F8F7] p-4 space-y-3">
+        {ocrRunning ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-[#0F766E] to-transparent"
+            style={{ animation: "ocr-laser-sweep 1.8s ease-in-out infinite" }}
+          />
+        ) : null}
+
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex-1 min-w-[220px]">
+            <label htmlFor="preset-select" className="text-xs font-semibold text-[#3F3F46]">
               Quick-Fill Sample Claim
             </label>
             <select
@@ -65,7 +78,7 @@ export function Cms1500IntakeCard({
                 const found = SYNTHETIC_CMS1500_PRESETS.find((p) => p.caseLabel === e.target.value);
                 if (found) onChangeClaim(found);
               }}
-              className="mt-1 w-full rounded-lg border border-[#E4E4E7] bg-white px-3 py-1.5 text-xs font-medium text-[#09090B] focus:border-[#0F766E] focus:outline-none"
+              className="mt-1.5 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 text-xs font-medium text-[#09090B] focus:border-[#0F766E] focus:outline-none"
             >
               {SYNTHETIC_CMS1500_PRESETS.map((p) => (
                 <option key={p.caseLabel} value={p.caseLabel}>
@@ -83,10 +96,10 @@ export function Cms1500IntakeCard({
               disabled={ocrRunning}
             >
               <ScanLine className="h-3.5 w-3.5 text-[#0F766E]" />
-              {ocrRunning ? "Scanning..." : "Scan Sample Bill"}
+              {ocrRunning ? "Scanning Locally..." : "Scan Sample Bill"}
             </TactileButton>
-            <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[#E4E4E7] bg-white px-2.5 text-xs font-medium text-[#09090B] hover:bg-[#F4F4F5] transition-colors">
-              <Upload className="h-3.5 w-3.5" />
+            <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[#E4E4E7] bg-white px-3 text-xs font-medium text-[#09090B] hover:bg-[#F4F4F5] transition-colors shadow-2xs">
+              <Upload className="h-3.5 w-3.5 text-[#0F766E]" />
               Upload
               <input
                 type="file"
@@ -109,8 +122,8 @@ export function Cms1500IntakeCard({
       {/* Main Plain-English Medical Fields */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label htmlFor="box21" className="text-xs font-medium text-[#52525B]">
-            Diagnosis Code <span className="text-[#A1A1AA]">(ICD-10)</span>
+          <label htmlFor="box21" className="text-xs font-semibold text-[#3F3F46]">
+            Diagnosis Code <span className="font-normal text-[#71717A]">(ICD-10)</span>
           </label>
           <input
             id="box21"
@@ -120,8 +133,8 @@ export function Cms1500IntakeCard({
           />
         </div>
         <div>
-          <label htmlFor="box24d" className="text-xs font-medium text-[#52525B]">
-            Procedure Code <span className="text-[#A1A1AA]">(CPT)</span>
+          <label htmlFor="box24d" className="text-xs font-semibold text-[#3F3F46]">
+            Procedure Code <span className="font-normal text-[#71717A]">(CPT)</span>
           </label>
           <input
             id="box24d"
@@ -131,8 +144,8 @@ export function Cms1500IntakeCard({
           />
         </div>
         <div>
-          <label htmlFor="box24f" className="text-xs font-medium text-[#52525B]">
-            Claim Amount <span className="text-[#A1A1AA]">(ETH payout)</span>
+          <label htmlFor="box24f" className="text-xs font-semibold text-[#3F3F46]">
+            Claim Amount <span className="font-normal text-[#71717A]">(ETH payout)</span>
           </label>
           <input
             id="box24f"
@@ -142,7 +155,7 @@ export function Cms1500IntakeCard({
           />
         </div>
         <div>
-          <label htmlFor="box1a" className="text-xs font-medium text-[#52525B]">
+          <label htmlFor="box1a" className="text-xs font-semibold text-[#3F3F46]">
             Insurance Policy ID
           </label>
           <input
@@ -154,9 +167,9 @@ export function Cms1500IntakeCard({
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div>
-          <label htmlFor="rx" className="text-xs font-medium text-[#52525B]">
+          <label htmlFor="rx" className="text-xs font-semibold text-[#3F3F46]">
             Prescription / Medications
           </label>
           <input
@@ -167,7 +180,7 @@ export function Cms1500IntakeCard({
           />
         </div>
         <div>
-          <label htmlFor="notes" className="text-xs font-medium text-[#52525B]">
+          <label htmlFor="notes" className="text-xs font-semibold text-[#3F3F46]">
             Doctor Summary
           </label>
           <textarea
@@ -180,13 +193,15 @@ export function Cms1500IntakeCard({
         </div>
       </div>
 
-      {/* Collapsible Advanced Fields & Validation */}
-      <details className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] px-4 py-3 text-xs">
-        <summary className="flex items-center justify-between cursor-pointer font-medium text-[#52525B] select-none">
+      {/* Collapsible Advanced Fields & Completeness Meter */}
+      <details className="rounded-2xl border border-[#E4E4E7] bg-[#F7F8F7] px-4 py-3 text-xs">
+        <summary className="flex items-center justify-between cursor-pointer font-medium text-[#3F3F46] select-none">
           <span>Additional Claim Details (Patient ID &amp; Provider NPI)</span>
           <span
-            className={`inline-flex items-center gap-1 font-semibold ${
-              completeness.valid ? "text-[#047857]" : "text-[#B91C1C]"
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-semibold ${
+              completeness.valid
+                ? "bg-[#ECFDF5] text-[#047857] border border-[#A7F3D0]"
+                : "bg-[#FEF2F2] text-[#B91C1C] border border-[#FECACA]"
             }`}
           >
             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -202,7 +217,7 @@ export function Cms1500IntakeCard({
               id="box2"
               value={claim.patientAlias}
               onChange={(e) => onChangeClaim({ ...claim, patientAlias: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-[#E4E4E7] bg-white px-2.5 py-1.5 font-mono-tabular text-xs text-[#09090B]"
+              className="mt-1 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 font-mono-tabular text-xs text-[#09090B]"
             />
           </div>
           <div>
@@ -213,11 +228,11 @@ export function Cms1500IntakeCard({
               id="box24j"
               value={claim.renderingNpi}
               onChange={(e) => onChangeClaim({ ...claim, renderingNpi: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-[#E4E4E7] bg-white px-2.5 py-1.5 font-mono-tabular text-xs text-[#09090B]"
+              className="mt-1 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 font-mono-tabular text-xs text-[#09090B]"
             />
           </div>
         </div>
       </details>
-    </div>
+    </SpotlightCard>
   );
 }

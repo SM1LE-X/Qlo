@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Download, KeyRound, Lock, ShieldOff } from "lucide-react";
 import { Badge } from "@/components/ui/card";
+import { DecryptedText } from "@/components/ui/decrypted-text";
+import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { TactileButton } from "@/components/ui/tactile-button";
 import { ACCREDITED_PROVIDERS } from "@/lib/clinicalCatalog";
 import { IS_CHAIN_DEPLOYED } from "@/lib/contracts";
@@ -24,6 +26,7 @@ interface PatientConsentPanelProps {
   completenessValid: boolean;
   vaultEntry: StoredVaultEntry | null;
   canSignChainTx: boolean;
+  previewSummary?: string;
   onEncryptLocally: () => void;
   onDownloadBundle: (entry: StoredVaultEntry, overrideId?: string) => void;
   onRegisterOnChain: () => void;
@@ -45,6 +48,7 @@ export function PatientConsentPanel({
   completenessValid,
   vaultEntry,
   canSignChainTx,
+  previewSummary = "ICD-10 · CPT · Rx Payload",
   onEncryptLocally,
   onDownloadBundle,
   onRegisterOnChain,
@@ -57,25 +61,52 @@ export function PatientConsentPanel({
   );
 
   return (
-    <div id="patient-consent" className="lg:col-span-5 space-y-5">
+    <div id="patient-consent" className="lg:col-span-5 space-y-6">
       {/* Step 2: Encrypt & Anchor */}
-      <div className="rounded-2xl border border-[#E4E4E7] bg-white p-6 space-y-4 shadow-2xs">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-[#09090B]">
-            2. Encrypt &amp; Save Record
-          </h2>
+      <SpotlightCard accent="emerald" className="p-6 sm:p-7 space-y-4">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="text-[11px] font-mono-tabular uppercase tracking-[0.14em] text-[#0F766E]">
+              02 · Client Encryption
+            </div>
+            <h2 className="text-lg font-bold tracking-tight text-[#09090B]">
+              2. Encrypt &amp; Save Record
+            </h2>
+          </div>
           {registeredRecordId ? (
             <Badge variant="emerald">Saved (#{registeredRecordId})</Badge>
           ) : encrypted ? (
-            <Badge variant="teal">Encrypted</Badge>
+            <Badge variant="teal">AES-256 Locked</Badge>
           ) : null}
         </div>
 
         <p className="text-xs text-[#52525B] leading-relaxed">
-          Your browser encrypts this medical record locally with AES-256 and writes only an anonymous hash to Ethereum Sepolia.
+          Your browser seals this bill locally with a fresh 256-bit AES key and writes only an
+          anonymous hash to Ethereum Sepolia.
         </p>
 
-        <div className="space-y-2.5">
+        {/* Live Visual Encryption State Preview */}
+        <div className="rounded-2xl border border-[#090C0E]/10 bg-[#090C0E] px-4 py-3 text-white space-y-1.5">
+          <div className="flex items-center justify-between text-[10px] font-mono-tabular uppercase tracking-[0.14em] text-zinc-400">
+            <span>Device Vault State</span>
+            <span className={encrypted ? "text-amber-300" : "text-emerald-300"}>
+              {encrypted ? "AES-256-GCM Ciphertext" : "Ready to Seal"}
+            </span>
+          </div>
+          <div className="truncate text-xs">
+            <DecryptedText
+              text={previewSummary}
+              encrypted={Boolean(encrypted)}
+              className={
+                encrypted
+                  ? "font-mono-tabular text-amber-300 tracking-wider"
+                  : "font-mono-tabular text-emerald-300"
+              }
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2.5 pt-1">
           <TactileButton
             variant={encrypted ? "secondary" : "primary"}
             className="w-full"
@@ -96,7 +127,7 @@ export function PatientConsentPanel({
           </TactileButton>
 
           <TactileButton
-            variant={encrypted && !registeredRecordId ? "primary" : "secondary"}
+            variant={encrypted && !registeredRecordId ? "emerald" : "secondary"}
             className="w-full"
             onClick={onRegisterOnChain}
             disabled={busy || !encrypted || !canSignChainTx}
@@ -114,52 +145,58 @@ export function PatientConsentPanel({
         </div>
 
         {encrypted && cid && vaultEntry ? (
-          <div className="flex items-center justify-between gap-2 rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] px-3 py-2 text-[11px]">
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-[#E4E4E7] bg-[#F7F8F7] px-3.5 py-2.5 text-[11px]">
             <span className="font-mono-tabular text-[#52525B] truncate">
               Hash: {shortHex(encrypted.recordCommitmentHex, 10, 6)}
             </span>
             <button
               type="button"
               onClick={() => onDownloadBundle(vaultEntry, registeredRecordId)}
-              className="inline-flex items-center gap-1 font-medium text-[#0F766E] hover:underline shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1 font-semibold text-[#0F766E] hover:underline shrink-0 cursor-pointer"
             >
               <Download className="h-3 w-3" />
               Backup
             </button>
           </div>
         ) : null}
-      </div>
+      </SpotlightCard>
 
       {/* Step 3: Grant / Revoke Hospital Access */}
-      <div className="rounded-2xl border border-[#E4E4E7] bg-white p-6 space-y-4 shadow-2xs">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-[#09090B]">
-            3. Share with Hospital
-          </h2>
+      <SpotlightCard accent={grantActive ? "emerald" : "neutral"} className="p-6 sm:p-7 space-y-4">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="text-[11px] font-mono-tabular uppercase tracking-[0.14em] text-[#0F766E]">
+              03 · Consent Control
+            </div>
+            <h2 className="text-lg font-bold tracking-tight text-[#09090B]">
+              3. Share with Hospital
+            </h2>
+          </div>
           <Badge variant={grantActive ? "emerald" : "neutral"}>
             {grantActive ? "Access Granted" : "Not Shared"}
           </Badge>
         </div>
 
         <p className="text-xs text-[#52525B] leading-relaxed">
-          Choose which hospital wallet can temporarily decrypt this record to file your claim.
+          Wrap the encryption key for one hospital wallet with a strict timer. Revoking deletes
+          the key on-chain immediately.
         </p>
 
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <div className="flex items-center justify-between text-xs">
-            <label htmlFor="hosp-addr" className="font-medium text-[#52525B]">
+            <label htmlFor="hosp-addr" className="font-semibold text-[#3F3F46]">
               Hospital Wallet
             </label>
             {connectedAddress && !isOwnWalletTarget ? (
               <button
                 type="button"
                 onClick={() => onChangeTargetHospital(connectedAddress)}
-                className="text-[11px] font-medium text-[#0F766E] hover:underline cursor-pointer"
+                className="text-[11px] font-semibold text-[#0F766E] hover:underline cursor-pointer"
               >
                 Use my connected wallet
               </button>
             ) : isOwnWalletTarget ? (
-              <span className="text-[11px] font-medium text-[#047857]">
+              <span className="text-[11px] font-semibold text-[#047857]">
                 Using your wallet ✓
               </span>
             ) : null}
@@ -181,7 +218,7 @@ export function PatientConsentPanel({
                 onChangeTargetHospital(e.target.value);
               }
             }}
-            className="w-full rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 text-xs text-[#09090B] focus:border-[#0F766E] focus:outline-none"
+            className="w-full rounded-xl border border-[#E4E4E7] bg-white px-3.5 py-2 text-xs font-medium text-[#09090B] focus:border-[#0F766E] focus:outline-none"
           >
             {ACCREDITED_PROVIDERS.map((prov) => (
               <option key={prov.address} value={prov.address}>
@@ -202,29 +239,31 @@ export function PatientConsentPanel({
             id="hosp-addr"
             value={targetHospital}
             onChange={(e) => onChangeTargetHospital(e.target.value)}
-            className="w-full rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] px-3 py-1.5 font-mono-tabular text-[11px] text-[#52525B] focus:border-[#0F766E] focus:bg-white focus:outline-none"
+            className="w-full rounded-xl border border-[#E4E4E7] bg-[#F7F8F7] px-3.5 py-2 font-mono-tabular text-[11px] text-[#52525B] focus:border-[#0F766E] focus:bg-white focus:outline-none"
           />
 
-          <div className="flex items-center gap-2 pt-1 text-xs">
-            <span className="text-[#71717A]">Access lasts:</span>
-            {[10, 30].map((mins) => (
-              <button
-                key={mins}
-                type="button"
-                onClick={() => onChangeGrantMinutes(mins)}
-                className={`rounded-lg border px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors ${
-                  grantMinutes === mins
-                    ? "border-[#0F766E] bg-[#F0FDFA] text-[#0F766E]"
-                    : "border-[#E4E4E7] bg-white text-[#52525B]"
-                }`}
-              >
-                {mins} min
-              </button>
-            ))}
+          <div className="flex items-center justify-between pt-1 text-xs">
+            <span className="text-[#71717A] font-medium">Access window:</span>
+            <div className="inline-flex items-center gap-1 rounded-xl border border-[#E4E4E7] bg-[#F7F8F7] p-1">
+              {[10, 30].map((mins) => (
+                <button
+                  key={mins}
+                  type="button"
+                  onClick={() => onChangeGrantMinutes(mins)}
+                  className={`rounded-lg px-3 py-1 text-xs font-semibold cursor-pointer transition-all ${
+                    grantMinutes === mins
+                      ? "bg-white text-[#0F766E] shadow-2xs border border-[#99F6E4]"
+                      : "text-[#52525B] hover:text-[#09090B]"
+                  }`}
+                >
+                  {mins} min
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-2 gap-2.5 pt-1">
           <TactileButton
             variant="emerald"
             onClick={onGrantAccess}
@@ -250,9 +289,9 @@ export function PatientConsentPanel({
         ) : null}
 
         {grantActive ? (
-          <div className="rounded-xl border border-[#A7F3D0] bg-[#ECFDF5] p-3.5 space-y-2.5">
+          <div className="rounded-2xl border border-[#A7F3D0] bg-[#ECFDF5] p-4 space-y-3">
             <div className="text-xs font-semibold text-[#047857]">
-              ✓ Access granted! Your hospital can now prove and submit this claim.
+              ✓ Access granted! Your hospital can now prove and settle this claim.
             </div>
             <Link href="/hospital" className="block">
               <TactileButton variant="primary" size="sm" className="w-full">
@@ -262,7 +301,7 @@ export function PatientConsentPanel({
             </Link>
           </div>
         ) : null}
-      </div>
+      </SpotlightCard>
     </div>
   );
 }

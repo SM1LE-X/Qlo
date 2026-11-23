@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Providers } from "@/components/providers";
@@ -14,6 +14,14 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-geist-mono",
+  display: "swap",
+});
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-editorial",
   display: "swap",
 });
 
@@ -41,12 +49,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="min-h-screen bg-[#FAFAFA] text-[#09090B] font-sans antialiased selection:bg-[#0F766E]/15 selection:text-[#042F2E]">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-96 bg-gradient-to-b from-[#F0FDFA]/80 via-[#FAFAFA]/60 to-transparent"
-        />
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable}`}
+    >
+      <body className="min-h-screen bg-[#F7F8F7] text-[#09090B] font-sans antialiased selection:bg-[#0F766E]/15 selection:text-[#042F2E]">
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

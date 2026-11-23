@@ -74,13 +74,25 @@ export default function StoryPage() {
 
   return (
     <div className="space-y-8">
-      <section className="space-y-2">
-        <Badge variant="teal">Trust Center · Cryptographic Specification</Badge>
-        <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-[#09090B]">
-          Cryptographic Architecture &amp; Security Controls
+      <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-obsidian-grid p-7 sm:p-9 text-white card-obsidian space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/35 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
+            Trust Center · Cryptographic Specification
+          </span>
+          <span className="rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 font-mono-tabular text-[11px] text-zinc-300">
+            4,349 R1CS · 5/5 Sourcify Exact Match · 100% MIT
+          </span>
+        </div>
+        <h1 className="text-3xl sm:text-5xl font-bold tracking-[-0.025em] text-white leading-[1.08]">
+          Cryptographic Architecture &amp;{" "}
+          <span className="font-editorial italic font-normal text-[#34D399]">Security</span>{" "}
+          Controls
         </h1>
-        <p className="text-sm text-[#52525B] max-w-3xl leading-relaxed">
-          Every circuit constraint, key-management boundary, and contract invariant is structured for fail-closed verification—replacing ad-hoc nonces with deterministic nullifiers, truncating SHA-256 digests safely into BN254 field elements, and enforcing private annual policy caps.
+        <p className="text-sm text-zinc-300 max-w-3xl leading-relaxed">
+          Every circuit constraint, key-management boundary, and contract invariant is structured
+          for fail-closed verification—replacing ad-hoc nonces with deterministic nullifiers,
+          truncating SHA-256 digests safely into BN254 field elements, and enforcing private annual
+          policy caps on Ethereum Sepolia.
         </p>
       </section>
 
@@ -154,7 +166,7 @@ export default function StoryPage() {
           </Badge>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5">
           {Object.entries(DEPLOYMENT.contracts).map(([name, addr]) => (
             <div
               key={name}

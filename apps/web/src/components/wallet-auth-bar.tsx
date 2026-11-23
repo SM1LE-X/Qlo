@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { motion } from "framer-motion";
 import {
   AlertTriangle,
   ChevronRight,
@@ -11,21 +12,22 @@ import {
 } from "lucide-react";
 import { useConnect, useDisconnect } from "wagmi";
 import { IS_CHAIN_DEPLOYED } from "@/lib/contracts";
+import { motionTransitions } from "@/lib/motion-tokens";
 import { connectInjectedWallet, type WalletRolesState } from "@/lib/useWalletRoles";
 import { cn, shortHex } from "@/lib/utils";
 import { TactileButton } from "./ui/tactile-button";
 
 export const WORKFLOW_STEPS = [
-  { href: "/patient", label: "1. Patient", icon: FileLock2 },
-  { href: "/hospital", label: "2. Hospital", icon: Cpu },
-  { href: "/insurer", label: "3. Insurer", icon: Landmark },
+  { href: "/patient", label: "1. Patient", icon: FileLock2, color: "text-[#0F766E]" },
+  { href: "/hospital", label: "2. Hospital", icon: Cpu, color: "text-[#0F4C81]" },
+  { href: "/insurer", label: "3. Insurer", icon: Landmark, color: "text-[#047857]" },
 ] as const;
 
 export function WorkflowStepSwitcher({ pathname }: { pathname: string }) {
   return (
     <nav
       aria-label="3-step claim workflow"
-      className="flex items-center gap-1 rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-1"
+      className="flex items-center gap-0.5 rounded-full border border-[#E4E4E7] bg-[#F4F5F4] p-1"
     >
       {WORKFLOW_STEPS.map((item, idx) => {
         const Icon = item.icon;
@@ -35,14 +37,19 @@ export function WorkflowStepSwitcher({ pathname }: { pathname: string }) {
             <Link
               href={item.href}
               className={cn(
-                "inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
-                active
-                  ? "bg-white text-[#09090B] shadow-xs border border-[#E4E4E7]/80"
-                  : "text-[#52525B] hover:text-[#09090B]"
+                "relative inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors",
+                active ? "text-[#09090B]" : "text-[#52525B] hover:text-[#09090B]"
               )}
             >
-              <Icon className={cn("h-3.5 w-3.5", active && "text-[#0F766E]")} />
-              <span>{item.label}</span>
+              {active ? (
+                <motion.span
+                  layoutId="active-workflow-pill"
+                  transition={motionTransitions.springMorph}
+                  className="absolute inset-0 rounded-full bg-white shadow-[0_1px_3px_rgba(9,12,14,0.09)] border border-[#E4E4E7]/80"
+                />
+              ) : null}
+              <Icon className={cn("relative z-10 h-3.5 w-3.5", active && item.color)} />
+              <span className="relative z-10">{item.label}</span>
             </Link>
             {idx < WORKFLOW_STEPS.length - 1 ? (
               <ChevronRight
@@ -67,19 +74,19 @@ export function DetectedRoleBadges({
   if (!roles.isConnected || roles.loadingRoles) return null;
 
   return (
-    <div className={cn("hidden xl:flex items-center gap-1", className)}>
+    <div className={cn("hidden xl:flex items-center gap-1.5", className)}>
       {roles.isPatient ? (
-        <span className="inline-flex items-center rounded-full border border-[#99F6E4] bg-[#F0FDFA] px-2 py-0.5 text-[10px] font-semibold text-[#0F766E] whitespace-nowrap">
+        <span className="inline-flex items-center rounded-full border border-[#99F6E4] bg-[#F0FDFA] px-2.5 py-0.5 text-[10px] font-semibold text-[#0F766E] whitespace-nowrap">
           Patient
         </span>
       ) : null}
       {roles.isApprovedHospital ? (
-        <span className="inline-flex items-center rounded-full border border-[#BAE6FD] bg-[#F0F9FF] px-2 py-0.5 text-[10px] font-semibold text-[#0F4C81] whitespace-nowrap">
+        <span className="inline-flex items-center rounded-full border border-[#BAE6FD] bg-[#F0F9FF] px-2.5 py-0.5 text-[10px] font-semibold text-[#0F4C81] whitespace-nowrap">
           Approved Hospital
         </span>
       ) : null}
       {roles.isInsurer ? (
-        <span className="inline-flex items-center rounded-full border border-[#A7F3D0] bg-[#ECFDF5] px-2 py-0.5 text-[10px] font-semibold text-[#047857] whitespace-nowrap">
+        <span className="inline-flex items-center rounded-full border border-[#A7F3D0] bg-[#ECFDF5] px-2.5 py-0.5 text-[10px] font-semibold text-[#047857] whitespace-nowrap">
           Insurer
         </span>
       ) : null}
@@ -95,13 +102,22 @@ export function WalletAuthControls({ roles }: { roles: WalletRolesState }) {
     <div className="flex items-center gap-2 shrink-0">
       <DetectedRoleBadges roles={roles} />
 
-      <span className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-[#E4E4E7] bg-[#FAFAFA] px-2.5 py-1 text-[11px] font-medium text-[#52525B] whitespace-nowrap">
-        <span
-          className={cn(
-            "h-2 w-2 rounded-full",
-            IS_CHAIN_DEPLOYED ? "bg-[#10B981]" : "bg-[#F59E0B]"
-          )}
-        />
+      <span className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-[#E4E4E7] bg-white px-3 py-1 text-[11px] font-medium text-[#52525B] whitespace-nowrap shadow-2xs">
+        <span className="relative flex h-2 w-2">
+          <span
+            className={cn(
+              "absolute inline-flex h-full w-full rounded-full opacity-75",
+              IS_CHAIN_DEPLOYED ? "bg-[#10B981]" : "bg-[#F59E0B]"
+            )}
+            style={{ animation: "pulse-ring 2.2s cubic-bezier(0,0,0.2,1) infinite" }}
+          />
+          <span
+            className={cn(
+              "relative inline-flex h-2 w-2 rounded-full",
+              IS_CHAIN_DEPLOYED ? "bg-[#10B981]" : "bg-[#F59E0B]"
+            )}
+          />
+        </span>
         {IS_CHAIN_DEPLOYED ? "Sepolia" : "Sandbox"}
       </span>
 

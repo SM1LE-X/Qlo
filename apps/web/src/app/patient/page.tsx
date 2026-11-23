@@ -681,6 +681,8 @@ export default function PatientPage() {
         isPatientRole={roles.isPatient}
         isChainDeployed={IS_CHAIN_DEPLOYED}
         secondsRemaining={secondsRemaining}
+        hasEncrypted={Boolean(encrypted)}
+        hasRegistered={Boolean(registeredRecordId)}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -708,6 +710,7 @@ export default function PatientPage() {
           completenessValid={completeness.valid}
           vaultEntry={vaultEntry}
           canSignChainTx={!IS_CHAIN_DEPLOYED || (roles.isConnected && !roles.wrongChain)}
+          previewSummary={`${claim.icd10Code} · CPT ${claim.cptCode} · ${claim.prescription}`}
           onEncryptLocally={handleEncryptLocally}
           onDownloadBundle={downloadBundleEntry}
           onRegisterOnChain={handleRegisterOnChain}

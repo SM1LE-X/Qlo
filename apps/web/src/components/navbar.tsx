@@ -7,22 +7,48 @@ import { cn } from "@/lib/utils";
 import { WalletAuthControls, WorkflowStepSwitcher } from "./wallet-auth-bar";
 
 /**
- * Single clean persistent top bar shared across every Qlo page:
- * Brand | 1. Patient -> 2. Hospital -> 3. Insurer | How it Works | Sepolia | Connect Wallet
+ * Full-width translucent architectural navigation bar shared across every Qlo route.
  */
 export function Navbar() {
   const pathname = usePathname();
   const roles = useWalletRoles();
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[#E4E4E7] bg-white/95 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-4 min-w-0">
-          <Link href="/" className="flex items-center gap-2 shrink-0">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#09090B] text-white font-mono-tabular font-bold text-sm">
-              Q
+    <header className="sticky top-0 z-40 border-b border-[#E4E4E7]/85 bg-white/85 backdrop-blur-xl">
+      <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-4 px-4 py-3 sm:px-8 lg:px-10">
+        <div className="flex items-center gap-5 min-w-0">
+          <Link href="/" className="group flex items-center gap-2.5 shrink-0">
+            <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-[#090C0E] text-white shadow-[0_2px_10px_-2px_rgba(9,12,14,0.38)] transition-transform group-hover:scale-[1.03]">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+                className="text-white"
+              >
+                <circle
+                  cx="11.5"
+                  cy="11.5"
+                  r="6.5"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                />
+                <path
+                  d="M16.2 16.2L20.5 20.5"
+                  stroke="#34D399"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                />
+                <circle cx="11.5" cy="11.5" r="2.2" fill="#34D399" />
+              </svg>
             </div>
-            <span className="text-base font-bold tracking-tight text-[#09090B]">Qlo</span>
+            <div className="flex flex-col leading-none">
+              <span className="text-[17px] font-bold tracking-tight text-[#09090B]">Qlo</span>
+              <span className="hidden sm:block text-[10px] font-medium tracking-wide text-[#71717A] mt-0.5">
+                ZK Health Claims
+              </span>
+            </div>
           </Link>
 
           <div className="hidden md:block">
@@ -32,10 +58,10 @@ export function Navbar() {
           <Link
             href="/story"
             className={cn(
-              "hidden lg:inline-flex items-center text-xs font-medium transition-colors whitespace-nowrap",
+              "hidden lg:inline-flex items-center rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors whitespace-nowrap",
               pathname === "/story"
-                ? "text-[#0F766E] font-semibold"
-                : "text-[#71717A] hover:text-[#09090B]"
+                ? "bg-[#F0FDFA] text-[#0F766E] font-semibold"
+                : "text-[#52525B] hover:text-[#09090B] hover:bg-[#F4F5F4]"
             )}
           >
             How it works
@@ -45,8 +71,8 @@ export function Navbar() {
         <WalletAuthControls roles={roles} />
       </div>
 
-      {/* Clean mobile 3-step bar */}
-      <div className="flex md:hidden justify-center border-t border-[#F4F4F5] px-3 py-2 bg-[#FAFAFA]">
+      {/* Mobile 3-step bar */}
+      <div className="flex md:hidden justify-center border-t border-[#F4F4F5] px-3 py-2 bg-[#F7F8F7]/90">
         <WorkflowStepSwitcher pathname={pathname} />
       </div>
     </header>
