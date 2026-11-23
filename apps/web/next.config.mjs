@@ -46,6 +46,9 @@ const nextConfig = {
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   outputFileTracingRoot: path.resolve(__dirname, "../.."),
+  experimental: {
+    optimizePackageImports: ["lucide-react", "framer-motion"],
+  },
   webpack: (config, { isServer, webpack }) => {
     if (!isServer) {
       config.resolve.fallback = {

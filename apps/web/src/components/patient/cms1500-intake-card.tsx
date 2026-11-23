@@ -1,9 +1,9 @@
 "use client";
 
-import { CheckCircle2, Lock, ScanLine, Upload } from "lucide-react";
+import { CheckCircle2, Lock } from "lucide-react";
+import { AnimatedFileUpload } from "@/components/ui/animated-file-upload";
 import { Badge } from "@/components/ui/card";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
-import { TactileButton } from "@/components/ui/tactile-button";
 import {
   SYNTHETIC_CMS1500_PRESETS,
   type Cms1500Claim,
@@ -36,18 +36,18 @@ export function Cms1500IntakeCard({
     <SpotlightCard
       id="patient-intake"
       accent="emerald"
-      className="lg:col-span-7 p-6 sm:p-7 space-y-6"
+      className="lg:col-span-7 p-6 sm:p-7 space-y-5"
     >
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#F4F4F5] pb-4">
         <div className="space-y-0.5">
           <div className="text-[11px] font-mono-tabular uppercase tracking-[0.14em] text-[#0F766E]">
-            01 · Local Medical Intake
+            01 · Local Medical Intake &amp; CMS-1500 Parser
           </div>
           <h2 className="text-lg font-bold tracking-tight text-[#09090B]">
             1. Medical Record Details
           </h2>
           <p className="text-xs text-[#52525B]">
-            Pick a sample medical bill, scan an image locally with WASM OCR, or edit any field.
+            Pick a synthetic clinical preset, drop a bill for browser-local WASM OCR, or edit fields.
           </p>
         </div>
         <Badge variant="emerald">
@@ -56,68 +56,35 @@ export function Cms1500IntakeCard({
         </Badge>
       </div>
 
-      {/* Quick-Fill Preset + Browser-Local OCR Scanner */}
-      <div className="relative overflow-hidden rounded-2xl border border-[#E4E4E7] bg-[#F7F8F7] p-4 space-y-3">
-        {ocrRunning ? (
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-[#0F766E] to-transparent"
-            style={{ animation: "ocr-laser-sweep 1.8s ease-in-out infinite" }}
-          />
-        ) : null}
-
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="flex-1 min-w-[220px]">
-            <label htmlFor="preset-select" className="text-xs font-semibold text-[#3F3F46]">
-              Quick-Fill Sample Claim
-            </label>
-            <select
-              id="preset-select"
-              value={claim.caseLabel}
-              onChange={(e) => {
-                const found = SYNTHETIC_CMS1500_PRESETS.find((p) => p.caseLabel === e.target.value);
-                if (found) onChangeClaim(found);
-              }}
-              className="mt-1.5 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 text-xs font-medium text-[#09090B] focus:border-[#0F766E] focus:outline-none"
-            >
-              {SYNTHETIC_CMS1500_PRESETS.map((p) => (
-                <option key={p.caseLabel} value={p.caseLabel}>
-                  {p.caseLabel}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <TactileButton
-              size="sm"
-              variant="secondary"
-              onClick={onRunSampleOcr}
-              disabled={ocrRunning}
-            >
-              <ScanLine className="h-3.5 w-3.5 text-[#0F766E]" />
-              {ocrRunning ? "Scanning Locally..." : "Scan Sample Bill"}
-            </TactileButton>
-            <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[#E4E4E7] bg-white px-3 text-xs font-medium text-[#09090B] hover:bg-[#F4F4F5] transition-colors shadow-2xs">
-              <Upload className="h-3.5 w-3.5 text-[#0F766E]" />
-              Upload
-              <input
-                type="file"
-                accept=".png,.jpg,.jpeg,.webp,.txt,.json,.edi"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) onFileSelected(file);
-                }}
-              />
-            </label>
-          </div>
-        </div>
-
-        {ocrStatus ? (
-          <div className="text-[11px] font-mono-tabular text-[#0F766E]">{ocrStatus}</div>
-        ) : null}
+      {/* Quick-Fill Clinical Case Selector */}
+      <div>
+        <label htmlFor="preset-select" className="text-xs font-semibold text-[#3F3F46]">
+          Quick-Fill Clinical Encounter Preset
+        </label>
+        <select
+          id="preset-select"
+          value={claim.caseLabel}
+          onChange={(e) => {
+            const found = SYNTHETIC_CMS1500_PRESETS.find((p) => p.caseLabel === e.target.value);
+            if (found) onChangeClaim(found);
+          }}
+          className="mt-1.5 w-full rounded-xl border border-[#E4E4E7] bg-white px-3.5 py-2.5 text-xs font-medium text-[#09090B] focus:border-[#0F766E] focus:outline-none shadow-2xs"
+        >
+          {SYNTHETIC_CMS1500_PRESETS.map((p) => (
+            <option key={p.caseLabel} value={p.caseLabel}>
+              {p.caseLabel}
+            </option>
+          ))}
+        </select>
       </div>
+
+      {/* Enterprise Drag-and-Drop Browser-Local OCR Zone */}
+      <AnimatedFileUpload
+        ocrRunning={ocrRunning}
+        ocrStatus={ocrStatus}
+        onRunSampleOcr={onRunSampleOcr}
+        onFileSelected={onFileSelected}
+      />
 
       {/* Main Plain-English Medical Fields */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

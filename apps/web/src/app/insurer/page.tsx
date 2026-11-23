@@ -407,7 +407,7 @@ export default function InsurerPage() {
         </SpotlightCard>
 
         <SpotlightCard accent="neutral" className="p-6 flex flex-col justify-between gap-4">
-          <div className="space-y-1.5">
+          <div className="space-y-2.5">
             <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[#71717A]">
               Total Paid to Hospitals
             </div>
@@ -417,6 +417,20 @@ export default function InsurerPage() {
             <div className="text-xs text-[#52525B]">
               {settledList.length} verified {settledList.length === 1 ? "claim" : "claims"} settled
               automatically
+            </div>
+            <div className="space-y-1 pt-1">
+              <div className="flex items-center justify-between text-[11px] font-mono-tabular text-[#52525B]">
+                <span>Policy Spend Utilization</span>
+                <span className="text-[#0F766E] font-semibold">
+                  {Math.min(100, Math.round((liveSpentNum / 0.03) * 100))}% of Private Cap
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-[#F4F5F4]">
+                <div
+                  className="h-full rounded-full bg-[#0F766E] transition-all duration-300"
+                  style={{ width: `${Math.min(100, Math.max(6, (liveSpentNum / 0.03) * 100))}%` }}
+                />
+              </div>
             </div>
           </div>
           <div className="text-[11px] text-[#52525B] rounded-xl border border-[#E4E4E7] bg-[#F7F8F7] px-3.5 py-2.5 leading-relaxed">

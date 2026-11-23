@@ -4,11 +4,10 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Abi } from "viem";
 import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
-import { FraudGuardrailsCard } from "@/components/hospital/fraud-guardrails-card";
+import { EnterpriseVerificationDock } from "@/components/hospital/enterprise-verification-dock";
 import { HospitalOverviewHeader } from "@/components/hospital/hospital-overview-header";
 import { HospitalProverCard } from "@/components/hospital/hospital-prover-card";
 import { HospitalRecordQueueCard } from "@/components/hospital/hospital-record-queue-card";
-import { StandardsStagingCard } from "@/components/hospital/standards-staging-card";
 import canonicalFixtures from "@/lib/canonicalFixtures.json";
 import { CONTRACTS, IS_CHAIN_DEPLOYED, explorerTxUrl } from "@/lib/contracts";
 import {
@@ -725,6 +724,9 @@ export default function HospitalPage() {
         onChainKeyRegistered={onChainKeyRegistered}
         refreshingInbox={refreshingInbox}
         txBusy={txBusy}
+        hasDecrypted={Boolean(decryptedClaim)}
+        hasProved={Boolean(proverOutput)}
+        hasSettled={Boolean(settledTx)}
         onRefreshInbox={() => refreshHospitalInbox(hospitalAddr, false)}
         onRegisterHospitalPubKey={handleRegisterHospitalPubKey}
       />
@@ -759,6 +761,7 @@ export default function HospitalPage() {
           proveStage={proveStage}
           proverOutput={proverOutput}
           decryptedClaim={decryptedClaim}
+          hospitalAddr={hospitalAddr}
           txBusy={txBusy}
           chainSettleBlocked={
             IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain || !roles.isApprovedHospital)
@@ -771,25 +774,15 @@ export default function HospitalPage() {
         />
       </div>
 
-      <details className="rounded-2xl border border-[#E4E4E7] bg-white p-5 shadow-2xs">
-        <summary className="cursor-pointer text-sm font-semibold text-[#09090B] select-none">
-          Advanced Demo Tools: Fraud Rejection Tests (5 Attacks) &amp; FHIR / X12 Exports
-        </summary>
-        <div className="mt-5 space-y-5">
-          <FraudGuardrailsCard
-            activeAttack={activeAttack}
-            attackResult={attackResult}
-            onRunScenario={runAttackScenario}
-          />
-
-          <StandardsStagingCard
-            standardsTab={standardsTab}
-            onChangeTab={setStandardsTab}
-            decryptedClaim={decryptedClaim}
-            hospitalAddr={hospitalAddr}
-          />
-        </div>
-      </details>
+      <EnterpriseVerificationDock
+        activeAttack={activeAttack}
+        attackResult={attackResult}
+        onRunScenario={runAttackScenario}
+        standardsTab={standardsTab}
+        onChangeStandardsTab={setStandardsTab}
+        decryptedClaim={decryptedClaim}
+        hospitalAddr={hospitalAddr}
+      />
     </div>
   );
 }

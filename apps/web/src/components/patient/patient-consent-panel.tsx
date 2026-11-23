@@ -3,16 +3,18 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Download, KeyRound, Lock, ShieldOff } from "lucide-react";
 import { Badge } from "@/components/ui/card";
-import { DecryptedText } from "@/components/ui/decrypted-text";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { TactileButton } from "@/components/ui/tactile-button";
+import { WalletPassCard } from "@/components/ui/wallet-pass-card";
 import { ACCREDITED_PROVIDERS } from "@/lib/clinicalCatalog";
 import { IS_CHAIN_DEPLOYED } from "@/lib/contracts";
 import { type EncryptedRecordResult } from "@/lib/crypto";
+import { type Cms1500Claim } from "@/lib/intake";
 import { type StoredVaultEntry } from "@/lib/storage";
 import { shortHex } from "@/lib/utils";
 
 interface PatientConsentPanelProps {
+  claim: Cms1500Claim;
   encrypted: EncryptedRecordResult | null;
   cid: string;
   registeredRecordId: string;
@@ -26,7 +28,6 @@ interface PatientConsentPanelProps {
   completenessValid: boolean;
   vaultEntry: StoredVaultEntry | null;
   canSignChainTx: boolean;
-  previewSummary?: string;
   onEncryptLocally: () => void;
   onDownloadBundle: (entry: StoredVaultEntry, overrideId?: string) => void;
   onRegisterOnChain: () => void;
@@ -35,6 +36,7 @@ interface PatientConsentPanelProps {
 }
 
 export function PatientConsentPanel({
+  claim,
   encrypted,
   cid,
   registeredRecordId,
@@ -48,7 +50,6 @@ export function PatientConsentPanel({
   completenessValid,
   vaultEntry,
   canSignChainTx,
-  previewSummary = "ICD-10 · CPT · Rx Payload",
   onEncryptLocally,
   onDownloadBundle,
   onRegisterOnChain,
@@ -62,12 +63,12 @@ export function PatientConsentPanel({
 
   return (
     <div id="patient-consent" className="lg:col-span-5 space-y-6">
-      {/* Step 2: Encrypt & Anchor */}
+      {/* Step 2: Interactive 3D Policy Pass + Encrypt & Anchor */}
       <SpotlightCard accent="emerald" className="p-6 sm:p-7 space-y-4">
         <div className="flex items-start justify-between gap-2">
           <div>
             <div className="text-[11px] font-mono-tabular uppercase tracking-[0.14em] text-[#0F766E]">
-              02 · Client Encryption
+              02 · Client Encryption &amp; Policy Pass
             </div>
             <h2 className="text-lg font-bold tracking-tight text-[#09090B]">
               2. Encrypt &amp; Save Record
@@ -80,31 +81,20 @@ export function PatientConsentPanel({
           ) : null}
         </div>
 
-        <p className="text-xs text-[#52525B] leading-relaxed">
-          Your browser seals this bill locally with a fresh 256-bit AES key and writes only an
-          anonymous hash to Ethereum Sepolia.
-        </p>
-
-        {/* Live Visual Encryption State Preview */}
-        <div className="rounded-2xl border border-[#090C0E]/10 bg-[#090C0E] px-4 py-3 text-white space-y-1.5">
-          <div className="flex items-center justify-between text-[10px] font-mono-tabular uppercase tracking-[0.14em] text-zinc-400">
-            <span>Device Vault State</span>
-            <span className={encrypted ? "text-amber-300" : "text-emerald-300"}>
-              {encrypted ? "AES-256-GCM Ciphertext" : "Ready to Seal"}
-            </span>
-          </div>
-          <div className="truncate text-xs">
-            <DecryptedText
-              text={previewSummary}
-              encrypted={Boolean(encrypted)}
-              className={
-                encrypted
-                  ? "font-mono-tabular text-amber-300 tracking-wider"
-                  : "font-mono-tabular text-emerald-300"
-              }
-            />
-          </div>
-        </div>
+        {/* Flippable 3D Encrypted Health Policy Pass */}
+        <WalletPassCard
+          policyId={claim.insuredPolicyId}
+          patientAlias={claim.patientAlias}
+          cptCode={claim.cptCode}
+          icd10Code={claim.icd10Code}
+          claimAmountEth={claim.claimAmountEth}
+          encrypted={Boolean(encrypted)}
+          cid={cid}
+          recordCommitmentHex={encrypted?.recordCommitmentHex}
+          recordId={registeredRecordId}
+          secondsRemaining={secondsRemaining}
+          targetHospital={targetHospital}
+        />
 
         <div className="space-y-2.5 pt-1">
           <TactileButton

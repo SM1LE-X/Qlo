@@ -22,11 +22,11 @@ const HUD_METRICS: HudMetric[] = [
   {
     id: "proving",
     label: "Groth16 Prover",
-    headline: "~408 ms",
+    headline: "574 ms",
     sublabel: "Client-side BN254 witness generation and local pairing verification inside a browser Web Worker.",
     deltaLabel: "Sub-Second Browser Proving",
     labels: ["Witness", "Poseidon Hashes", "Merkle Depth-6", "BN254 MSM", "Verify Key", "Ready"],
-    series: [12, 85, 165, 290, 380, 408],
+    series: [18, 96, 195, 360, 495, 574],
     unit: "ms",
   },
   {

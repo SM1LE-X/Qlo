@@ -697,6 +697,7 @@ export default function PatientPage() {
         />
 
         <PatientConsentPanel
+          claim={claim}
           encrypted={encrypted}
           cid={cid}
           registeredRecordId={registeredRecordId}
@@ -710,7 +711,6 @@ export default function PatientPage() {
           completenessValid={completeness.valid}
           vaultEntry={vaultEntry}
           canSignChainTx={!IS_CHAIN_DEPLOYED || (roles.isConnected && !roles.wrongChain)}
-          previewSummary={`${claim.icd10Code} · CPT ${claim.cptCode} · ${claim.prescription}`}
           onEncryptLocally={handleEncryptLocally}
           onDownloadBundle={downloadBundleEntry}
           onRegisterOnChain={handleRegisterOnChain}

@@ -2,6 +2,7 @@
 
 import { Cpu, KeyRound, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/card";
+import { Stepper } from "@/components/ui/stepper";
 import { TactileButton } from "@/components/ui/tactile-button";
 
 interface HospitalOverviewHeaderProps {
@@ -13,6 +14,9 @@ interface HospitalOverviewHeaderProps {
   onChainKeyRegistered: boolean;
   refreshingInbox: boolean;
   txBusy: boolean;
+  hasDecrypted?: boolean;
+  hasProved?: boolean;
+  hasSettled?: boolean;
   onRefreshInbox: () => void;
   onRegisterHospitalPubKey: () => void;
 }
@@ -26,14 +30,18 @@ export function HospitalOverviewHeader({
   onChainKeyRegistered,
   refreshingInbox,
   txBusy,
+  hasDecrypted = false,
+  hasProved = false,
+  hasSettled = false,
   onRefreshInbox,
   onRegisterHospitalPubKey,
 }: HospitalOverviewHeaderProps) {
   const hospitalAuthorized = isChainDeployed ? isApprovedHospital : matchedProviderPresent;
+  const currentStep = hasSettled ? 3 : hasProved ? 2 : hasDecrypted ? 1 : 0;
 
   return (
     <div className="space-y-4">
-      <section className="relative overflow-hidden rounded-3xl border border-[#E4E4E7] bg-white p-6 sm:p-7 card-porcelain">
+      <section className="relative overflow-hidden rounded-3xl border border-[#E4E4E7] bg-white p-6 sm:p-7 card-porcelain space-y-5">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(ellipse_at_right,rgba(15,76,129,0.08),transparent_70%)]"
@@ -76,6 +84,24 @@ export function HospitalOverviewHeader({
             Refresh Records
           </TactileButton>
         </div>
+
+        <Stepper
+          current={currentStep}
+          steps={[
+            {
+              title: "Verify Consent & Unwrap DEK",
+              description: "Check active patient grant and decrypt CMS-1500 locally",
+            },
+            {
+              title: "8-Predicate Groth16 Proof",
+              description: "Prove hospital, policy, CPT & cap in Web Worker (<3s)",
+            },
+            {
+              title: "Atomic Escrow Settlement",
+              description: "Submit BN254 proof to ClaimsVault for instant ETH payout",
+            },
+          ]}
+        />
       </section>
 
       {isChainDeployed && isApprovedHospital && !onChainKeyRegistered ? (

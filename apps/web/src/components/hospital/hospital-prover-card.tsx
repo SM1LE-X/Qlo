@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Cpu, ExternalLink, Landmark, Loader2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Cpu, Landmark, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/card";
 import { OrbitalProver } from "@/components/ui/orbital-prover";
+import { PaymentReceiptPrinter } from "@/components/ui/payment-receipt-printer";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { TactileButton } from "@/components/ui/tactile-button";
 import { Terminal } from "@/components/ui/terminal";
@@ -38,6 +39,7 @@ interface HospitalProverCardProps {
   proveStage: ProveStage;
   proverOutput: ProverOutput | null;
   decryptedClaim: Cms1500Claim | null;
+  hospitalAddr?: string;
   txBusy: boolean;
   chainSettleBlocked: boolean;
   onProve: () => void;
@@ -51,6 +53,7 @@ export function HospitalProverCard({
   proveStage,
   proverOutput,
   decryptedClaim,
+  hospitalAddr = "0x9c1cDD59AA337bc9d3B48A109f532cE45e1fc718",
   txBusy,
   chainSettleBlocked,
   onProve,
@@ -162,30 +165,16 @@ export function HospitalProverCard({
         </p>
       ) : null}
 
-      {/* Payout Confirmation Banner */}
+      {/* Perforated Enterprise Settlement Voucher */}
       {settledTx && proverOutput ? (
-        <div className="rounded-2xl border border-[#A7F3D0] bg-[#ECFDF5] p-5 space-y-3.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <div className="text-base font-bold text-[#047857]">
-                ✓ Payout Confirmed: +{settledAmountEth} ETH
-              </div>
-              <div className="text-xs text-[#047857]/85">
-                Verified on Ethereum Sepolia and transferred from ClaimsVault with 0 medical bytes
-                exposed.
-              </div>
-            </div>
-            {IS_CHAIN_DEPLOYED ? (
-              <a
-                href={explorerTxUrl(settledTx)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-xl border border-[#A7F3D0] bg-white px-3 py-1.5 text-xs font-semibold text-[#047857] hover:bg-[#F0FDFA]"
-              >
-                Etherscan <ExternalLink className="h-3 w-3" />
-              </a>
-            ) : null}
-          </div>
+        <div className="space-y-3">
+          <PaymentReceiptPrinter
+            txHash={settledTx}
+            explorerUrl={IS_CHAIN_DEPLOYED ? explorerTxUrl(settledTx) : undefined}
+            amountEth={settledAmountEth}
+            hospitalAddress={hospitalAddr}
+            nullifier={proverOutput.publicSignals[2] ?? "1314794180..."}
+          />
 
           <Link href="/insurer" className="block">
             <TactileButton variant="primary" size="md" className="w-full">
