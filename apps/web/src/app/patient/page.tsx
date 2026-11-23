@@ -11,7 +11,6 @@ import { PatientOverviewHeader } from "@/components/patient/patient-overview-hea
 import { PatientVaultTable } from "@/components/patient/patient-vault-table";
 import { AuditTimeline, type AuditEventItem } from "@/components/ui/audit-timeline";
 import { Badge } from "@/components/ui/card";
-import { SpotlightCard } from "@/components/ui/spotlight-card";
 import canonicalFixtures from "@/lib/canonicalFixtures.json";
 import { fetchPatientAuditEvents } from "@/lib/chainEvents";
 import { CONTRACTS, IS_CHAIN_DEPLOYED, explorerTxUrl } from "@/lib/contracts";
@@ -76,6 +75,7 @@ export default function PatientPage() {
   const [settledClaimsCount, setSettledClaimsCount] = useState<number>(0);
   const [activeGrantsMap, setActiveGrantsMap] = useState<Record<string, { expiresAt: number }>>({});
   const [busy, setBusy] = useState(false);
+  const [bottomTab, setBottomTab] = useState<"vault" | "audit" | "benefits">("vault");
 
   const completeness = validateCms1500Completeness(claim);
 
@@ -136,14 +136,20 @@ export default function PatientPage() {
         hydratedItems.push(updatedItem);
       }
 
-      setVaultItems(hydratedItems);
-      setActiveGrantsMap(grantsMap);
-      setActiveGrantsCount(
-        Object.values(grantsMap).filter((g) => g.expiresAt > now).length
-      );
-      setSettledClaimsCount(onChainSettled);
+      const remoteRelay = await fetchRelayState();
+      const mergedGrants: Record<string, { expiresAt: number }> = {
+        ...(remoteRelay?.grants ?? {}),
+        ...grantsMap,
+      };
 
-      return { mirror: null, items: hydratedItems, grantsMap };
+      setVaultItems(hydratedItems);
+      setActiveGrantsMap(mergedGrants);
+      setActiveGrantsCount(
+        Object.values(mergedGrants).filter((g) => g.expiresAt > now).length
+      );
+      setSettledClaimsCount(onChainSettled + (remoteRelay?.settledClaims?.length ?? 0));
+
+      return { mirror: remoteRelay, items: hydratedItems, grantsMap: mergedGrants };
     }
 
     const remote = await fetchRelayState();
@@ -171,9 +177,8 @@ export default function PatientPage() {
           if (g && g.expiresAt > Math.floor(Date.now() / 1000)) {
             setGrantExpiresAt(g.expiresAt);
           }
-          const dekJson = sessionStorage.getItem(
-            `qlo-dek-${latestRegistered.recordCommitmentHex.toLowerCase()}`
-          );
+          const dekKey = `qlo-dek-${latestRegistered.recordCommitmentHex.toLowerCase()}`;
+          const dekJson = localStorage.getItem(dekKey) ?? sessionStorage.getItem(dekKey);
           if (dekJson) {
             const dekBytes = new Uint8Array(JSON.parse(dekJson) as number[]);
             setEncrypted({
@@ -213,9 +218,8 @@ export default function PatientPage() {
         );
         if (match) {
           setVaultEntry(match);
-          const dekJson = sessionStorage.getItem(
-            `qlo-dek-${match.recordCommitmentHex.toLowerCase()}`
-          );
+          const dekKey = `qlo-dek-${match.recordCommitmentHex.toLowerCase()}`;
+          const dekJson = localStorage.getItem(dekKey) ?? sessionStorage.getItem(dekKey);
           if (dekJson) {
             const dekBytes = new Uint8Array(JSON.parse(dekJson) as number[]);
             setEncrypted({
@@ -327,10 +331,10 @@ export default function PatientPage() {
       };
       await saveEncryptedRecordToVault(entry);
 
-      sessionStorage.setItem(
-        `qlo-dek-${enc.recordCommitmentHex.toLowerCase()}`,
-        JSON.stringify(Array.from(enc.dekRawBytes))
-      );
+      const dekKey = `qlo-dek-${enc.recordCommitmentHex.toLowerCase()}`;
+      const dekSerialized = JSON.stringify(Array.from(enc.dekRawBytes));
+      sessionStorage.setItem(dekKey, dekSerialized);
+      localStorage.setItem(dekKey, dekSerialized);
 
       setEncrypted(enc);
       setCid(computedCid);
@@ -364,8 +368,7 @@ export default function PatientPage() {
     if (!encrypted || !cid) return;
     setBusy(true);
     try {
-      if (IS_CHAIN_DEPLOYED) {
-        if (!address || !publicClient) throw new Error("Connect MetaMask on Ethereum Sepolia first");
+      if (IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain) {
         await ensureSepoliaChain(roles.chainId, switchChainAsync);
 
         const existingRecId = (await publicClient.readContract({
@@ -514,8 +517,7 @@ export default function PatientPage() {
       const durationSeconds = BigInt(grantMinutes * 60);
       const expiresAt = Math.floor(Date.now() / 1000) + grantMinutes * 60;
 
-      if (IS_CHAIN_DEPLOYED) {
-        if (!address || !publicClient) throw new Error("Connect MetaMask on Ethereum Sepolia");
+      if (IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain) {
         await ensureSepoliaChain(roles.chainId, switchChainAsync);
 
         if (vaultEntry) {
@@ -616,8 +618,7 @@ export default function PatientPage() {
     if (!registeredRecordId) return;
     setBusy(true);
     try {
-      if (IS_CHAIN_DEPLOYED) {
-        if (!address || !publicClient) throw new Error("Connect MetaMask on Ethereum Sepolia");
+      if (IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain) {
         await ensureSepoliaChain(roles.chainId, switchChainAsync);
         const { hash } = await preflightSimulateAndWrite({
           publicClient,
@@ -710,7 +711,7 @@ export default function PatientPage() {
           busy={busy}
           completenessValid={completeness.valid}
           vaultEntry={vaultEntry}
-          canSignChainTx={!IS_CHAIN_DEPLOYED || (roles.isConnected && !roles.wrongChain)}
+          canSignChainTx={!roles.wrongChain}
           onEncryptLocally={handleEncryptLocally}
           onDownloadBundle={downloadBundleEntry}
           onRegisterOnChain={handleRegisterOnChain}
@@ -719,32 +720,67 @@ export default function PatientPage() {
         />
       </div>
 
-      <details className="rounded-2xl border border-[#E4E4E7] bg-white p-5 shadow-2xs">
-        <summary className="cursor-pointer text-sm font-semibold text-[#09090B] select-none">
-          Saved Records, Activity Log &amp; Covered Procedures ({vaultItems.length} saved · {auditItems.length} events)
-        </summary>
-        <div className="mt-5 space-y-6">
-          <PatientVaultTable
-            vaultItems={vaultItems}
-            targetHospital={targetHospital}
-            activeGrantsMap={activeGrantsMap}
-            nowSec={nowSec}
-            onDownloadBundle={(item) => downloadBundleEntry(item)}
-          />
+      <section className="rounded-xl border border-[#1E242D] bg-[#111419] overflow-hidden">
+        <div
+          role="tablist"
+          aria-label="Patient vault records, audit log, and benefits"
+          className="flex flex-wrap items-center justify-between gap-3 border-b border-[#1E242D] bg-[#0D1014] px-4 py-2.5"
+        >
+          <div className="inline-flex items-center gap-1 rounded-lg border border-[#1E242D] bg-[#111419] p-0.5">
+            {(
+              [
+                ["vault", `Encrypted Vault (${vaultItems.length})`],
+                ["audit", `Consent Log (${auditItems.length})`],
+                ["benefits", "Covered CPTs"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                role="tab"
+                type="button"
+                aria-selected={bottomTab === id}
+                onClick={() => setBottomTab(id)}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                  bottomTab === id
+                    ? "bg-[#161B22] text-[#F3F4F6] border border-[#2B3340]"
+                    : "text-[#94A3B8] hover:text-[#F3F4F6] border border-transparent"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
-          <SpotlightCard id="patient-audit" accent="neutral" className="p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-[#F4F4F5] pb-3">
-              <h3 className="text-sm font-semibold text-[#09090B]">
-                Access &amp; Consent Activity Log
-              </h3>
-              <Badge variant="neutral">On-Chain Events</Badge>
-            </div>
-            <AuditTimeline items={auditItems} />
-          </SpotlightCard>
-
-          <CoveredBenefitsSection />
+          <div className="flex items-center gap-2 text-[11px] font-mono-tabular text-[#64748B]">
+            <span>{activeGrantsCount} active grants</span>
+            <span>·</span>
+            <span>{settledClaimsCount} settled</span>
+            {pubKeySource ? <span className="text-[#94A3B8]">· {pubKeySource}</span> : null}
+          </div>
         </div>
-      </details>
+
+        <div className="p-5">
+          {bottomTab === "vault" ? (
+            <PatientVaultTable
+              vaultItems={vaultItems}
+              targetHospital={targetHospital}
+              activeGrantsMap={activeGrantsMap}
+              nowSec={nowSec}
+              onDownloadBundle={(item) => downloadBundleEntry(item)}
+            />
+          ) : bottomTab === "audit" ? (
+            <div id="patient-audit" className="space-y-4 scroll-mt-20">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-[#F3F4F6]">Access &amp; Consent Activity Log</h3>
+                <Badge variant="neutral">On-Chain Events</Badge>
+              </div>
+              <AuditTimeline items={auditItems} />
+            </div>
+          ) : (
+            <CoveredBenefitsSection />
+          )}
+        </div>
+      </section>
     </div>
   );
 }

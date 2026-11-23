@@ -2,7 +2,6 @@
 
 import { Download } from "lucide-react";
 import { Badge } from "@/components/ui/card";
-import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { TactileButton } from "@/components/ui/tactile-button";
 import { type StoredVaultEntry } from "@/lib/storage";
 import { shortHex } from "@/lib/utils";
@@ -23,39 +22,39 @@ export function PatientVaultTable({
   onDownloadBundle,
 }: PatientVaultTableProps) {
   return (
-    <SpotlightCard id="patient-vault" accent="neutral" className="p-6 space-y-4 scroll-mt-20">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F4F4F5] pb-3">
+    <div id="patient-vault" className="space-y-4 scroll-mt-20">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-semibold text-[#09090B]">My Encrypted Records Vault</h2>
-          <p className="text-xs text-[#52525B]">
-            Local IndexedDB (<code className="font-mono-tabular text-[#09090B]">qlo-vault-v1</code>) ciphertext bundles and portable{" "}
-            <code className="font-mono-tabular text-[#09090B]">.qlo.json</code> exports.
+          <h3 className="text-sm font-semibold text-[#F3F4F6]">Encrypted Records Vault</h3>
+          <p className="text-xs text-[#94A3B8]">
+            Local IndexedDB (<code className="font-mono-tabular text-[#F3F4F6]">qlo-vault-v1</code>) ciphertext bundles and portable{" "}
+            <code className="font-mono-tabular text-[#F3F4F6]">.qlo.json</code> exports.
           </p>
         </div>
         <Badge variant="neutral">{vaultItems.length} records stored</Badge>
       </div>
 
       {vaultItems.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#D4D4D8] bg-[#FAFAFA] px-4 py-6 text-center text-xs text-[#52525B] space-y-1">
-          <div className="font-semibold text-[#09090B]">No encrypted records stored locally</div>
-          <p className="text-[#71717A]">
-            Run local OCR or customize a clinical claim above, then select Encrypt Locally (AES-256-GCM) to populate your vault and generate a portable{" "}
-            <code className="font-mono-tabular text-[#09090B]">.qlo.json</code> bundle.
+        <div className="rounded-xl border border-dashed border-[#1E242D] bg-[#0D1014] px-4 py-8 text-center text-xs text-[#94A3B8] space-y-1">
+          <div className="font-medium text-[#F3F4F6]">No encrypted records stored locally</div>
+          <p className="text-[#64748B]">
+            Encrypt a CMS-1500 bill above to populate your local IndexedDB store and generate a portable{" "}
+            <code className="font-mono-tabular text-[#94A3B8]">.qlo.json</code> bundle.
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-xl border border-[#1E242D]">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-[#E4E4E7] text-[#71717A]">
-                <th className="py-2.5 pr-4 font-medium">Record</th>
-                <th className="py-2.5 pr-4 font-medium">Summary</th>
-                <th className="py-2.5 pr-4 font-medium">CIDv1</th>
-                <th className="py-2.5 pr-4 font-medium">Consent Status</th>
-                <th className="py-2.5 text-right font-medium">Export</th>
+              <tr className="border-b border-[#1E242D] bg-[#0D1014] font-mono-tabular text-[11px] uppercase tracking-wider text-[#64748B]">
+                <th className="px-4 py-2.5 font-medium">Record</th>
+                <th className="px-4 py-2.5 font-medium">Summary</th>
+                <th className="px-4 py-2.5 font-medium">CIDv1</th>
+                <th className="px-4 py-2.5 font-medium">Consent Status</th>
+                <th className="px-4 py-2.5 text-right font-medium">Export</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#F4F4F5]">
+            <tbody className="divide-y divide-[#1E242D]">
               {vaultItems.map((item) => {
                 const hospTarget = (item.hospitalAddress || targetHospital).toLowerCase();
                 const recGrant = item.recordId
@@ -63,20 +62,20 @@ export function PatientVaultTable({
                   : undefined;
                 const isActive = Boolean(recGrant && recGrant.expiresAt > nowSec);
                 return (
-                  <tr key={item.recordCommitmentHex} className="hover:bg-[#FAFAFA]">
-                    <td className="py-2.5 pr-4 font-mono-tabular font-semibold text-[#09090B]">
+                  <tr key={item.recordCommitmentHex} className="hover:bg-[#161B22] transition-colors">
+                    <td className="px-4 py-3 font-mono-tabular font-semibold text-[#F3F4F6]">
                       {item.recordId ? `#${item.recordId}` : "Local"}
                     </td>
-                    <td className="py-2.5 pr-4 text-[#09090B]">{item.summaryHint || "Encrypted Bill"}</td>
-                    <td className="py-2.5 pr-4 font-mono-tabular text-[#52525B]">
+                    <td className="px-4 py-3 text-[#F3F4F6]">{item.summaryHint || "Encrypted Bill"}</td>
+                    <td className="px-4 py-3 font-mono-tabular text-[#94A3B8]">
                       {shortHex(item.cid, 12, 8)}
                     </td>
-                    <td className="py-2.5 pr-4">
+                    <td className="px-4 py-3">
                       <Badge variant={isActive ? "emerald" : "neutral"}>
                         {isActive ? "Grant Active" : item.recordId ? "Revoked / Idle" : "Unregistered"}
                       </Badge>
                     </td>
-                    <td className="py-2.5 text-right">
+                    <td className="px-4 py-3 text-right">
                       <TactileButton
                         size="sm"
                         variant="secondary"
@@ -93,6 +92,6 @@ export function PatientVaultTable({
           </table>
         </div>
       )}
-    </SpotlightCard>
+    </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   SYNTHETIC_CMS1500_PRESETS,
   validateCms1500Completeness,
 } from "@/lib/intake";
+import { SAMPLE_MEDICAL_BILLS } from "@/lib/sampleBills";
 import { formatWeiToEth, parseEthToWei } from "@/lib/utils";
 
 describe("Healthcare Standards, CMS-1500 Intake & Wei Formatting", () => {
@@ -81,5 +82,17 @@ describe("Healthcare Standards, CMS-1500 Intake & Wei Formatting", () => {
 
     expect(parseEthToWei("0.025")).toBe(25_000_000_000_000_000n);
     expect(formatWeiToEth(25_000_000_000_000_000n, 4)).toBe("0.0250");
+  });
+
+  it("validates all 5 sample medical bill fixtures and downloadable asset paths", () => {
+    expect(SAMPLE_MEDICAL_BILLS).toHaveLength(5);
+    for (const bill of SAMPLE_MEDICAL_BILLS) {
+      const report = validateCms1500Completeness(bill.claim);
+      expect(report.valid).toBe(true);
+      expect(report.score).toBe(7);
+      expect(bill.pngPath).toMatch(/^\/samples\/bill-.*\.png$/);
+      expect(bill.jsonPath).toMatch(/^\/samples\/bill-.*\.json$/);
+      expect(bill.lineItems.length).toBeGreaterThan(0);
+    }
   });
 });

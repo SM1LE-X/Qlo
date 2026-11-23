@@ -1,0 +1,12 @@
+{
+  "caseLabel": "Thoracic 2-View Chest Radiograph",
+  "insuredPolicyId": "2026001",
+  "patientAlias": "SYNTH-CASE-042",
+  "icd10Code": "J18.9",
+  "serviceDate": "2026-11-22",
+  "cptCode": "71046",
+  "claimAmountEth": "0.005",
+  "renderingNpi": "1234567890",
+  "prescription": "Amoxicillin-Clavulanate 875mg",
+  "clinicalNotes": "PA and lateral thoracic radiograph evaluation for lower respiratory infiltrate."
+}

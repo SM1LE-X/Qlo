@@ -13,30 +13,30 @@ export interface SpotlightCardProps extends HTMLAttributes<HTMLDivElement> {
 
 const ACCENT_MAP = {
   neutral: {
-    fill: "rgba(15, 23, 42, 0.03)",
-    border: "rgba(15, 23, 42, 0.12)",
+    fill: "rgba(243, 244, 246, 0.025)",
+    border: "rgba(148, 163, 184, 0.16)",
   },
   emerald: {
-    fill: "rgba(15, 118, 110, 0.05)",
-    border: "rgba(15, 118, 110, 0.25)",
+    fill: "rgba(16, 185, 129, 0.04)",
+    border: "rgba(16, 185, 129, 0.24)",
   },
   amber: {
-    fill: "rgba(217, 119, 6, 0.05)",
-    border: "rgba(217, 119, 6, 0.24)",
+    fill: "rgba(245, 158, 11, 0.04)",
+    border: "rgba(245, 158, 11, 0.24)",
   },
   crimson: {
-    fill: "rgba(185, 28, 28, 0.045)",
-    border: "rgba(185, 28, 28, 0.24)",
+    fill: "rgba(239, 68, 68, 0.04)",
+    border: "rgba(239, 68, 68, 0.24)",
   },
 } as const;
 
 /**
- * EasyUI Light SpotlightCard (MIT): clean #FFFFFF porcelain card with subtle cursor luminance.
+ * Institutional dark surface container with subtle hairline hover response.
  */
 export function SpotlightCard({
   children,
   accent = "neutral",
-  spotlightSize = 360,
+  spotlightSize = 320,
   className,
   ...props
 }: SpotlightCardProps) {
@@ -53,8 +53,8 @@ export function SpotlightCard({
     mouseY.set(e.clientY - top);
   };
 
-  const backgroundGradient = useMotionTemplate`radial-gradient(${spotlightSize}px circle at ${mouseX}px ${mouseY}px, ${fill}, transparent 78%)`;
-  const borderGradient = useMotionTemplate`radial-gradient(220px circle at ${mouseX}px ${mouseY}px, ${border}, transparent 78%)`;
+  const backgroundGradient = useMotionTemplate`radial-gradient(${spotlightSize}px circle at ${mouseX}px ${mouseY}px, ${fill}, transparent 75%)`;
+  const borderGradient = useMotionTemplate`radial-gradient(200px circle at ${mouseX}px ${mouseY}px, ${border}, transparent 75%)`;
 
   return (
     <div
@@ -65,19 +65,19 @@ export function SpotlightCard({
         mouseY.set(-1000);
       }}
       className={cn(
-        "group relative overflow-hidden rounded-2xl border border-[#E4E4E7] bg-white card-porcelain transition-colors duration-200 hover:border-[#D4D4D8]",
+        "group relative overflow-hidden rounded-xl border border-[#1E242D] bg-[#111419] text-[#F3F4F6] transition-colors duration-150 hover:border-[#2B3340]",
         className
       )}
       {...props}
     >
       <motion.div
         aria-hidden="true"
-        className="pointer-events-none absolute -inset-px rounded-[inherit] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        className="pointer-events-none absolute -inset-px rounded-[inherit] opacity-0 transition-opacity duration-200 group-hover:opacity-100"
         style={{ background: borderGradient }}
       />
       <motion.div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
         style={{ background: backgroundGradient }}
       />
       <div className="relative z-10">{children}</div>

@@ -1,0 +1,12 @@
+{
+  "caseLabel": "Case A — Valid Cardiac STEMI ER (Claim #1)",
+  "insuredPolicyId": "2026001",
+  "patientAlias": "SYNTH-CASE-042",
+  "icd10Code": "I21.0",
+  "serviceDate": "2026-11-22",
+  "cptCode": "99285",
+  "claimAmountEth": "0.01",
+  "renderingNpi": "1234567890",
+  "prescription": "Aspirin 325mg + Ticagrelor 180mg",
+  "clinicalNotes": "Acute anterior STEMI emergency stabilization; troponin elevated; inpatient cath transfer."
+}

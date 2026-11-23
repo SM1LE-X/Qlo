@@ -3,39 +3,32 @@
 @theme inline {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-editorial: var(--font-editorial), Georgia, "Times New Roman", serif;
 }
 
 :root {
-  --bg: #f7f8f7;
-  --surface: #ffffff;
-  --surface-hover: #f4f5f4;
-  --surface-raised: #f0f2f1;
-  --obsidian: #090c0e;
-  --obsidian-surface: #11161a;
-  --border: #e4e4e7;
-  --border-hover: #d4d4d8;
-  --text-primary: #09090b;
-  --text-secondary: #52525b;
-  --text-muted: #71717a;
-  --accent-teal: #0f766e;
-  --accent-cobalt: #0f4c81;
-  --accent-emerald: #047857;
-  --accent-amber: #b45309;
-  --accent-crimson: #b91c1c;
+  --bg: #090b0e;
+  --surface: #111419;
+  --surface-elevated: #161b22;
+  --surface-inset: #0d1014;
+  --border: #1e242d;
+  --border-hover: #2b3340;
+  --text-primary: #f3f4f6;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent-emerald: #10b981;
+  --accent-cobalt: #38bdf8;
+  --accent-amber: #f59e0b;
+  --accent-crimson: #ef4444;
 }
 
 html,
 body {
   background-color: var(--bg);
   color: var(--text-primary);
+  color-scheme: dark;
   font-family: var(--font-sans);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   overflow-x: clip;
-}
-
-.font-editorial {
-  font-family: var(--font-editorial);
 }
 
 .font-mono-tabular {
@@ -43,55 +36,30 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Subtle architectural clinical blueprint grid */
-.bg-clinical-grid {
-  background-image:
-    linear-gradient(to right, rgba(9, 9, 11, 0.032) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(9, 9, 11, 0.032) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-
-/* Dark obsidian cryptographic grid */
-.bg-obsidian-grid {
-  background-color: #090c0e;
-  background-image:
-    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(16, 185, 129, 0.16), transparent 65%),
-    linear-gradient(to right, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
-  background-size: 100% 100%, 32px 32px, 32px 32px;
-}
-
-/* Crisp layered porcelain card depth */
-.card-porcelain {
-  box-shadow:
-    0 1px 2px rgba(9, 12, 14, 0.04),
-    0 12px 32px -16px rgba(9, 12, 14, 0.09);
-}
-
-/* Elevated obsidian glass card */
+/* Institutional elevated dark surface */
 .card-obsidian {
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.06) inset,
-    0 24px 60px -24px rgba(0, 0, 0, 0.55);
+  background-color: #111419;
+  border-color: #1e242d;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
 }
 
-/* Minimal scrollbar */
+/* Subtle dark scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f7f8f7;
+  background: #090b0e;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
+  background: #1e242d;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a1a1aa;
+  background: #2b3340;
 }
 
 @keyframes easyui-orbit-cw {
@@ -132,7 +100,7 @@ body {
 @keyframes pulse-ring {
   0% {
     transform: scale(0.92);
-    opacity: 0.7;
+    opacity: 0.65;
   }
   70% {
     transform: scale(1.45);

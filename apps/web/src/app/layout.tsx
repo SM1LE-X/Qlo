@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Providers } from "@/components/providers";
@@ -17,33 +17,25 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
-const instrumentSerif = Instrument_Serif({
-  subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
-  variable: "--font-editorial",
-  display: "swap",
-});
-
 export const metadata: Metadata = {
-  title: "Qlo — Zero-Knowledge Health Claims & Patient-Sovereign Records",
+  title: "Qlo Protocol — Zero-Knowledge Health Claims & Records",
   description:
-    "Commercial zero-knowledge health insurance clearinghouse proving 8 claim coverage predicates in Groth16 with AES-256-GCM patient-owned records on Ethereum Sepolia.",
+    "Zero-knowledge health insurance settlement protocol on Ethereum Sepolia. AES-256-GCM patient records, ECDH consent grants, and 8-predicate Groth16 BN254 claim verification with 0 bytes of PHI on-chain.",
   icons: {
     icon: "/icon.svg",
   },
   openGraph: {
-    title: "Qlo — Zero-Knowledge Health Claims & Patient-Sovereign Records",
+    title: "Qlo Protocol — Zero-Knowledge Health Claims & Records",
     description:
-      "Browser-local CMS-1500 OCR + AES-256-GCM encryption + 8-predicate Groth16 claim settlement on Ethereum Sepolia with 0 bytes of PHI on-chain.",
-    siteName: "Qlo",
+      "Client-side AES-256-GCM record encryption and 8-predicate Groth16 BN254 claim settlement on Ethereum Sepolia with 0 bytes of PHI on-chain.",
+    siteName: "Qlo Protocol",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Qlo — Zero-Knowledge Health Claims",
+    title: "Qlo Protocol — Zero-Knowledge Health Claims",
     description:
-      "Prove coverage, hospital accreditation, and cumulative annual limits in < 3s Groth16 with 0 PHI on-chain.",
+      "8-predicate Groth16 BN254 claim settlement and patient-sovereign encrypted records on Ethereum Sepolia.",
   },
 };
 
@@ -51,9 +43,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable}`}
+      className={`${geistSans.variable} ${geistMono.variable} dark`}
     >
-      <body className="min-h-screen bg-[#F7F8F7] text-[#09090B] font-sans antialiased selection:bg-[#0F766E]/15 selection:text-[#042F2E]">
+      <body className="min-h-screen bg-[#090B0E] text-[#F3F4F6] font-sans antialiased selection:bg-[#10B981]/20 selection:text-[#F3F4F6]">
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

@@ -21,10 +21,6 @@ export interface SmoothAccordionProps {
   className?: string;
 }
 
-/**
- * EasyUI-inspired accessible light accordion with spring height expansion
- * and crisp alabaster border dividers.
- */
 export function SmoothAccordion({
   items,
   allowMultiple = false,
@@ -46,7 +42,7 @@ export function SmoothAccordion({
   return (
     <div
       className={cn(
-        "divide-y divide-[#E4E4E7] overflow-hidden rounded-2xl border border-[#E4E4E7] bg-white shadow-[0_1px_2px_rgba(9,9,11,0.03)]",
+        "divide-y divide-[#1E242D] overflow-hidden rounded-xl border border-[#1E242D] bg-[#111419]",
         className
       )}
     >
@@ -63,28 +59,26 @@ export function SmoothAccordion({
               aria-expanded={isOpen}
               aria-controls={panelId}
               onClick={() => toggle(item.id)}
-              className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-[#FAFAFA] cursor-pointer"
+              className="flex w-full items-center justify-between gap-4 px-5 py-3.5 text-left transition-colors hover:bg-[#161B22] cursor-pointer"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-semibold text-[#09090B]">
-                    {item.title}
-                  </span>
+                  <span className="text-sm font-medium text-[#F3F4F6]">{item.title}</span>
                   {item.badge ? (
-                    <span className="rounded-full border border-[#E4E4E7] bg-[#F4F4F5] px-2 py-0.5 text-[10px] font-mono-tabular font-semibold text-[#52525B]">
+                    <span className="rounded-md border border-[#1E242D] bg-[#0D1014] px-2 py-0.5 text-[10px] font-mono-tabular font-medium text-[#94A3B8]">
                       {item.badge}
                     </span>
                   ) : null}
                 </div>
                 {item.subtitle ? (
-                  <p className="mt-0.5 text-xs text-[#52525B]">{item.subtitle}</p>
+                  <p className="mt-0.5 text-xs text-[#94A3B8]">{item.subtitle}</p>
                 ) : null}
               </div>
 
               <motion.span
                 animate={{ rotate: isOpen ? 180 : 0 }}
                 transition={motionTransitions.springSnappy}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#E4E4E7] bg-[#FAFAFA] text-[#52525B]"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#1E242D] bg-[#0D1014] text-[#94A3B8]"
               >
                 <ChevronDown className="h-4 w-4" />
               </motion.span>
@@ -102,7 +96,7 @@ export function SmoothAccordion({
                   transition={motionTransitions.easeSoft}
                   className="overflow-hidden"
                 >
-                  <div className="border-t border-[#F4F4F5] bg-[#FAFAFA]/60 px-5 py-4 text-xs leading-relaxed text-[#52525B]">
+                  <div className="border-t border-[#1E242D] bg-[#0D1014] px-5 py-4 text-xs leading-relaxed text-[#94A3B8]">
                     {item.content}
                   </div>
                 </motion.div>

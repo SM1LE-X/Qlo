@@ -226,30 +226,25 @@ export default function HospitalPage() {
             args: [selectedEntry.recordCommitmentHex],
           })) as bigint;
           if (!active) return;
-          if (recId === 0n) {
-            setAccessStatus("missing");
-            setAccessExpiresAt(0);
+          if (recId > 0n) {
+            const [exp, dekBytes] = (await publicClient.readContract({
+              address: CONTRACTS.HealthRecords.address,
+              abi: CONTRACTS.HealthRecords.abi,
+              functionName: "getGrant",
+              args: [recId, hospitalAddr as `0x${string}`],
+            })) as [bigint, `0x${string}`];
+            if (!active) return;
+            if (exp > 0n && dekBytes && dekBytes !== "0x") {
+              setAccessStatus("granted");
+              setAccessExpiresAt(Number(exp));
+            } else {
+              setAccessStatus("missing");
+              setAccessExpiresAt(0);
+            }
             return;
           }
-          const [exp, dekBytes] = (await publicClient.readContract({
-            address: CONTRACTS.HealthRecords.address,
-            abi: CONTRACTS.HealthRecords.abi,
-            functionName: "getGrant",
-            args: [recId, hospitalAddr as `0x${string}`],
-          })) as [bigint, `0x${string}`];
-          if (!active) return;
-          if (exp > 0n && dekBytes && dekBytes !== "0x") {
-            setAccessStatus("granted");
-            setAccessExpiresAt(Number(exp));
-          } else {
-            setAccessStatus("missing");
-            setAccessExpiresAt(0);
-          }
-          return;
         } catch {
-          if (!active) return;
-          setAccessStatus("unknown");
-          return;
+          // Fall through to relay check when record is off-chain
         }
       }
 
@@ -372,25 +367,35 @@ export default function HospitalPage() {
       let recIdStr = selectedEntry.recordId || "";
 
       if (IS_CHAIN_DEPLOYED && publicClient) {
-        const recId = (await publicClient.readContract({
-          address: CONTRACTS.HealthRecords.address,
-          abi: CONTRACTS.HealthRecords.abi,
-          functionName: "commitmentToRecordId",
-          args: [selectedEntry.recordCommitmentHex],
-        })) as bigint;
-        if (recId === 0n) throw new Error("Record not registered on Ethereum Sepolia");
-        recIdStr = recId.toString();
-        const [expiresAt, dekBytes] = (await publicClient.readContract({
-          address: CONTRACTS.HealthRecords.address,
-          abi: CONTRACTS.HealthRecords.abi,
-          functionName: "getGrant",
-          args: [recId, hospitalAddr as `0x${string}`],
-        })) as [bigint, `0x${string}`];
-        if (expiresAt === 0n || !dekBytes || dekBytes === "0x") {
-          throw new Error("ACCESS DENIED: Patient grant missing, expired, or revoked on-chain.");
+        try {
+          const recId = (await publicClient.readContract({
+            address: CONTRACTS.HealthRecords.address,
+            abi: CONTRACTS.HealthRecords.abi,
+            functionName: "commitmentToRecordId",
+            args: [selectedEntry.recordCommitmentHex],
+          })) as bigint;
+          if (recId > 0n) {
+            recIdStr = recId.toString();
+            const [expiresAt, dekBytes] = (await publicClient.readContract({
+              address: CONTRACTS.HealthRecords.address,
+              abi: CONTRACTS.HealthRecords.abi,
+              functionName: "getGrant",
+              args: [recId, hospitalAddr as `0x${string}`],
+            })) as [bigint, `0x${string}`];
+            if (expiresAt === 0n || !dekBytes || dekBytes === "0x") {
+              throw new Error(
+                "ACCESS DENIED: Patient grant missing, expired, or revoked on-chain."
+              );
+            }
+            encryptedDekHex = dekBytes;
+          }
+        } catch (chainErr) {
+          if (chainErr instanceof Error && chainErr.message.startsWith("ACCESS DENIED")) {
+            throw chainErr;
+          }
         }
-        encryptedDekHex = dekBytes;
-      } else {
+      }
+      if (!encryptedDekHex) {
         const remote = await fetchRelayState();
         const mirror = remote ?? loadLocalChainMirror();
         const rec = mirror.records.find(
@@ -445,8 +450,7 @@ export default function HospitalPage() {
     if (!selectedEntry || txBusy) return;
     setTxBusy(true);
     try {
-      if (IS_CHAIN_DEPLOYED && publicClient) {
-        if (!address) throw new Error("Connect Hospital MetaMask wallet");
+      if (IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain) {
         await ensureSepoliaChain(roles.chainId, switchChainAsync);
         const recId = (await publicClient.readContract({
           address: CONTRACTS.HealthRecords.address,
@@ -518,7 +522,7 @@ export default function HospitalPage() {
       let priorSpentWei = 0n;
       let claimTimestampOverride: bigint | undefined;
       const commitmentBigInt = BigInt(canonicalFixtures.activePolicy.commitment);
-      if (IS_CHAIN_DEPLOYED && publicClient) {
+      if (IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain) {
         const [spent, latestBlock, onChainRoot] = await Promise.all([
           publicClient.readContract({
             address: CONTRACTS.ClaimsVault.address,
@@ -589,8 +593,7 @@ export default function HospitalPage() {
     setTxBusy(true);
     try {
       const amountFmt = formatWeiToEth(pubSignals[3], 4);
-      if (IS_CHAIN_DEPLOYED) {
-        if (!address || !publicClient) throw new Error("Connect Hospital MetaMask wallet");
+      if (IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain) {
         await ensureSepoliaChain(roles.chainId, switchChainAsync);
         const { hash } = await preflightSimulateAndWrite({
           publicClient,
@@ -763,9 +766,7 @@ export default function HospitalPage() {
           decryptedClaim={decryptedClaim}
           hospitalAddr={hospitalAddr}
           txBusy={txBusy}
-          chainSettleBlocked={
-            IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain || !roles.isApprovedHospital)
-          }
+          chainSettleBlocked={roles.wrongChain}
           onProve={handleProve}
           onSettle={handleSettle}
           settledTx={settledTx}

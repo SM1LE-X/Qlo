@@ -48,7 +48,13 @@ export async function executeHospitalGuardrailCheck({
         "ClaimsVault.NullifierAlreadyUsed() — settle a claim first or submit duplicate nullifier; contract reverts on-chain."
       );
     }
-    const mirror = loadLocalChainMirror();
+    const remote = await fetchRelayState();
+    const mirror = remote ?? loadLocalChainMirror();
+    if (mirror.nullifierUsed[proverOutput.publicSignals[2]]) {
+      throw new Error(
+        "ClaimsVault.NullifierAlreadyUsed() — identical deterministic nullifier rejected on settlement!"
+      );
+    }
     if (IS_CHAIN_DEPLOYED && publicClient) {
       const used = (await publicClient.readContract({
         address: CONTRACTS.ClaimsVault.address,
@@ -73,10 +79,6 @@ export async function executeHospitalGuardrailCheck({
           proverOutput.solidity.pubSignals,
         ],
       });
-    } else if (mirror.nullifierUsed[proverOutput.publicSignals[2]]) {
-      throw new Error(
-        "ClaimsVault.NullifierAlreadyUsed() — identical deterministic nullifier rejected on settlement!"
-      );
     } else {
       throw new Error(
         "Settle the generated proof once first, then click Replay to observe NullifierAlreadyUsed()."
@@ -163,31 +165,38 @@ export async function executeHospitalGuardrailCheck({
 
   if (kind === "revoked") {
     if (IS_CHAIN_DEPLOYED && publicClient && selectedEntry) {
-      const recId = (await publicClient.readContract({
-        address: CONTRACTS.HealthRecords.address,
-        abi: CONTRACTS.HealthRecords.abi,
-        functionName: "commitmentToRecordId",
-        args: [selectedEntry.recordCommitmentHex],
-      })) as bigint;
-      if (recId === 0n) {
-        throw new Error(
-          "Register the encrypted record on Ethereum Sepolia first before probing post-revoke access."
-        );
+      try {
+        const recId = (await publicClient.readContract({
+          address: CONTRACTS.HealthRecords.address,
+          abi: CONTRACTS.HealthRecords.abi,
+          functionName: "commitmentToRecordId",
+          args: [selectedEntry.recordCommitmentHex],
+        })) as bigint;
+        if (recId > 0n) {
+          const active = (await publicClient.readContract({
+            address: CONTRACTS.HealthRecords.address,
+            abi: CONTRACTS.HealthRecords.abi,
+            functionName: "hasActiveAccess",
+            args: [recId, hospitalAddr as `0x${string}`],
+          })) as boolean;
+          if (!active) {
+            throw new Error(
+              "ClaimsVault.PatientAccessNotActive() — Ethereum Sepolia HealthRecords.hasActiveAccess() returned false (wrapped DEK wiped on-chain)!"
+            );
+          }
+          throw new Error(
+            "Grant is currently active on Ethereum Sepolia. Click 'Revoke' on /patient first, then re-test."
+          );
+        }
+      } catch (chainErr) {
+        if (
+          chainErr instanceof Error &&
+          (chainErr.message.includes("PatientAccessNotActive") ||
+            chainErr.message.includes("Grant is currently active"))
+        ) {
+          throw chainErr;
+        }
       }
-      const active = (await publicClient.readContract({
-        address: CONTRACTS.HealthRecords.address,
-        abi: CONTRACTS.HealthRecords.abi,
-        functionName: "hasActiveAccess",
-        args: [recId, hospitalAddr as `0x${string}`],
-      })) as boolean;
-      if (!active) {
-        throw new Error(
-          "ClaimsVault.PatientAccessNotActive() — Ethereum Sepolia HealthRecords.hasActiveAccess() returned false (wrapped DEK wiped on-chain)!"
-        );
-      }
-      throw new Error(
-        "Grant is currently active on Ethereum Sepolia. Click 'Revoke Immediately' on /patient first, then re-test."
-      );
     }
 
     const remote = await fetchRelayState();

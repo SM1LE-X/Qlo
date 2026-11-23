@@ -64,28 +64,51 @@ export default function InsurerPage() {
           ? (DEPLOYMENT as { seededInsurer?: string }).seededInsurer
           : canonicalFixtures.accounts.insurer;
       const targetInsurer = (address || seeded) as `0x${string}`;
-      const [snapshot, onChainClaims] = await Promise.all([
+      const [snapshot, onChainClaims, remoteRelay] = await Promise.all([
         fetchOnChainVaultSnapshot(publicClient, targetInsurer),
         fetchSettledClaimsEvents(publicClient),
+        fetchRelayState(),
       ]);
-      if (snapshot.insurerEscrowWei !== null) setEscrowWei(snapshot.insurerEscrowWei);
-      if (snapshot.policySpentWei !== null) setPolicySpentWei(snapshot.policySpentWei);
+      const relayClaims = remoteRelay?.settledClaims ?? [];
+      const seenHashes = new Set(onChainClaims.map((c) => c.txHash.toLowerCase()));
+      const mergedClaims = [
+        ...relayClaims.filter((c) => !seenHashes.has(c.txHash.toLowerCase())),
+        ...onChainClaims,
+      ];
+      const relaySpentWei = BigInt(
+        remoteRelay?.policySpentWei?.[canonicalFixtures.activePolicy.commitment] ?? "0"
+      );
+      if (snapshot.insurerEscrowWei !== null) {
+        const netEscrow =
+          snapshot.insurerEscrowWei > relaySpentWei
+            ? snapshot.insurerEscrowWei - relaySpentWei
+            : snapshot.insurerEscrowWei;
+        setEscrowWei(netEscrow);
+      }
+      if (snapshot.policySpentWei !== null) {
+        setPolicySpentWei(snapshot.policySpentWei + relaySpentWei);
+      }
       if (snapshot.paused !== null) setVaultPaused(snapshot.paused);
       setOnChainHospitalRoot(snapshot.hospitalRoot);
-      setSettledList(onChainClaims);
+      setSettledList(mergedClaims);
       if (
-        onChainClaims.length > 0 &&
-        (!selectedClaim || onChainClaims[0].txHash !== selectedClaim.txHash)
+        mergedClaims.length > 0 &&
+        (!selectedClaim || mergedClaims[0].txHash !== selectedClaim.txHash)
       ) {
-        const newest = onChainClaims[0];
+        const newest = mergedClaims[0];
         setSelectedClaim(newest);
         setTxHashInput(newest.txHash);
-        try {
-          const tx = await publicClient.getTransaction({ hash: newest.txHash as `0x${string}` });
-          setInspectedCalldata(tx.input);
-          setPhiHits(scanHexForPhi(tx.input));
-        } catch {
-          // Non-fatal if RPC tx lookup is delayed
+        if (newest.rawCalldataHex && newest.rawCalldataHex.length > 10) {
+          setInspectedCalldata(newest.rawCalldataHex);
+          setPhiHits(scanHexForPhi(newest.rawCalldataHex));
+        } else {
+          try {
+            const tx = await publicClient.getTransaction({ hash: newest.txHash as `0x${string}` });
+            setInspectedCalldata(tx.input);
+            setPhiHits(scanHexForPhi(tx.input));
+          } catch {
+            // Non-fatal if RPC tx lookup is delayed
+          }
         }
       }
       return;
@@ -116,10 +139,7 @@ export default function InsurerPage() {
     setTxBusy(true);
     try {
       const val = validatePositiveEthInput(depositEth, "Deposit ETH amount");
-      if (IS_CHAIN_DEPLOYED) {
-        if (!address || !publicClient) {
-          throw new Error("Connect Insurer MetaMask wallet first");
-        }
+      if (IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain) {
         await ensureSepoliaChain(roles.chainId, switchChainAsync);
         await preflightSimulateAndWrite({
           publicClient,
@@ -157,10 +177,7 @@ export default function InsurerPage() {
     setTxBusy(true);
     try {
       const val = validatePositiveEthInput(withdrawEth, "Withdraw ETH amount");
-      if (IS_CHAIN_DEPLOYED) {
-        if (!address || !publicClient) {
-          throw new Error("Connect Insurer MetaMask wallet first");
-        }
+      if (IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain) {
         await ensureSepoliaChain(roles.chainId, switchChainAsync);
         await preflightSimulateAndWrite({
           publicClient,
@@ -203,10 +220,7 @@ export default function InsurerPage() {
     setTxBusy(true);
     try {
       const commit = BigInt(raw);
-      if (IS_CHAIN_DEPLOYED) {
-        if (!address || !publicClient) {
-          throw new Error("Connect Insurer MetaMask wallet first");
-        }
+      if (IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain) {
         await ensureSepoliaChain(roles.chainId, switchChainAsync);
         await preflightSimulateAndWrite({
           publicClient,
@@ -313,19 +327,15 @@ export default function InsurerPage() {
 
   return (
     <div className="space-y-6">
-      {/* Full-Width Insurer Stage Banner */}
-      <section className="relative overflow-hidden rounded-3xl border border-[#E4E4E7] bg-white p-6 sm:p-7 card-porcelain">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(ellipse_at_right,rgba(4,120,87,0.09),transparent_70%)]"
-        />
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-2 max-w-2xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#ECFDF5] border border-[#A7F3D0] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#047857]">
-                <Landmark className="h-3 w-3" />
-                Step 3 of 3
-              </span>
+      {/* Compact Institutional Treasury Header */}
+      <section className="rounded-xl border border-[#1E242D] bg-[#111419] px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Landmark className="h-4 w-4 text-[#10B981]" />
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#F3F4F6]">
+                Escrow Treasury
+              </h1>
               <Badge variant={roles.isInsurer ? "emerald" : "neutral"}>
                 {roles.isInsurer
                   ? "Insurer Wallet Connected"
@@ -335,49 +345,43 @@ export default function InsurerPage() {
               </Badge>
               {vaultPaused ? <Badge variant="crimson">Vault Paused</Badge> : null}
             </div>
-            <h1 className="text-2xl sm:text-4xl font-bold tracking-[-0.025em] text-[#09090B]">
-              Insurer Settlement &amp;{" "}
-              <span className="font-editorial italic font-normal text-[#047857]">Privacy</span>{" "}
-              Audit
-            </h1>
-            <p className="text-sm text-[#52525B] leading-relaxed">
-              Manage the native ETH escrow pool, track every verified payout on Ethereum Sepolia,
-              and confirm mathematically that zero medical records ever reach the chain.
+            <p className="text-xs text-[#94A3B8]">
+              Manage the native ETH escrow pool, audit Groth16 claim disbursements on Ethereum Sepolia, and verify zero PHI exposure in transaction calldata.
             </p>
           </div>
 
-          <div className="inline-flex items-center gap-2 rounded-2xl border border-[#A7F3D0] bg-[#ECFDF5] px-4 py-2.5 text-xs font-semibold text-[#047857]">
-            <ShieldCheck className="h-4 w-4 shrink-0" />
-            Live On-Chain Calldata Verification Active
+          <div className="inline-flex items-center gap-2 rounded-lg border border-[#10B981]/25 bg-[#10B981]/10 px-3.5 py-1.5 text-xs font-medium text-[#10B981]">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+            Live Calldata Verification Active
           </div>
         </div>
       </section>
 
-      {/* Top 3 Real Live Bento Cards */}
-      <div id="insurer-reserves" className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <SpotlightCard accent="emerald" className="p-6 space-y-4">
+      {/* Top 3 Live Treasury Cards */}
+      <div id="insurer-reserves" className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <SpotlightCard accent="emerald" className="p-5 space-y-4">
           <div className="space-y-1">
-            <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[#71717A]">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
               Escrow Pool Balance
             </div>
-            <div className="text-3xl font-bold font-mono-tabular text-[#047857]">
+            <div className="text-2xl font-semibold font-mono-tabular text-[#10B981]">
               <NumberTicker value={liveEscrowNum} decimals={4} suffix=" ETH" />
             </div>
           </div>
-          <div className="space-y-2.5 pt-1">
+          <div className="space-y-2 pt-1">
             <div className="flex items-center gap-2">
               <input
                 id="deposit-eth-input"
                 value={depositEth}
                 onChange={(e) => setDepositEth(e.target.value)}
                 aria-label="Deposit ETH amount"
-                className="w-24 rounded-xl border border-[#E4E4E7] bg-[#F7F8F7] px-3 py-1.5 text-xs font-mono-tabular text-[#09090B] focus:border-[#0F766E] focus:bg-white focus:outline-none"
+                className="w-24 rounded-lg border border-[#1E242D] bg-[#0D1014] px-3 py-1.5 text-xs font-mono-tabular text-[#F3F4F6] focus:border-[#10B981] focus:outline-none"
               />
               <TactileButton
                 size="sm"
                 variant="primary"
                 onClick={handleDepositEscrow}
-                disabled={txBusy || (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))}
+                disabled={txBusy || roles.wrongChain}
               >
                 <Landmark className="h-3.5 w-3.5" />
                 Fund Escrow
@@ -389,16 +393,13 @@ export default function InsurerPage() {
                 value={withdrawEth}
                 onChange={(e) => setWithdrawEth(e.target.value)}
                 aria-label="Withdraw ETH amount"
-                className="w-24 rounded-xl border border-[#E4E4E7] bg-[#F7F8F7] px-3 py-1.5 text-xs font-mono-tabular text-[#09090B] focus:border-[#0F766E] focus:bg-white focus:outline-none"
+                className="w-24 rounded-lg border border-[#1E242D] bg-[#0D1014] px-3 py-1.5 text-xs font-mono-tabular text-[#F3F4F6] focus:border-[#10B981] focus:outline-none"
               />
               <TactileButton
                 size="sm"
                 variant="secondary"
                 onClick={handleWithdrawEscrow}
-                disabled={
-                  txBusy ||
-                  (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain || escrowWei === 0n))
-                }
+                disabled={txBusy || roles.wrongChain}
               >
                 Withdraw
               </TactileButton>
@@ -406,54 +407,51 @@ export default function InsurerPage() {
           </div>
         </SpotlightCard>
 
-        <SpotlightCard accent="neutral" className="p-6 flex flex-col justify-between gap-4">
-          <div className="space-y-2.5">
-            <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[#71717A]">
+        <SpotlightCard accent="neutral" className="p-5 flex flex-col justify-between gap-4">
+          <div className="space-y-2">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
               Total Paid to Hospitals
             </div>
-            <div className="text-3xl font-bold font-mono-tabular text-[#09090B]">
+            <div className="text-2xl font-semibold font-mono-tabular text-[#F3F4F6]">
               <NumberTicker value={liveSpentNum} decimals={4} suffix=" ETH" />
             </div>
-            <div className="text-xs text-[#52525B]">
-              {settledList.length} verified {settledList.length === 1 ? "claim" : "claims"} settled
-              automatically
+            <div className="text-xs text-[#94A3B8]">
+              {settledList.length} verified {settledList.length === 1 ? "claim" : "claims"} settled automatically
             </div>
-            <div className="space-y-1 pt-1">
-              <div className="flex items-center justify-between text-[11px] font-mono-tabular text-[#52525B]">
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between text-[11px] font-mono-tabular text-[#94A3B8]">
                 <span>Policy Spend Utilization</span>
-                <span className="text-[#0F766E] font-semibold">
+                <span className="text-[#10B981] font-semibold">
                   {Math.min(100, Math.round((liveSpentNum / 0.03) * 100))}% of Private Cap
                 </span>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-[#F4F5F4]">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#0D1014] border border-[#1E242D]">
                 <div
-                  className="h-full rounded-full bg-[#0F766E] transition-all duration-300"
+                  className="h-full rounded-full bg-[#10B981] transition-all duration-300"
                   style={{ width: `${Math.min(100, Math.max(6, (liveSpentNum / 0.03) * 100))}%` }}
                 />
               </div>
             </div>
           </div>
-          <div className="text-[11px] text-[#52525B] rounded-xl border border-[#E4E4E7] bg-[#F7F8F7] px-3.5 py-2.5 leading-relaxed">
-            Annual policy cap stays strictly private inside the Groth16 proof while cumulative spend
-            is tracked publicly.
+          <div className="text-[11px] text-[#94A3B8] rounded-lg border border-[#1E242D] bg-[#0D1014] px-3 py-2 leading-relaxed">
+            Annual policy cap stays strictly private inside the Groth16 proof while cumulative spend is tracked on-chain.
           </div>
         </SpotlightCard>
 
-        {/* Obsidian Signature Privacy Guarantee Card */}
-        <div className="rounded-2xl border border-white/10 bg-obsidian-grid p-6 text-white card-obsidian flex flex-col justify-between gap-4">
+        <div className="rounded-xl border border-[#1E242D] bg-[#111419] p-5 flex flex-col justify-between gap-4">
           <div className="space-y-1.5">
-            <div className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-400 flex items-center gap-1.5">
-              <Lock className="h-3.5 w-3.5 text-[#34D399]" />
+            <div className="text-[11px] font-medium uppercase tracking-wider text-[#64748B] flex items-center gap-1.5">
+              <Lock className="h-3.5 w-3.5 text-[#10B981]" />
               Medical Data Exposed
             </div>
-            <div className="text-3xl font-bold font-mono-tabular text-[#34D399]">0 Bytes</div>
-            <div className="text-xs text-zinc-300 leading-relaxed">
+            <div className="text-2xl font-semibold font-mono-tabular text-[#10B981]">0 Bytes</div>
+            <div className="text-xs text-[#94A3B8] leading-relaxed">
               Diagnoses, procedure codes, and prescriptions never touch Ethereum Sepolia.
             </div>
           </div>
 
-          <details className="text-[11px] pt-3 border-t border-white/10">
-            <summary className="cursor-pointer font-medium text-zinc-300 hover:text-white select-none">
+          <details className="text-[11px] pt-3 border-t border-[#1E242D]">
+            <summary className="cursor-pointer font-medium text-[#94A3B8] hover:text-[#F3F4F6] select-none">
               Register custom policy hash
             </summary>
             <div className="mt-2.5 flex items-center gap-1.5">
@@ -463,19 +461,19 @@ export default function InsurerPage() {
                 placeholder="0x... policy hash"
                 value={customPolicyCommit}
                 onChange={(e) => setCustomPolicyCommit(e.target.value)}
-                className="flex-1 min-w-0 rounded-lg border border-white/15 bg-white/[0.06] px-2.5 py-1.5 font-mono-tabular text-[11px] text-white placeholder-zinc-500 focus:border-emerald-400 focus:outline-none"
+                className="flex-1 min-w-0 rounded-lg border border-[#1E242D] bg-[#0D1014] px-2.5 py-1.5 font-mono-tabular text-[11px] text-[#F3F4F6] placeholder-[#64748B] focus:border-[#10B981] focus:outline-none"
               />
               <TactileButton
                 size="sm"
                 variant="emerald"
                 onClick={handleRegisterPolicy}
-                disabled={txBusy || (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))}
+                disabled={txBusy || roles.wrongChain}
               >
                 Save
               </TactileButton>
             </div>
             {policyStatus ? (
-              <div className="mt-1.5 font-mono-tabular text-emerald-300">{policyStatus}</div>
+              <div className="mt-1.5 font-mono-tabular text-[#10B981]">{policyStatus}</div>
             ) : null}
           </details>
         </div>

@@ -4,9 +4,6 @@ import { CheckCircle2, Cpu, ShieldAlert } from "lucide-react";
 import type { ProveStage } from "@/lib/prover";
 import { cn } from "@/lib/utils";
 
-/**
- * EasyUI Light OrbitalLoadingRing (MIT) + AIAgentActivity for Groth16 Web Worker proving.
- */
 export function OrbitalProver({
   stage,
   elapsedMs,
@@ -37,55 +34,55 @@ export function OrbitalProver({
       className={cn(
         "flex items-center gap-4 rounded-xl border p-4 transition-colors",
         isDone
-          ? "border-[#A7F3D0] bg-[#ECFDF5]"
+          ? "border-[#10B981]/30 bg-[#10B981]/10"
           : isFailed
-          ? "border-[#FECACA] bg-[#FEF2F2]"
+          ? "border-[#EF4444]/30 bg-[#EF4444]/10"
           : isProving
-          ? "border-[#FDE68A] bg-[#FFFBEB]"
-          : "border-[#E4E4E7] bg-[#FAFAFA]"
+          ? "border-[#F59E0B]/30 bg-[#F59E0B]/10"
+          : "border-[#1E242D] bg-[#0D1014]"
       )}
     >
-      <div className="relative flex h-14 w-14 shrink-0 items-center justify-center">
+      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center">
         <span
           className={cn(
-            "absolute inset-0 rounded-full border-2 border-dashed",
+            "absolute inset-0 rounded-full border border-dashed",
             isDone
-              ? "border-[#047857]/60"
+              ? "border-[#10B981]/60"
               : isFailed
-              ? "border-[#B91C1C]/60"
+              ? "border-[#EF4444]/60"
               : isProving
-              ? "border-[#D97706]/80"
-              : "border-[#D4D4D8]"
+              ? "border-[#F59E0B]/80"
+              : "border-[#2B3340]"
           )}
           style={{
-            animation: `easyui-orbit-cw ${isProving ? "2.4s" : "16s"} linear infinite`,
+            animation: `easyui-orbit-cw ${isProving ? "2.4s" : "18s"} linear infinite`,
           }}
         />
         <span
           className={cn(
-            "absolute inset-2 rounded-full border",
+            "absolute inset-1.5 rounded-full border",
             isDone
-              ? "border-[#0F766E]"
+              ? "border-[#10B981]/40"
               : isFailed
-              ? "border-[#DC2626]"
+              ? "border-[#EF4444]/40"
               : isProving
-              ? "border-[#D97706]"
-              : "border-[#E4E4E7]"
+              ? "border-[#F59E0B]/50"
+              : "border-[#1E242D]"
           )}
           style={{
-            animation: `easyui-orbit-ccw ${isProving ? "1.6s" : "10s"} linear infinite`,
+            animation: `easyui-orbit-ccw ${isProving ? "1.6s" : "12s"} linear infinite`,
           }}
         />
         <div
           className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-full",
+            "flex h-7 w-7 items-center justify-center rounded-full border",
             isDone
-              ? "bg-[#D1FAE5] text-[#047857]"
+              ? "border-[#10B981]/30 bg-[#10B981]/15 text-[#10B981]"
               : isFailed
-              ? "bg-[#FEE2E2] text-[#B91C1C]"
+              ? "border-[#EF4444]/30 bg-[#EF4444]/15 text-[#EF4444]"
               : isProving
-              ? "bg-[#FEF3C7] text-[#B45309]"
-              : "bg-white border border-[#E4E4E7] text-[#52525B]"
+              ? "border-[#F59E0B]/30 bg-[#F59E0B]/15 text-[#F59E0B]"
+              : "border-[#1E242D] bg-[#161B22] text-[#94A3B8]"
           )}
         >
           {isDone ? (
@@ -99,19 +96,19 @@ export function OrbitalProver({
       </div>
 
       <div className="min-w-0 flex-1 space-y-0.5">
-        <div className="text-[10px] font-mono-tabular uppercase tracking-[0.16em] text-[#71717A]">
+        <div className="text-[10px] font-mono-tabular uppercase tracking-[0.14em] text-[#64748B]">
           Client-Side Groth16 Prover · BN254
         </div>
         <div
           className={cn(
             "text-xs font-semibold",
             isDone
-              ? "text-[#047857]"
+              ? "text-[#10B981]"
               : isFailed
-              ? "text-[#B91C1C]"
+              ? "text-[#EF4444]"
               : isProving
-              ? "text-[#B45309]"
-              : "text-[#09090B]"
+              ? "text-[#F59E0B]"
+              : "text-[#F3F4F6]"
           )}
         >
           {statusText}

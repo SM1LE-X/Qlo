@@ -1,0 +1,12 @@
+{
+  "caseLabel": "Diagnostic 12-Lead ECG & Troponin Screen",
+  "insuredPolicyId": "2026001",
+  "patientAlias": "SYNTH-CASE-042",
+  "icd10Code": "R07.9",
+  "serviceDate": "2026-11-22",
+  "cptCode": "93000",
+  "claimAmountEth": "0.004",
+  "renderingNpi": "1234567890",
+  "prescription": "Nitroglycerin 0.4mg SL PRN",
+  "clinicalNotes": "Precisely timed 12-lead ECG tracing with attending cardiologist sign-off."
+}

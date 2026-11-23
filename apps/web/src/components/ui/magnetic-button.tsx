@@ -14,11 +14,11 @@ export interface MagneticButtonProps extends ButtonHTMLAttributes<HTMLButtonElem
 }
 
 /**
- * EasyUI Light MagneticButton (MIT): crisp ink-on-porcelain hierarchy with subtle spring pull.
+ * Institutional action button with strict dark-obsidian hierarchy.
  */
 export function MagneticButton({
   children,
-  strength = 0.18,
+  strength = 0.08,
   variant = "primary",
   size = "md",
   className,
@@ -26,11 +26,11 @@ export function MagneticButton({
   ...props
 }: MagneticButtonProps) {
   const ref = useRef<HTMLButtonElement>(null);
-  const springX = useSpring(0, { stiffness: 280, damping: 22 });
-  const springY = useSpring(0, { stiffness: 280, damping: 22 });
+  const springX = useSpring(0, { stiffness: 320, damping: 26 });
+  const springY = useSpring(0, { stiffness: 320, damping: 26 });
 
   const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (disabled || !ref.current) return;
+    if (disabled || !ref.current || strength <= 0) return;
     const { left, top, width, height } = ref.current.getBoundingClientRect();
     springX.set((e.clientX - (left + width / 2)) * strength);
     springY.set((e.clientY - (top + height / 2)) * strength);
@@ -43,23 +43,23 @@ export function MagneticButton({
 
   const variants = {
     primary:
-      "bg-[#09090B] text-white border-[#09090B] hover:bg-[#18181B] shadow-[0_2px_10px_-2px_rgba(9,9,11,0.28)] font-medium",
+      "bg-[#F3F4F6] text-[#090B0E] border-[#F3F4F6] hover:bg-white font-semibold",
     emerald:
-      "bg-[#0F766E] text-white border-[#0F766E] hover:bg-[#115E59] shadow-[0_4px_14px_-4px_rgba(15,118,110,0.38)] font-medium",
+      "bg-[#10B981] text-[#090B0E] border-[#10B981] hover:bg-[#34D399] font-semibold",
     amber:
-      "bg-[#D97706] text-white border-[#D97706] hover:bg-[#B45309] shadow-xs font-medium",
+      "bg-[#F59E0B]/15 text-[#F59E0B] border-[#F59E0B]/35 hover:bg-[#F59E0B]/25 font-medium",
     crimson:
-      "bg-[#FEF2F2] text-[#B91C1C] border-[#FECACA] hover:bg-[#FEE2E2] font-medium",
+      "bg-[#EF4444]/12 text-[#EF4444] border-[#EF4444]/30 hover:bg-[#EF4444]/20 font-medium",
     secondary:
-      "bg-white text-[#09090B] border-[#E4E4E7] hover:bg-[#F4F4F5] hover:border-[#D4D4D8] shadow-[0_1px_2px_rgba(15,23,42,0.05)] font-medium",
+      "bg-[#161B22] text-[#F3F4F6] border-[#2B3340] hover:bg-[#1E242D] hover:border-[#374151] font-medium",
     ghost:
-      "bg-transparent text-[#52525B] border-transparent hover:text-[#09090B] hover:bg-[#F4F4F5]",
+      "bg-transparent text-[#94A3B8] border-transparent hover:text-[#F3F4F6] hover:bg-[#161B22] font-medium",
   }[variant];
 
   const sizes = {
     sm: "h-8 px-3 text-xs rounded-lg gap-1.5",
-    md: "h-10 px-4 text-xs sm:text-sm rounded-xl gap-2",
-    lg: "h-11 px-5 text-sm rounded-xl gap-2",
+    md: "h-9 px-3.5 text-xs sm:text-[13px] rounded-lg gap-2",
+    lg: "h-10 px-4 text-sm rounded-lg gap-2",
   }[size];
 
   return (
@@ -68,7 +68,7 @@ export function MagneticButton({
       style={{ x: springX, y: springY }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      whileTap={disabled ? undefined : { scale: 0.97 }}
+      whileTap={disabled ? undefined : { scale: 0.98 }}
       transition={motionTransitions.springSnappy}
       disabled={disabled}
       className={cn(

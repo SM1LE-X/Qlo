@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { FileCode2, ShieldAlert } from "lucide-react";
 import { type Cms1500Claim } from "@/lib/intake";
 import { type AttackId } from "@/lib/hospitalGuardrails";
-import { motionTransitions } from "@/lib/motion-tokens";
 import { FraudGuardrailsCard } from "./fraud-guardrails-card";
 import { StandardsStagingCard } from "./standards-staging-card";
 
@@ -19,10 +17,6 @@ interface EnterpriseVerificationDockProps {
   hospitalAddr: string;
 }
 
-/**
- * Enterprise Verification & Healthcare Standards Interoperability Dock for `/hospital`.
- * Cleanly tabs between the 5-Attack Fail-Closed Security Lab and HL7 FHIR R4 / ANSI X12 837P staging.
- */
 export function EnterpriseVerificationDock({
   activeAttack,
   attackResult,
@@ -35,18 +29,13 @@ export function EnterpriseVerificationDock({
   const [dockTab, setDockTab] = useState<"security" | "standards">("security");
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E4E4E7] bg-white px-5 py-3.5 card-porcelain">
-        <div className="space-y-0.5">
-          <div className="text-[11px] font-mono-tabular uppercase tracking-[0.14em] text-[#0F4C81]">
-            03 · Enterprise Compliance &amp; Interoperability Dock
-          </div>
-          <div className="text-sm font-bold text-[#09090B]">
-            Fail-Closed Fraud Guardrails &amp; HL7 FHIR R4 / ANSI X12 837P Export
-          </div>
-        </div>
-
-        <div className="inline-flex rounded-xl border border-[#E4E4E7] bg-[#F4F5F4] p-1">
+    <section className="rounded-xl border border-[#1E242D] bg-[#111419] overflow-hidden">
+      <div
+        role="tablist"
+        aria-label="Security guardrails and healthcare standards export"
+        className="flex flex-wrap items-center justify-between gap-3 border-b border-[#1E242D] bg-[#0D1014] px-4 py-2.5"
+      >
+        <div className="inline-flex items-center gap-1 rounded-lg border border-[#1E242D] bg-[#111419] p-0.5">
           {(
             [
               ["security", "Security Guardrails (5 Attacks)", ShieldAlert],
@@ -57,49 +46,52 @@ export function EnterpriseVerificationDock({
             return (
               <button
                 key={id}
+                role="tab"
                 type="button"
+                aria-selected={active}
                 onClick={() => setDockTab(id)}
-                className={`relative inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
-                  active ? "text-[#09090B]" : "text-[#52525B] hover:text-[#09090B]"
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                  active
+                    ? "bg-[#161B22] text-[#F3F4F6] border border-[#2B3340]"
+                    : "text-[#94A3B8] hover:text-[#F3F4F6] border border-transparent"
                 }`}
               >
-                {active ? (
-                  <motion.span
-                    layoutId="hospital-dock-pill"
-                    transition={motionTransitions.springMorph}
-                    className="absolute inset-0 rounded-lg bg-white shadow-2xs border border-[#E4E4E7]/80"
-                  />
-                ) : null}
                 <Icon
-                  className={`relative z-10 h-3.5 w-3.5 ${
+                  className={`h-3.5 w-3.5 ${
                     active
                       ? id === "security"
-                        ? "text-[#B91C1C]"
-                        : "text-[#0F4C81]"
-                      : "text-[#71717A]"
+                        ? "text-[#EF4444]"
+                        : "text-[#38BDF8]"
+                      : "text-[#64748B]"
                   }`}
                 />
-                <span className="relative z-10">{label}</span>
+                <span>{label}</span>
               </button>
             );
           })}
         </div>
+
+        <span className="font-mono-tabular text-[11px] text-[#64748B]">
+          Fail-Closed Circuit &amp; Clearinghouse Interop
+        </span>
       </div>
 
-      {dockTab === "security" ? (
-        <FraudGuardrailsCard
-          activeAttack={activeAttack}
-          attackResult={attackResult}
-          onRunScenario={onRunScenario}
-        />
-      ) : (
-        <StandardsStagingCard
-          standardsTab={standardsTab}
-          onChangeTab={onChangeStandardsTab}
-          decryptedClaim={decryptedClaim}
-          hospitalAddr={hospitalAddr}
-        />
-      )}
+      <div className="p-5">
+        {dockTab === "security" ? (
+          <FraudGuardrailsCard
+            activeAttack={activeAttack}
+            attackResult={attackResult}
+            onRunScenario={onRunScenario}
+          />
+        ) : (
+          <StandardsStagingCard
+            standardsTab={standardsTab}
+            onChangeTab={onChangeStandardsTab}
+            decryptedClaim={decryptedClaim}
+            hospitalAddr={hospitalAddr}
+          />
+        )}
+      </div>
     </section>
   );
 }

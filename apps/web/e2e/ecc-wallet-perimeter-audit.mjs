@@ -266,7 +266,7 @@ async function main() {
       .getByText(/Approved Hospital · In Poseidon hospitalRoot/i)
       .waitFor({ state: "visible", timeout: 10000 });
 
-    await header.getByRole("link", { name: /1\. Patient/i }).click();
+    await header.getByRole("link", { name: /Vault/i }).click();
     await page.waitForURL("**/patient", { timeout: 10000 });
     await page.getByText(/Patient Wallet Connected/i).waitFor({ state: "visible", timeout: 10000 });
 

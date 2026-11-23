@@ -42,10 +42,10 @@ export function SettledClaimsTable({
 }: SettledClaimsTableProps) {
   return (
     <SpotlightCard id="insurer-ledger" accent="neutral" className="overflow-hidden scroll-mt-20">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#F4F4F5] px-6 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#1E242D] px-5 py-4">
         <div>
-          <h2 className="text-sm font-semibold text-[#09090B]">Settled Claims Ledger</h2>
-          <p className="text-xs text-[#52525B]">
+          <h2 className="text-sm font-semibold text-[#F3F4F6]">Settled Claims Ledger</h2>
+          <p className="text-xs text-[#94A3B8]">
             Verified zero-knowledge disbursements settled from ClaimsVault treasury.
           </p>
         </div>
@@ -56,7 +56,7 @@ export function SettledClaimsTable({
             Sync Ledger
           </TactileButton>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#71717A]" />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#64748B]" />
             <input
               id="ledger-filter-input"
               type="search"
@@ -64,7 +64,7 @@ export function SettledClaimsTable({
               onChange={(e) => onChangeFilter(e.target.value)}
               placeholder="Filter hospital or nullifier..."
               aria-label="Filter settled claims by hospital or nullifier"
-              className="w-52 rounded-lg border border-[#E4E4E7] bg-white pl-8 pr-2.5 py-1.5 text-xs text-[#09090B] placeholder-[#A1A1AA] focus:border-[#0F766E] focus:outline-none"
+              className="w-52 rounded-lg border border-[#1E242D] bg-[#0D1014] pl-8 pr-2.5 py-1.5 text-xs text-[#F3F4F6] placeholder-[#64748B] focus:border-[#10B981] focus:outline-none"
             />
           </div>
           <Badge variant="neutral">
@@ -75,9 +75,9 @@ export function SettledClaimsTable({
 
       {sortedClaimsCount === 0 ? (
         <div className="px-6 py-8 text-center space-y-3">
-          <div className="text-xs text-[#71717A]">
+          <div className="text-xs text-[#94A3B8]">
             {totalClaimsCount === 0
-              ? "No claims settled in this session yet. Authorize a record in Patient Vault, then submit a proof from the Provider Clearinghouse to populate this ledger."
+              ? "No claims settled in this session yet. Authorize a record in Records Vault, then submit a proof from Claims Prover to populate this ledger."
               : "No settled claims matched your filter query."}
           </div>
           {totalClaimsCount === 0 ? (
@@ -89,7 +89,7 @@ export function SettledClaimsTable({
               </Link>
               <Link href="/patient">
                 <TactileButton size="sm" variant="secondary">
-                  Open Patient Vault
+                  Open Records Vault
                 </TactileButton>
               </Link>
             </div>
@@ -100,12 +100,12 @@ export function SettledClaimsTable({
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-xs">
               <thead>
-                <tr className="border-b border-[#E4E4E7] bg-[#FAFAFA] text-[#71717A]">
-                  <th className="px-6 py-2.5 font-medium">
+                <tr className="border-b border-[#1E242D] bg-[#0D1014] text-[#64748B]">
+                  <th className="px-5 py-2.5 font-medium">
                     <button
                       type="button"
                       onClick={() => onToggleSort("hospital")}
-                      className="inline-flex items-center gap-1 font-medium text-[#52525B] hover:text-[#09090B] cursor-pointer"
+                      className="inline-flex items-center gap-1 font-medium text-[#94A3B8] hover:text-[#F3F4F6] cursor-pointer"
                     >
                       Hospital Provider
                       <ArrowUpDown className="h-3 w-3" />
@@ -117,42 +117,42 @@ export function SettledClaimsTable({
                     <button
                       type="button"
                       onClick={() => onToggleSort("amount")}
-                      className="inline-flex items-center justify-end gap-1 font-medium text-[#52525B] hover:text-[#09090B] cursor-pointer"
+                      className="inline-flex items-center justify-end gap-1 font-medium text-[#94A3B8] hover:text-[#F3F4F6] cursor-pointer"
                     >
                       Payout
                       <ArrowUpDown className="h-3 w-3" />
                     </button>
                   </th>
-                  <th className="px-6 py-2.5 text-right font-medium">Action</th>
+                  <th className="px-5 py-2.5 text-right font-medium">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F4F4F5]">
+              <tbody className="divide-y divide-[#1E242D]">
                 {ledgerSlice.map((row) => (
-                  <tr key={row.txHash} className="hover:bg-[#FAFAFA] transition-colors">
-                    <td className="px-6 py-3">
-                      <div className="font-semibold text-[#09090B]">
+                  <tr key={row.txHash} className="hover:bg-[#161B22]/60 transition-colors">
+                    <td className="px-5 py-3">
+                      <div className="font-semibold text-[#F3F4F6]">
                         {getProviderDisplayName(row.hospital)}
                       </div>
-                      <div className="font-mono-tabular text-[11px] text-[#71717A]">
+                      <div className="font-mono-tabular text-[11px] text-[#64748B]">
                         {shortHex(row.hospital, 8, 6)}
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-mono-tabular text-[11px] text-[#52525B] space-y-0.5">
+                    <td className="px-4 py-3 font-mono-tabular text-[11px] text-[#94A3B8] space-y-0.5">
                       <div>claimNullifier: {row.nullifier.slice(0, 12)}...</div>
-                      <div className="text-[#71717A]">
+                      <div className="text-[#64748B]">
                         policyCommit: {shortHex(row.policyCommitment || canonicalFixtures.activePolicy.commitment, 10, 4)}
                       </div>
-                      <div className="text-[#71717A]">
+                      <div className="text-[#64748B]">
                         hospitalRoot: {(row.pubSignals?.[0] ?? (onChainHospitalRoot?.toString() || canonicalFixtures.hospitalRoot)).slice(0, 12)}...
                       </div>
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant="emerald">0 PHI Verified</Badge>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono-tabular font-semibold text-[#047857]">
+                    <td className="px-4 py-3 text-right font-mono-tabular font-semibold text-[#10B981]">
                       +{formatWeiToEth(row.amountWei, 4)} ETH
                     </td>
-                    <td className="px-6 py-3 text-right">
+                    <td className="px-5 py-3 text-right">
                       <div className="inline-flex items-center justify-end gap-1.5">
                         <TactileButton
                           size="sm"
@@ -190,7 +190,7 @@ export function SettledClaimsTable({
           </div>
 
           {totalPages > 1 ? (
-            <div className="flex items-center justify-between border-t border-[#F4F4F5] px-6 py-2.5 text-xs text-[#71717A]">
+            <div className="flex items-center justify-between border-t border-[#1E242D] px-5 py-2.5 text-xs text-[#94A3B8]">
               <span>
                 Page {safePage + 1} of {totalPages}
               </span>
@@ -200,7 +200,7 @@ export function SettledClaimsTable({
                   aria-label="Previous ledger page"
                   disabled={safePage === 0}
                   onClick={() => onChangePage((p) => Math.max(0, p - 1))}
-                  className="rounded-lg border border-[#E4E4E7] p-1 hover:bg-[#F4F4F5] disabled:opacity-40 cursor-pointer"
+                  className="rounded-lg border border-[#1E242D] bg-[#0D1014] p-1 text-[#F3F4F6] hover:border-[#2B3340] disabled:opacity-40 cursor-pointer"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </button>
@@ -209,7 +209,7 @@ export function SettledClaimsTable({
                   aria-label="Next ledger page"
                   disabled={safePage >= totalPages - 1}
                   onClick={() => onChangePage((p) => Math.min(totalPages - 1, p + 1))}
-                  className="rounded-lg border border-[#E4E4E7] p-1 hover:bg-[#F4F4F5] disabled:opacity-40 cursor-pointer"
+                  className="rounded-lg border border-[#1E242D] bg-[#0D1014] p-1 text-[#F3F4F6] hover:border-[#2B3340] disabled:opacity-40 cursor-pointer"
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
                 </button>

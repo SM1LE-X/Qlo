@@ -49,9 +49,10 @@ jobs:
       - name: Run Foundry unit, real-proof & security tests
         run: forge test --root contracts -vvv
 
-      - name: Verify web typecheck and production Webpack build
+      - name: Verify web unit tests, typecheck and production Webpack build
         run: |
           pnpm --dir apps/web install --frozen-lockfile || pnpm --dir apps/web install
           node apps/web/scripts/setup-ocr.mjs
+          pnpm --dir apps/web test
           pnpm --dir apps/web typecheck
           pnpm --dir apps/web build

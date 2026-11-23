@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
-  Compass,
   Cpu,
   ExternalLink,
   FileLock2,
@@ -14,58 +13,57 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import { DEPLOYMENT, IS_CHAIN_DEPLOYED, explorerAddressUrl, explorerTxUrl } from "@/lib/contracts";
+import {
+  DEPLOYMENT,
+  IS_CHAIN_DEPLOYED,
+  explorerAddressUrl,
+  sourcifyContractUrl,
+} from "@/lib/contracts";
 import { motionTransitions } from "@/lib/motion-tokens";
-
-const LIVE_SEPOLIA_SETTLE_TX =
-  "0xf8cb4e31169eac006b4c5dd0a69fa763de7b9ddb79a7cd25419062ead7aa2ed0";
+import { cn, shortHex } from "@/lib/utils";
 
 const COMMANDS = [
   {
-    label: "Platform Control Plane",
-    sub: "Executive overview, live privacy simulator, and BN254 benchmark telemetry",
+    label: "Overview",
+    sub: "Live Sepolia escrow state, settled claims, consent logs & contracts",
     href: "/",
-    badge: "Overview",
+    tag: "/",
     icon: Activity,
   },
   {
-    label: "Step 1 · Patient Sovereign Studio",
-    sub: "Local CMS-1500 WASM OCR, AES-256-GCM encryption, 3D policy pass & consent grants",
+    label: "Vault",
+    sub: "Browser-local AES-256-GCM record encryption & ECDH hospital consent grants",
     href: "/patient",
-    badge: "Step 01",
+    tag: "/patient",
     icon: FileLock2,
   },
   {
-    label: "Step 2 · Hospital Prover Workbench",
-    sub: "ECDH DEK unwrap, 8-predicate Groth16 Web Worker prover, attack lab & FHIR/X12",
+    label: "Claims",
+    sub: "ECDH DEK unwrap, 8-predicate Groth16 BN254 prover & atomic ETH settlement",
     href: "/hospital",
-    badge: "Step 02",
+    tag: "/hospital",
     icon: Cpu,
   },
   {
-    label: "Step 3 · Insurer Treasury & Forensic Audit",
-    sub: "Native ETH escrow pool, settled claims ledger & zero-PHI calldata inspector",
+    label: "Treasury",
+    sub: "ClaimsVault ETH escrow funding, settled ledger & raw calldata inspection",
     href: "/insurer",
-    badge: "Step 03",
+    tag: "/insurer",
     icon: Landmark,
   },
   {
-    label: "Cryptographic Trust Center",
-    sub: "Live browser .zkey SHA-256 verification, 5/5 Sourcify contracts & STRIDE matrix",
+    label: "Protocol",
+    sub: "R1CS circuit constraints, .zkey SHA-256 verification & contract ABIs",
     href: "/story",
-    badge: "Specs",
+    tag: "/story",
     icon: ShieldCheck,
   },
-];
+] as const;
 
-/**
- * Enterprise Cmd+K / Ctrl+K Command Palette with workspace navigation, onboarding guide trigger,
- * and direct Ethereum Sepolia Etherscan verification shortcuts.
- */
 export function CommandMenu({
   open,
   onOpenChange,
-  onOpenOnboarding,
+  onOpenOnboarding: _onOpenOnboarding,
 }: {
   open: boolean;
   onOpenChange: (next: boolean) => void;
@@ -73,19 +71,7 @@ export function CommandMenu({
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        onOpenChange(!open);
-      } else if (e.key === "Escape" && open) {
-        onOpenChange(false);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onOpenChange]);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -94,9 +80,41 @@ export function CommandMenu({
       (c) =>
         c.label.toLowerCase().includes(q) ||
         c.sub.toLowerCase().includes(q) ||
-        c.badge.toLowerCase().includes(q)
+        c.tag.toLowerCase().includes(q)
     );
   }, [query]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query, open]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        onOpenChange(!open);
+        return;
+      }
+      if (!open) return;
+
+      if (e.key === "Escape") {
+        onOpenChange(false);
+      } else if (e.key === "ArrowDown" && filtered.length > 0) {
+        e.preventDefault();
+        setActiveIndex((prev) => (prev + 1) % filtered.length);
+      } else if (e.key === "ArrowUp" && filtered.length > 0) {
+        e.preventDefault();
+        setActiveIndex((prev) => (prev - 1 + filtered.length) % filtered.length);
+      } else if (e.key === "Enter" && filtered[activeIndex]) {
+        e.preventDefault();
+        router.push(filtered[activeIndex].href);
+        onOpenChange(false);
+        setQuery("");
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onOpenChange, filtered, activeIndex, router]);
 
   return (
     <AnimatePresence mode="wait">
@@ -107,134 +125,128 @@ export function CommandMenu({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={motionTransitions.easeFast}
-          className="fixed inset-0 z-50 flex items-start justify-center bg-[#090C0E]/45 px-4 pt-20 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 px-4 pt-20 backdrop-blur-xs"
           onClick={() => onOpenChange(false)}
         >
           <motion.div
             key="cmd-dialog"
             role="dialog"
             aria-modal="true"
-            aria-label="Enterprise Command Palette"
-            initial={{ opacity: 0, scale: 0.96, y: -10 }}
+            aria-label="Protocol Command Menu"
+            initial={{ opacity: 0, scale: 0.97, y: -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: -10 }}
+            exit={{ opacity: 0, scale: 0.97, y: -8 }}
             transition={motionTransitions.springSnappy}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xl overflow-hidden rounded-2xl border border-[#E4E4E7] bg-white shadow-[0_28px_70px_-16px_rgba(9,12,14,0.35)]"
+            className="w-full max-w-lg overflow-hidden rounded-xl border border-[#2B3340] bg-[#111419] shadow-[0_24px_64px_-16px_rgba(0,0,0,0.85)]"
           >
-            <div className="flex items-center gap-3 border-b border-[#F4F4F5] px-4 py-3.5">
-              <Search className="h-4 w-4 text-[#0F766E]" />
+            <div className="flex items-center gap-3 border-b border-[#1E242D] px-4 py-3">
+              <Search className="h-4 w-4 text-[#64748B] shrink-0" />
               <input
                 autoFocus
                 aria-label="Command menu search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Jump to workspace, role guide, or verified Sepolia contract..."
-                className="flex-1 bg-transparent text-sm text-[#09090B] placeholder-[#A1A1AA] outline-none"
+                placeholder="Navigate protocol modules or contracts..."
+                className="flex-1 bg-transparent text-sm text-[#F3F4F6] placeholder-[#64748B] outline-none"
               />
-              <span className="hidden sm:inline rounded-md border border-[#E4E4E7] bg-[#F7F8F7] px-1.5 py-0.5 font-mono-tabular text-[10px] text-[#71717A]">
+              <kbd className="hidden sm:inline rounded border border-[#2B3340] bg-[#0D1014] px-1.5 py-0.5 font-mono-tabular text-[10px] text-[#64748B]">
                 ESC
-              </span>
+              </kbd>
               <button
                 type="button"
                 aria-label="Close command menu"
                 onClick={() => onOpenChange(false)}
-                className="rounded-lg p-1 text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#09090B] cursor-pointer"
+                className="rounded-md p-1 text-[#64748B] hover:bg-[#161B22] hover:text-[#F3F4F6] transition-colors cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="p-2.5 space-y-1.5 max-h-96 overflow-y-auto">
-              {onOpenOnboarding ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onOpenChange(false);
-                    onOpenOnboarding();
-                    setQuery("");
-                  }}
-                  className="flex w-full items-center gap-3 rounded-xl border border-[#99F6E4]/80 bg-[#F0FDFA]/70 px-3.5 py-2.5 text-left hover:bg-[#F0FDFA] transition-colors cursor-pointer"
-                >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#99F6E4] bg-white text-[#0F766E]">
-                    <Compass className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-bold text-[#09090B]">
-                      Interactive Role &amp; Walkthrough Guide
-                    </div>
-                    <div className="text-[11px] text-[#52525B] truncate">
-                      Launch guided role tracks, inspect 4 milestones, or reset local sandbox state
-                    </div>
-                  </div>
-                  <span className="rounded-full border border-[#99F6E4] bg-white px-2 py-0.5 font-mono-tabular text-[10px] font-semibold text-[#0F766E]">
-                    Guide
-                  </span>
-                </button>
-              ) : null}
-
-              <div className="px-2 pt-1 text-[10px] font-mono-tabular uppercase tracking-[0.14em] text-[#71717A]">
-                Workspaces
+            <div className="p-2 space-y-1 max-h-96 overflow-y-auto">
+              <div className="px-2.5 pt-1 pb-0.5 font-mono-tabular text-[10px] uppercase tracking-[0.14em] text-[#64748B]">
+                Modules
               </div>
 
-              {filtered.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.href}
-                    type="button"
-                    onClick={() => {
-                      router.push(item.href);
-                      onOpenChange(false);
-                      setQuery("");
-                    }}
-                    className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left hover:bg-[#F4F5F4] transition-colors cursor-pointer"
-                  >
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#E4E4E7] bg-[#F7F8F7] text-[#0F766E]">
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-semibold text-[#09090B]">{item.label}</div>
-                      <div className="text-[11px] text-[#52525B] truncate">{item.sub}</div>
-                    </div>
-                    <span className="rounded-md border border-[#E4E4E7] bg-[#F7F8F7] px-2 py-0.5 font-mono-tabular text-[10px] text-[#52525B]">
-                      {item.badge}
-                    </span>
-                  </button>
-                );
-              })}
+              {filtered.length === 0 ? (
+                <div className="px-3 py-6 text-center text-xs text-[#64748B]">
+                  No matching modules for &ldquo;{query}&rdquo;
+                </div>
+              ) : (
+                filtered.map((item, idx) => {
+                  const Icon = item.icon;
+                  const isActive = idx === activeIndex;
+                  return (
+                    <button
+                      key={item.href}
+                      type="button"
+                      onMouseEnter={() => setActiveIndex(idx)}
+                      onClick={() => {
+                        router.push(item.href);
+                        onOpenChange(false);
+                        setQuery("");
+                      }}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors cursor-pointer",
+                        isActive
+                          ? "bg-[#161B22] text-[#F3F4F6]"
+                          : "text-[#94A3B8] hover:bg-[#161B22]"
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
+                          isActive
+                            ? "border-[#10B981]/35 bg-[#10B981]/10 text-[#10B981]"
+                            : "border-[#1E242D] bg-[#0D1014] text-[#94A3B8]"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13px] font-medium text-[#F3F4F6]">
+                          {item.label}
+                        </div>
+                        <div className="text-[11px] text-[#64748B] truncate">
+                          {item.sub}
+                        </div>
+                      </div>
+                      <span className="rounded border border-[#1E242D] bg-[#0D1014] px-1.5 py-0.5 font-mono-tabular text-[10px] text-[#64748B]">
+                        {item.tag}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
 
               {IS_CHAIN_DEPLOYED ? (
-                <div className="pt-2 border-t border-[#F4F4F5] space-y-1">
-                  <div className="px-2 text-[10px] font-mono-tabular uppercase tracking-[0.14em] text-[#71717A]">
-                    Live Ethereum Sepolia Verification
+                <div className="mt-2 pt-2 border-t border-[#1E242D] space-y-0.5">
+                  <div className="px-2.5 pb-0.5 font-mono-tabular text-[10px] uppercase tracking-[0.14em] text-[#64748B]">
+                    Sepolia Contracts (11155111)
                   </div>
-                  <a
-                    href={explorerTxUrl(LIVE_SEPOLIA_SETTLE_TX)}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => onOpenChange(false)}
-                    className="flex w-full items-center justify-between gap-3 rounded-xl px-3.5 py-2 text-xs text-[#047857] hover:bg-[#ECFDF5]/60 transition-colors"
-                  >
-                    <span className="font-medium">
-                      Live Mined Groth16 Claim Settlement (0.0050 ETH · 0 PHI Bytes)
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-mono-tabular text-[11px]">
-                      0xf8cb...2ed0 <ExternalLink className="h-3 w-3" />
-                    </span>
-                  </a>
                   <a
                     href={explorerAddressUrl(DEPLOYMENT.contracts.ClaimsVault)}
                     target="_blank"
                     rel="noreferrer"
                     onClick={() => onOpenChange(false)}
-                    className="flex w-full items-center justify-between gap-3 rounded-xl px-3.5 py-2 text-xs text-[#0F766E] hover:bg-[#F0FDFA] transition-colors"
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs text-[#94A3B8] hover:bg-[#161B22] hover:text-[#F3F4F6] transition-colors"
                   >
-                    <span className="font-medium">
-                      Verified ClaimsVault Contract on Sepolia Etherscan
+                    <span className="font-medium">ClaimsVault · Etherscan</span>
+                    <span className="inline-flex items-center gap-1.5 font-mono-tabular text-[11px] text-[#10B981]">
+                      {shortHex(DEPLOYMENT.contracts.ClaimsVault, 6, 4)}
+                      <ExternalLink className="h-3 w-3" />
                     </span>
-                    <span className="inline-flex items-center gap-1 font-mono-tabular text-[11px]">
-                      {DEPLOYMENT.contracts.ClaimsVault.slice(0, 10)}...{" "}
+                  </a>
+                  <a
+                    href={sourcifyContractUrl(DEPLOYMENT.contracts.Groth16Verifier)}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => onOpenChange(false)}
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs text-[#94A3B8] hover:bg-[#161B22] hover:text-[#F3F4F6] transition-colors"
+                  >
+                    <span className="font-medium">Groth16Verifier · Sourcify</span>
+                    <span className="inline-flex items-center gap-1.5 font-mono-tabular text-[11px] text-[#38BDF8]">
+                      {shortHex(DEPLOYMENT.contracts.Groth16Verifier, 6, 4)}
                       <ExternalLink className="h-3 w-3" />
                     </span>
                   </a>

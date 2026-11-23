@@ -54,7 +54,7 @@ export function SlidingCountdown({ secondsLeft }: { secondsLeft: number }) {
       initial={{ y: -2, opacity: 0.75 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.16 }}
-      className="inline-flex items-center gap-1 rounded-full border border-[#FDE68A] bg-[#FFFBEB] px-2.5 py-0.5 font-mono-tabular text-xs font-semibold text-[#B45309]"
+      className="inline-flex items-center gap-1 rounded-md border border-[#F59E0B]/25 bg-[#F59E0B]/10 px-2 py-0.5 font-mono-tabular text-xs font-semibold text-[#F59E0B]"
       aria-live="polite"
     >
       {mins}:{secs}

@@ -11,7 +11,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-[#E4E4E7] bg-white card-porcelain transition-colors duration-200 hover:border-[#D4D4D8]",
+        "rounded-xl border border-[#1E242D] bg-[#111419] transition-colors duration-150 hover:border-[#2B3340]",
         className
       )}
     >
@@ -27,7 +27,11 @@ export function CardHeader({
   className?: string;
   children: ReactNode;
 }) {
-  return <div className={cn("border-b border-[#F4F4F5] px-6 py-4", className)}>{children}</div>;
+  return (
+    <div className={cn("border-b border-[#1E242D] px-5 py-3.5", className)}>
+      {children}
+    </div>
+  );
 }
 
 export function CardContent({
@@ -37,7 +41,7 @@ export function CardContent({
   className?: string;
   children: ReactNode;
 }) {
-  return <div className={cn("p-6", className)}>{children}</div>;
+  return <div className={cn("p-5", className)}>{children}</div>;
 }
 
 export function Badge({
@@ -45,22 +49,23 @@ export function Badge({
   className,
   children,
 }: {
-  variant?: "neutral" | "emerald" | "teal" | "amber" | "crimson";
+  variant?: "neutral" | "emerald" | "teal" | "cobalt" | "amber" | "crimson";
   className?: string;
   children: ReactNode;
 }) {
   const styles = {
-    neutral: "border-[#E4E4E7] bg-[#F4F4F5] text-[#52525B]",
-    emerald: "border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]",
-    teal: "border-[#99F6E4] bg-[#F0FDFA] text-[#0F766E]",
-    amber: "border-[#FDE68A] bg-[#FFFBEB] text-[#B45309]",
-    crimson: "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]",
+    neutral: "border-[#2B3340] bg-[#161B22] text-[#94A3B8]",
+    emerald: "border-[#10B981]/30 bg-[#10B981]/10 text-[#10B981]",
+    teal: "border-[#38BDF8]/30 bg-[#38BDF8]/10 text-[#38BDF8]",
+    cobalt: "border-[#38BDF8]/30 bg-[#38BDF8]/10 text-[#38BDF8]",
+    amber: "border-[#F59E0B]/30 bg-[#F59E0B]/10 text-[#F59E0B]",
+    crimson: "border-[#EF4444]/30 bg-[#EF4444]/10 text-[#EF4444]",
   }[variant];
 
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium tracking-tight",
+        "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium tracking-tight whitespace-nowrap",
         styles,
         className
       )}

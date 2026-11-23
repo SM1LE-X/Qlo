@@ -1,0 +1,12 @@
+{
+  "caseLabel": "Case C — Attack: Uncovered Cosmetic CPT (15777)",
+  "insuredPolicyId": "2026001",
+  "patientAlias": "SYNTH-CASE-108",
+  "icd10Code": "Z41.1",
+  "serviceDate": "2026-11-22",
+  "cptCode": "15777",
+  "claimAmountEth": "0.01",
+  "renderingNpi": "1234567890",
+  "prescription": "Cephalexin 500mg prophylaxis",
+  "clinicalNotes": "Elective cosmetic biologic implant excluded under covered CPT policy schedule."
+}

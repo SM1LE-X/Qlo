@@ -1,12 +1,9 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/card";
-import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { TransitionPanel } from "@/components/ui/transition-panel";
 import { type AttackId } from "@/lib/hospitalGuardrails";
-import { motionTransitions } from "@/lib/motion-tokens";
 
 interface FraudGuardrailsCardProps {
   activeAttack: AttackId;
@@ -20,13 +17,13 @@ export function FraudGuardrailsCard({
   onRunScenario,
 }: FraudGuardrailsCardProps) {
   return (
-    <SpotlightCard id="hospital-guardrails" accent="crimson" className="p-6 space-y-4 scroll-mt-20">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F4F4F5] pb-3">
+    <div id="hospital-guardrails" className="space-y-4 scroll-mt-20">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <ShieldAlert className="h-4 w-4 text-[#B91C1C]" />
-          <h2 className="text-sm font-semibold text-[#09090B]">
-            3. Automated Policy &amp; Fraud Verification Suite
-          </h2>
+          <ShieldAlert className="h-4 w-4 text-[#EF4444]" />
+          <h3 className="text-sm font-semibold text-[#F3F4F6]">
+            Automated Policy &amp; Fraud Verification Suite
+          </h3>
         </div>
         <Badge variant="crimson">Fail-Closed Guardrails</Badge>
       </div>
@@ -47,37 +44,32 @@ export function FraudGuardrailsCard({
               key={id}
               type="button"
               onClick={() => onRunScenario(id)}
-              className={`relative rounded-xl border px-3.5 py-2 text-xs font-medium transition-colors cursor-pointer ${
+              className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
                 active
-                  ? "border-[#FECACA] text-[#B91C1C]"
-                  : "border-[#E4E4E7] bg-[#FAFAFA] text-[#52525B] hover:border-[#D4D4D8] hover:text-[#09090B]"
+                  ? "border-[#EF4444]/40 bg-[#EF4444]/10 text-[#EF4444]"
+                  : "border-[#1E242D] bg-[#0D1014] text-[#94A3B8] hover:border-[#2B3340] hover:text-[#F3F4F6]"
               }`}
             >
-              {active ? (
-                <motion.span
-                  layoutId="attack-tab"
-                  transition={motionTransitions.springMorph}
-                  className="absolute inset-0 rounded-xl bg-[#FEF2F2]"
-                />
-              ) : null}
-              <span className="relative z-10">{label}</span>
+              {label}
             </button>
           );
         })}
       </div>
 
       <TransitionPanel activeKey={activeAttack + attackResult.status}>
-        <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-4 text-xs space-y-1.5">
-          <div className="font-semibold text-[#09090B]">
-            Selected Verification Case:{" "}
-            <span className="uppercase text-[#B91C1C]">{activeAttack}</span>
+        <div className="rounded-lg border border-[#1E242D] bg-[#0D1014] p-4 text-xs space-y-1.5">
+          <div className="font-medium text-[#94A3B8]">
+            Selected Case:{" "}
+            <span className="font-mono-tabular uppercase font-semibold text-[#EF4444]">
+              {activeAttack}
+            </span>
           </div>
-          <div className="font-mono-tabular text-[#B91C1C] break-all">
+          <div className="font-mono-tabular text-[#EF4444] break-all">
             {attackResult.detail ||
-              "Select any guardrail case above to confirm fail-closed proof or smart-contract rejection."}
+              "Select any guardrail vector above to confirm fail-closed proof or contract rejection."}
           </div>
         </div>
       </TransitionPanel>
-    </SpotlightCard>
+    </div>
   );
 }

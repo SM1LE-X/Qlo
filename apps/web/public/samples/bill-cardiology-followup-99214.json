@@ -1,0 +1,12 @@
+{
+  "caseLabel": "Case B — Valid Cardiology Follow-up (Cumulative Claim #2)",
+  "insuredPolicyId": "2026001",
+  "patientAlias": "SYNTH-CASE-042",
+  "icd10Code": "I25.10",
+  "serviceDate": "2026-11-22",
+  "cptCode": "99214",
+  "claimAmountEth": "0.015",
+  "renderingNpi": "1234567890",
+  "prescription": "Atorvastatin 80mg + Metoprolol 50mg",
+  "clinicalNotes": "Post-MI 14-day outpatient cardiology evaluation and medication titration."
+}

@@ -15,7 +15,8 @@ export const SEPOLIA_RPCS: readonly string[] = customRpcUrl
 
 export const wagmiConfig = createConfig({
   chains: [sepolia],
-  connectors: [injected()],
+  connectors: [injected({ shimDisconnect: true })],
+  multiInjectedProviderDiscovery: true,
   transports: {
     [sepolia.id]: fallback(
       SEPOLIA_RPCS.map((url) =>

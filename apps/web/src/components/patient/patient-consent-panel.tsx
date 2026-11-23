@@ -3,9 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Download, KeyRound, Lock, ShieldOff } from "lucide-react";
 import { Badge } from "@/components/ui/card";
-import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { TactileButton } from "@/components/ui/tactile-button";
-import { WalletPassCard } from "@/components/ui/wallet-pass-card";
 import { ACCREDITED_PROVIDERS } from "@/lib/clinicalCatalog";
 import { IS_CHAIN_DEPLOYED } from "@/lib/contracts";
 import { type EncryptedRecordResult } from "@/lib/crypto";
@@ -62,41 +60,66 @@ export function PatientConsentPanel({
   );
 
   return (
-    <div id="patient-consent" className="lg:col-span-5 space-y-6">
-      {/* Step 2: Interactive 3D Policy Pass + Encrypt & Anchor */}
-      <SpotlightCard accent="emerald" className="p-6 sm:p-7 space-y-4">
-        <div className="flex items-start justify-between gap-2">
+    <div id="patient-consent" className="lg:col-span-5 space-y-5">
+      {/* Card 1: Local AES-256-GCM Encryption & Commitment */}
+      <section className="rounded-xl border border-[#1E242D] bg-[#111419] p-5 space-y-4">
+        <div className="flex items-center justify-between gap-2 border-b border-[#1E242D] pb-3">
           <div>
-            <div className="text-[11px] font-mono-tabular uppercase tracking-[0.14em] text-[#0F766E]">
-              02 · Client Encryption &amp; Policy Pass
-            </div>
-            <h2 className="text-lg font-bold tracking-tight text-[#09090B]">
-              2. Encrypt &amp; Save Record
+            <h2 className="text-sm font-semibold text-[#F3F4F6]">
+              Local AES-256-GCM Encryption &amp; Commitment
             </h2>
+            <p className="text-xs text-[#94A3B8]">
+              Encrypt bill locally and anchor its 248-bit hash on-chain.
+            </p>
           </div>
           {registeredRecordId ? (
             <Badge variant="emerald">Saved (#{registeredRecordId})</Badge>
           ) : encrypted ? (
             <Badge variant="teal">AES-256 Locked</Badge>
+          ) : (
+            <Badge variant="neutral">Unsealed</Badge>
+          )}
+        </div>
+
+        {/* Cryptographic Hash & CID Readout */}
+        <div className="rounded-lg border border-[#1E242D] bg-[#0D1014] p-3.5 space-y-2 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[#64748B]">Policy / Procedure</span>
+            <span className="font-mono-tabular text-[#F3F4F6]">
+              {claim.insuredPolicyId} · CPT {claim.cptCode} · {claim.claimAmountEth} ETH
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-2 border-t border-[#1E242D] pt-2">
+            <span className="text-[#64748B]">248-bit Commit</span>
+            <span className="font-mono-tabular text-[#10B981]">
+              {encrypted ? shortHex(encrypted.recordCommitmentHex, 12, 8) : "Pending encryption"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[#64748B]">CIDv1 Digest</span>
+            <span className="font-mono-tabular text-[#94A3B8]">
+              {cid ? shortHex(cid, 14, 8) : "—"}
+            </span>
+          </div>
+
+          {encrypted && cid && vaultEntry ? (
+            <div className="flex items-center justify-between gap-2 border-t border-[#1E242D] pt-2">
+              <span className="font-mono-tabular text-[11px] text-[#64748B]">
+                Portable ciphertext bundle (.qlo.json)
+              </span>
+              <button
+                type="button"
+                onClick={() => onDownloadBundle(vaultEntry, registeredRecordId)}
+                className="inline-flex items-center gap-1 rounded-md border border-[#1E242D] bg-[#161B22] px-2 py-1 text-[11px] font-medium text-[#10B981] hover:border-[#2B3340] cursor-pointer transition-colors"
+              >
+                <Download className="h-3 w-3" />
+                Backup
+              </button>
+            </div>
           ) : null}
         </div>
 
-        {/* Flippable 3D Encrypted Health Policy Pass */}
-        <WalletPassCard
-          policyId={claim.insuredPolicyId}
-          patientAlias={claim.patientAlias}
-          cptCode={claim.cptCode}
-          icd10Code={claim.icd10Code}
-          claimAmountEth={claim.claimAmountEth}
-          encrypted={Boolean(encrypted)}
-          cid={cid}
-          recordCommitmentHex={encrypted?.recordCommitmentHex}
-          recordId={registeredRecordId}
-          secondsRemaining={secondsRemaining}
-          targetHospital={targetHospital}
-        />
-
-        <div className="space-y-2.5 pt-1">
+        <div className="space-y-2">
           <TactileButton
             variant={encrypted ? "secondary" : "primary"}
             className="w-full"
@@ -105,7 +128,7 @@ export function PatientConsentPanel({
           >
             {encrypted ? (
               <>
-                <CheckCircle2 className="h-4 w-4 text-[#047857]" />
+                <CheckCircle2 className="h-4 w-4 text-[#10B981]" />
                 Encrypted Locally (Re-Encrypt)
               </>
             ) : (
@@ -123,72 +146,47 @@ export function PatientConsentPanel({
             disabled={busy || !encrypted || !canSignChainTx}
           >
             {registeredRecordId
-              ? `Saved On-Chain (Record #${registeredRecordId})`
+              ? `Saved (#${registeredRecordId})`
               : "Save Fingerprint On-Chain"}
           </TactileButton>
 
           {IS_CHAIN_DEPLOYED && !canSignChainTx ? (
-            <p className="text-[11px] text-[#B45309]">
-              Connect MetaMask on Ethereum Sepolia (top right) to save on-chain.
+            <p className="text-[11px] text-[#F59E0B]">
+              Connect MetaMask on Ethereum Sepolia to anchor on-chain.
             </p>
           ) : null}
         </div>
+      </section>
 
-        {encrypted && cid && vaultEntry ? (
-          <div className="flex items-center justify-between gap-2 rounded-xl border border-[#E4E4E7] bg-[#F7F8F7] px-3.5 py-2.5 text-[11px]">
-            <span className="font-mono-tabular text-[#52525B] truncate">
-              Hash: {shortHex(encrypted.recordCommitmentHex, 10, 6)}
-            </span>
-            <button
-              type="button"
-              onClick={() => onDownloadBundle(vaultEntry, registeredRecordId)}
-              className="inline-flex items-center gap-1 font-semibold text-[#0F766E] hover:underline shrink-0 cursor-pointer"
-            >
-              <Download className="h-3 w-3" />
-              Backup
-            </button>
-          </div>
-        ) : null}
-      </SpotlightCard>
-
-      {/* Step 3: Grant / Revoke Hospital Access */}
-      <SpotlightCard accent={grantActive ? "emerald" : "neutral"} className="p-6 sm:p-7 space-y-4">
-        <div className="flex items-start justify-between gap-2">
+      {/* Card 2: Access Control */}
+      <section className="rounded-xl border border-[#1E242D] bg-[#111419] p-5 space-y-4">
+        <div className="flex items-center justify-between gap-2 border-b border-[#1E242D] pb-3">
           <div>
-            <div className="text-[11px] font-mono-tabular uppercase tracking-[0.14em] text-[#0F766E]">
-              03 · Consent Control
-            </div>
-            <h2 className="text-lg font-bold tracking-tight text-[#09090B]">
-              3. Share with Hospital
-            </h2>
+            <h2 className="text-sm font-semibold text-[#F3F4F6]">Access Control</h2>
+            <p className="text-xs text-[#94A3B8]">
+              Wrap DEK via ECDH P-256 with time-bound expiry and instant revoke.
+            </p>
           </div>
           <Badge variant={grantActive ? "emerald" : "neutral"}>
             {grantActive ? "Access Granted" : "Not Shared"}
           </Badge>
         </div>
 
-        <p className="text-xs text-[#52525B] leading-relaxed">
-          Wrap the encryption key for one hospital wallet with a strict timer. Revoking deletes
-          the key on-chain immediately.
-        </p>
-
         <div className="space-y-2.5">
           <div className="flex items-center justify-between text-xs">
-            <label htmlFor="hosp-addr" className="font-semibold text-[#3F3F46]">
+            <label htmlFor="hosp-addr" className="font-medium text-[#94A3B8]">
               Hospital Wallet
             </label>
             {connectedAddress && !isOwnWalletTarget ? (
               <button
                 type="button"
                 onClick={() => onChangeTargetHospital(connectedAddress)}
-                className="text-[11px] font-semibold text-[#0F766E] hover:underline cursor-pointer"
+                className="text-[11px] font-medium text-[#38BDF8] hover:underline cursor-pointer"
               >
                 Use my connected wallet
               </button>
             ) : isOwnWalletTarget ? (
-              <span className="text-[11px] font-semibold text-[#047857]">
-                Using your wallet ✓
-              </span>
+              <span className="text-[11px] font-medium text-[#10B981]">Using your wallet</span>
             ) : null}
           </div>
 
@@ -208,10 +206,14 @@ export function PatientConsentPanel({
                 onChangeTargetHospital(e.target.value);
               }
             }}
-            className="w-full rounded-xl border border-[#E4E4E7] bg-white px-3.5 py-2 text-xs font-medium text-[#09090B] focus:border-[#0F766E] focus:outline-none"
+            className="w-full rounded-lg border border-[#1E242D] bg-[#0D1014] px-3 py-2 text-xs font-medium text-[#F3F4F6] focus:border-[#10B981] focus:outline-none"
           >
             {ACCREDITED_PROVIDERS.map((prov) => (
-              <option key={prov.address} value={prov.address}>
+              <option
+                key={prov.address}
+                value={prov.address}
+                className="bg-[#111419] text-[#F3F4F6]"
+              >
                 {connectedAddress &&
                 prov.address.toLowerCase() === connectedAddress.toLowerCase()
                   ? `Your Wallet — ${prov.name} (${shortHex(prov.address, 6, 4)})`
@@ -221,7 +223,9 @@ export function PatientConsentPanel({
             {!ACCREDITED_PROVIDERS.some(
               (p) => p.address.toLowerCase() === targetHospital.toLowerCase()
             ) ? (
-              <option value="__custom">Custom ({shortHex(targetHospital, 6, 4)})</option>
+              <option value="__custom" className="bg-[#111419] text-[#F3F4F6]">
+                Custom ({shortHex(targetHospital, 6, 4)})
+              </option>
             ) : null}
           </select>
 
@@ -229,21 +233,21 @@ export function PatientConsentPanel({
             id="hosp-addr"
             value={targetHospital}
             onChange={(e) => onChangeTargetHospital(e.target.value)}
-            className="w-full rounded-xl border border-[#E4E4E7] bg-[#F7F8F7] px-3.5 py-2 font-mono-tabular text-[11px] text-[#52525B] focus:border-[#0F766E] focus:bg-white focus:outline-none"
+            className="w-full rounded-lg border border-[#1E242D] bg-[#0D1014] px-3 py-2 font-mono-tabular text-[11px] text-[#F3F4F6] placeholder-[#64748B] focus:border-[#10B981] focus:outline-none"
           />
 
           <div className="flex items-center justify-between pt-1 text-xs">
-            <span className="text-[#71717A] font-medium">Access window:</span>
-            <div className="inline-flex items-center gap-1 rounded-xl border border-[#E4E4E7] bg-[#F7F8F7] p-1">
+            <span className="text-[#94A3B8]">Grant TTL</span>
+            <div className="inline-flex items-center gap-1 rounded-lg border border-[#1E242D] bg-[#0D1014] p-0.5">
               {[10, 30].map((mins) => (
                 <button
                   key={mins}
                   type="button"
                   onClick={() => onChangeGrantMinutes(mins)}
-                  className={`rounded-lg px-3 py-1 text-xs font-semibold cursor-pointer transition-all ${
+                  className={`rounded-md px-3 py-1 font-mono-tabular text-xs font-medium cursor-pointer transition-colors ${
                     grantMinutes === mins
-                      ? "bg-white text-[#0F766E] shadow-2xs border border-[#99F6E4]"
-                      : "text-[#52525B] hover:text-[#09090B]"
+                      ? "bg-[#161B22] text-[#10B981] border border-[#10B981]/30"
+                      : "text-[#94A3B8] hover:text-[#F3F4F6] border border-transparent"
                   }`}
                 >
                   {mins} min
@@ -273,25 +277,26 @@ export function PatientConsentPanel({
         </div>
 
         {!registeredRecordId ? (
-          <p className="text-[11px] text-[#71717A]">
-            Finish Step 2 above first to unlock sharing controls.
+          <p className="text-[11px] text-[#64748B]">
+            Encrypt and save the record fingerprint on-chain first to enable consent grants.
           </p>
         ) : null}
 
         {grantActive ? (
-          <div className="rounded-2xl border border-[#A7F3D0] bg-[#ECFDF5] p-4 space-y-3">
-            <div className="text-xs font-semibold text-[#047857]">
-              ✓ Access granted! Your hospital can now prove and settle this claim.
-            </div>
-            <Link href="/hospital" className="block">
-              <TactileButton variant="primary" size="sm" className="w-full">
-                Continue to Step 2: Hospital Portal
-                <ArrowRight className="h-3.5 w-3.5" />
-              </TactileButton>
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-[#10B981]/25 bg-[#10B981]/10 px-3.5 py-2.5">
+            <span className="text-xs font-medium text-[#10B981]">
+              Hospital authorized to unwrap &amp; prove claim
+            </span>
+            <Link
+              href="/hospital"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-[#F3F4F6] hover:text-[#10B981] shrink-0"
+            >
+              Claims Prover
+              <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         ) : null}
-      </SpotlightCard>
+      </section>
     </div>
   );
 }
