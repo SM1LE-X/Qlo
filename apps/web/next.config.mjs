@@ -7,6 +7,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  poweredByHeader: false,
+  productionBrowserSourceMaps: false,
   outputFileTracingRoot: path.resolve(__dirname, "../.."),
   webpack: (config, { isServer, webpack }) => {
     if (!isServer) {
@@ -34,6 +36,10 @@ const nextConfig = {
         source: "/(.*)",
         headers: [
           {
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000",
+          },
+          {
             key: "X-Content-Type-Options",
             value: "nosniff",
           },
@@ -48,6 +54,10 @@ const nextConfig = {
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
+          },
+          {
+            key: "Vary",
+            value: "Accept-Encoding, Origin",
           },
         ],
       },

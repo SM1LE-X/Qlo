@@ -1,0 +1,13 @@
+# Qlo — Zero-Knowledge Health Insurance Clearinghouse
+
+> Qlo pairs client-side AES-256-GCM record encryption and on-device Tesseract WASM OCR with an 8-predicate Groth16 circuit settled on Base Sepolia (Chain ID 84532) with zero clinical PHI emitted on-chain.
+
+## Public Documentation & Audit Routes
+- Overview: `/`
+- Security & Cryptographic Trust Center: `/story`
+- RFC 9116 Security Contact: `/.well-known/security.txt`
+
+## AI Crawler & Automation Governance
+- Allowed for indexing: `/`, `/story`, `/llms.txt`
+- Disallowed for automated crawling: `/api/`, `/patient`, `/hospital`, `/insurer`
+- Data Boundary: `/api/relay/*` accepts strictly AES-256-GCM ciphertext envelopes matching declared 248-bit SHA-256 commitments and rejects plaintext PHI payloads (`ZERO_PHI_POLICY_VIOLATION`).
