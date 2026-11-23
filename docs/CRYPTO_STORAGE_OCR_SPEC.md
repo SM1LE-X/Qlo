@@ -21,7 +21,7 @@
 ### 1.2 Hospital Key Management (ECDH P-256)
 
 1. On `/hospital`, the hospital browser loads or generates an **ECDH P-256** keypair via WebCrypto (`extractable: false` private key stored in IndexedDB `qlo-keys`, or deterministic test keypair for canonical demo hospitals so multi-tab demos stay seamless) and exports the **65-byte uncompressed raw public key** (`0x04 || X(32) || Y(32)`).
-2. The hospital registers that 65-byte key in `HospitalRegistry.registerEncryptionPubKey(pubKeyBytes)` (already pre-seeded for canonical demo hospitals in `DeployBaseSepolia.s.sol`).
+2. The hospital registers that 65-byte key in `HospitalRegistry.registerEncryptionPubKey(pubKeyBytes)` (or via the 1-click **Register Hospital Key** button on `/hospital`).
 
 ### 1.3 Patient Grant DEK Wrapping & Revocation
 

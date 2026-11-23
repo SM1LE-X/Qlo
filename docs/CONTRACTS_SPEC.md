@@ -1,7 +1,7 @@
 # Smart Contracts Specification (`contracts/src/`)
 
 > **Compiler & Libraries:** Solidity `0.8.28`, EVM `cancun`, Optimizer enabled (`runs = 200`), OpenZeppelin Contracts v5 (`Ownable2Step`, `Pausable`, `ReentrancyGuard`).  
-> **Target Chain:** Base Sepolia (Chain ID `84532`).  
+> **Target Chain:** Ethereum Sepolia (Chain ID `11155111`).  
 > **Companion ABI:** [interfaces/claim-zk.md](../interfaces/claim-zk.md).
 
 ---
@@ -34,7 +34,7 @@ Maintains the canonical Poseidon Merkle root of accredited hospitals and each ho
   - `constructor(address initialOwner, uint256 initialRoot)` — validates `initialRoot != 0 && initialRoot < SNARK_SCALAR_FIELD`.
   - `updateHospitalRoot(uint256 newRoot) external onlyOwner` — validates non-zero & `< SNARK_SCALAR_FIELD`, emits `HospitalRootUpdated`.
   - `registerEncryptionPubKey(bytes calldata pubKey) external` — callable by any hospital for `msg.sender`; validates `pubKey.length == 65 && pubKey[0] == 0x04`.
-  - `setHospitalEncryptionPubKey(address hospital, bytes calldata pubKey) external onlyOwner` — allows genesis seeding in `DeployBaseSepolia.s.sol`; validates non-zero address & `pubKey.length == 65 && pubKey[0] == 0x04`.
+  - `setHospitalEncryptionPubKey(address hospital, bytes calldata pubKey) external onlyOwner` — allows genesis seeding in `DeploySepolia.s.sol`; validates non-zero address & `pubKey.length == 65 && pubKey[0] == 0x04`.
 
 ---
 
@@ -186,15 +186,15 @@ Holds native ETH insurer escrow, validates all 8 public ZK signals against live 
 
 ---
 
-## 5. Base Sepolia Deployment & Free Verification Spec
+## 5. Ethereum Sepolia Deployment & Free Verification Spec
 
-- **RPC:** `https://sepolia.base.org` (Chain ID `84532`)
-- **Output Artifact:** `deployments/base-sepolia.json` storing `{ chainId: 84532, network: "base-sepolia", explorerBaseUrl: "https://sepolia.basescan.org", sourcifyUrl: "https://repo.sourcify.dev/contracts/full_match/84532/", zkeySha256, contracts: { Groth16Verifier, HospitalRegistry, PolicyRegistry, HealthRecords, ClaimsVault }, seeded: { hospitalAddress, hospitalRoot, activePolicyCommitment, expiredPolicyCommitment } }`.
+- **RPCs:** `https://ethereum-sepolia-rpc.publicnode.com`, `https://1rpc.io/sepolia`, `https://sepolia.gateway.tenderly.co` (Chain ID `11155111`)
+- **Output Artifact:** `deployments/sepolia.json` storing `{ chainId: 11155111, network: "sepolia", deployBlock, deployed, explorerBaseUrl: "https://sepolia.etherscan.io", sourcifyBaseUrl: "https://repo.sourcify.dev/contracts/full_match/11155111", seededInsurer, zkeySha256, contracts: { Groth16Verifier, HospitalRegistry, PolicyRegistry, HealthRecords, ClaimsVault } }`.
 - **Zero-Key Sourcify Verification (Guaranteed Baseline):**
   ```powershell
-  forge verify-contract --chain-id 84532 --verifier sourcify --watch <ADDRESS> src/<File.sol>:<Contract>
+  forge verify-contract --chain-id 11155111 --verifier sourcify --watch <ADDRESS> src/<File.sol>:<Contract>
   ```
 - **Optional Etherscan V2 Verification (if free API key provided):**
   ```powershell
-  forge verify-contract --verifier etherscan --verifier-url "https://api.etherscan.io/v2/api?chainid=84532" --etherscan-api-key $env:ETHERSCAN_API_KEY --watch <ADDRESS> src/<File.sol>:<Contract>
+  forge verify-contract --verifier etherscan --verifier-url "https://api.etherscan.io/v2/api?chainid=11155111" --etherscan-api-key $env:ETHERSCAN_API_KEY --watch <ADDRESS> src/<File.sol>:<Contract>
   ```

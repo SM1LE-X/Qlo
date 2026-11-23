@@ -1,6 +1,12 @@
 import crypto from "node:crypto";
-import type { NextRequest } from "next/server";
+import { NextRequest } from "next/server";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  DELETE as deleteRelayState,
+  POST as postRelayState,
+} from "@/app/api/relay/state/route";
+import { DELETE as deleteRelayVault } from "@/app/api/relay/vault/route";
+import { IS_CHAIN_DEPLOYED } from "@/lib/contracts";
 import { checkRateLimit } from "@/lib/rateLimit";
 import {
   applyRelayAction,
@@ -191,5 +197,46 @@ describe("Zero-PHI Relay Store & Sliding-Window Rate Limiter", () => {
         txHash: "0x" + "ee".repeat(32),
       })
     ).toThrow("ClaimsVault.PatientAccessNotActive()");
+  });
+
+  it("blocks unauthenticated destructive relay resets when live chain deployment is active", async () => {
+    expect(IS_CHAIN_DEPLOYED).toBe(true);
+
+    const delStateReq = new NextRequest("http://localhost:3000/api/relay/state", {
+      method: "DELETE",
+      headers: { "x-forwarded-for": "198.51.100.77" },
+    });
+    const delStateRes = await deleteRelayState(delStateReq);
+    expect(delStateRes.status).toBe(403);
+    expect(await delStateRes.json()).toMatchObject({
+      error: "RELAY_RESET_DISABLED_IN_LIVE_MODE",
+    });
+
+    const postResetReq = new NextRequest("http://localhost:3000/api/relay/state", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-forwarded-for": "198.51.100.78",
+      },
+      body: JSON.stringify({ action: "reset" }),
+    });
+    const postResetRes = await postRelayState(postResetReq);
+    expect(postResetRes.status).toBe(403);
+    expect(await postResetRes.json()).toMatchObject({
+      error: "RELAY_RESET_DISABLED_IN_LIVE_MODE",
+    });
+
+    const delVaultResetReq = new NextRequest(
+      "http://localhost:3000/api/relay/vault?reset=1",
+      {
+        method: "DELETE",
+        headers: { "x-forwarded-for": "198.51.100.79" },
+      }
+    );
+    const delVaultResetRes = await deleteRelayVault(delVaultResetReq);
+    expect(delVaultResetRes.status).toBe(403);
+    expect(await delVaultResetRes.json()).toMatchObject({
+      error: "RELAY_RESET_DISABLED_IN_LIVE_MODE",
+    });
   });
 });

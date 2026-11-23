@@ -1,8 +1,8 @@
 # Qlo — Engineering & Launch Status
 
-> Living tracker for **Qlo** (Zero-Knowledge Health Insurance Claims & Patient-Sovereign Records). Updated continuously as live Ethereum Sepolia contracts and Vercel production hosting are shipped and verified.
+> Living tracker for **Qlo** (Zero-Knowledge Health Insurance Claims & Patient-Sovereign Records). Updated continuously as live Ethereum Sepolia contracts, end-to-end settlements, and production hardening are shipped and verified.
 
-**Overall Status:** **Ethereum Sepolia (`11155111`) Contracts LIVE & Exact-Match Verified on Sourcify** | Local Production App LIVE (`http://localhost:3000`) | Public Vercel / GitHub Hosting Pending Sign-In & Remote URL
+**Overall Status:** **Production-Hardened & Demo-Ready on Live Ethereum Sepolia (`11155111`)** | **Live Groth16 Settlement Mined & Verified (0 PHI Bytes)** | Local Production App LIVE (`http://localhost:3000`) | Public Vercel Hosting Ready Pending Sign-In
 
 ---
 
@@ -17,7 +17,12 @@
 | **ClaimsVault** | `0xB170D66d32C26168A56516d0aDb464B7762cC559` | [Sourcify](https://repo.sourcify.dev/contracts/full_match/11155111/0xB170D66d32C26168A56516d0aDb464B7762cC559) | [Etherscan](https://sepolia.etherscan.io/address/0xB170D66d32C26168A56516d0aDb464B7762cC559) |
 
 - **Deployer / Seeded Insurer / Accredited Hospital Wallet:** `0x9c1cDD59AA337bc9d3B48A109f532cE45e1fc718` (NPI `1234567890` included in Poseidon `hospitalRoot` `0x07fd69196215...`).
-- **Initial ClaimsVault Escrow:** `0.02 ETH` funded live (`paused=false`, active + expired canonical policies seeded).
+- **Live End-to-End Groth16 Settlement Proof (Mined on Sepolia):**
+  - `HealthRecords.registerRecord` (#1): [`0x742035b9...50494e`](https://sepolia.etherscan.io/tx/0x742035b943904c6bdcde1a6ceeba505efa75b2fccaba2d549860ae5fb350494e)
+  - `HealthRecords.grantAccess` (600s + wrapped DEK): [`0x155888e6...c93cb1`](https://sepolia.etherscan.io/tx/0x155888e6d36bb9849b1f9e066d20e4a10902ed618858d1de666dd12ba0c93cb1)
+  - `ClaimsVault.submitClaim` (`0.005 ETH`, `574ms` prove, **`0 PHI bytes`**): [`0xf8cb4e31...aa2ed0`](https://sepolia.etherscan.io/tx/0xf8cb4e31169eac006b4c5dd0a69fa763de7b9ddb79a7cd25419062ead7aa2ed0)
+  - `ClaimsVault.depositEscrow` (`+0.005 ETH` top-up): [`0x2c0fd149...fd0e8d`](https://sepolia.etherscan.io/tx/0x2c0fd149ea3059a677a704bea0dbbb711b02caa9055a94c73962a313a1fd0e8d)
+- **Live ClaimsVault State:** `insurerEscrow = 0.0200 ETH`, `totalClaimsSettled = 1`, `policySpent = 0.005 ETH` (`0.025 ETH` annual cap headroom preserved for Case A `0.01 ETH` + Case B `0.015 ETH`), `paused = false`.
 
 ---
 
@@ -25,16 +30,16 @@
 
 | Layer | Deliverable | Status | Latest Verified Result |
 |---|---|---|---|
-| **Specs & Docs** | `README.md`, `SPEC.md`, `interfaces/claim-zk.md`, `docs/*` | Done | Strict `Qlo` branding outside VeriSure prior-art comparisons. |
-| **Circom 2 ZK Circuit** | `ClaimValidity(6)` (`MerkleProof.circom`, `--O2`), EF `ppot_0080_13.ptau`, Groth16 fixtures | Done | **11 / 11 tests passed** (`4,349` non-linear constraints, `4,367` wires, Claim #1 in `478ms`). |
+| **Specs & Docs** | `README.md`, `SPEC.md`, `interfaces/claim-zk.md`, `docs/*` | Done | 100% synced to Ethereum Sepolia (`11155111`) with live verified contract addresses & Etherscan tx links. |
+| **Circom 2 ZK Circuit** | `ClaimValidity(6)` (`MerkleProof.circom`, `--O2`), EF `ppot_0080_13.ptau`, Groth16 fixtures | Done | **11 / 11 tests passed** (`4,349` non-linear constraints, `4,367` wires, live Sepolia prove in `574ms`). |
 | **Solidity Smart Contracts** | `HospitalRegistry`, `PolicyRegistry`, `HealthRecords`, `ClaimsVault`, `Groth16Verifier` (`0.8.28`) | Done | **18 / 18 Foundry tests passed** (`QloSecurityTest`: 13, `QloProtocolTest`: 1, `QloInvariantsTest`: 4 w/ 256 runs, 128,000 calls, 0 reverts). |
-| **Ethereum Sepolia Deployment** | `scripts/deploy-sepolia.ps1` → `DeploySepolia.s.sol` → `deployments/sepolia.json` → Sourcify | **LIVE & Verified** | All 5 contracts live at block `12194573`, **5 / 5 `exact_match` on Sourcify**, `scripts/verify-live.mjs` passed (`hospitalRoot`, seeded policies, `0.02 ETH` escrow, `paused=false`). |
-| **Next.js App, Relay & Auth** | Wallet-Only Auth (`useWalletRoles.ts`), persistent `1. Patient -> 2. Hospital -> 3. Insurer` top bar, modular portal pages (`< 800` lines each), hardened **Zero-PHI Relay API**, OWASP 2025 `middleware.ts`, **HL7 FHIR R4 + ANSI X12 837P / 835** | **LIVE & Verified** | Rebuilt with live Sepolia addresses (`deployed: true`): Vitest **13 / 13**, `typecheck` **0 errors**, Next.js `15.5.29` build **0 errors** (`Middleware 32.5 kB`), `audit:ecc` **5 / 5 passed** reading live Sepolia contracts! |
-| **GitHub & Vercel Production** | Push public repo → Deploy `apps/web` to Vercel Hobby → `verify-live.mjs --url ...` | **Pending User Input** | Waiting on GitHub remote URL & Vercel plugin sign-in. |
+| **Ethereum Sepolia Live Chain** | `DeploySepolia.s.sol` + `sepolia-live-settlement.mjs` + Sourcify + `verify-live.mjs` | **LIVE & Verified** | 5 / 5 `exact_match` on Sourcify (block `12194573`), real live Groth16 claim settled (`0xf8cb4e31...`), **0 PHI bytes**, `0.02 ETH` escrow replenished. |
+| **Next.js App, CSP & Perimeter** | Plain-English 3-Step UX (`1. Patient → 2. Hospital → 3. Insurer`), Production `Content-Security-Policy`, Live Relay Reset Guard (`403 RELAY_RESET_DISABLED_IN_LIVE_MODE`), OWASP 2025 `middleware.ts`, Wallet-Only Auth, FHIR R4 / X12 | **LIVE & Verified** | Rebuilt & verified with Vitest, TypeScript, Next.js 15.5.29 build, `audit:ecc` (CSP + live relay guard + MetaMask wrong-chain E2E), `verify-live.mjs`, and full-page visual inspection. |
+| **GitHub & Vercel Production** | Push public repo → Deploy `apps/web` to Vercel Hobby → `verify-live.mjs --url ...` | **Pending User Sign-In** | Waiting on Vercel plugin sign-in (and optional GitHub remote URL). |
 
 ---
 
 ## 3. Remaining Step To Publish Public URL
 
 1. **Sign in to the Vercel plugin** in chat (and optionally share your public GitHub repository URL so we can push `main`).
-2. Once signed in, I will deploy `apps/web` to Vercel Hobby and run `node scripts/verify-live.mjs --url https://<your-live-domain>.vercel.app`.
+2. Once signed in, deploy `apps/web` to Vercel Hobby and run `node scripts/verify-live.mjs --url https://<your-live-domain>.vercel.app`.

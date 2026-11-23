@@ -5,6 +5,42 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function buildContentSecurityPolicy() {
+  const connectSources = new Set([
+    "'self'",
+    "blob:",
+    "data:",
+    "https://ethereum-sepolia-rpc.publicnode.com",
+    "https://1rpc.io",
+    "https://sepolia.gateway.tenderly.co",
+    "https://sepolia.etherscan.io",
+    "https://repo.sourcify.dev",
+  ]);
+
+  const customRpc = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL?.trim();
+  if (customRpc) {
+    try {
+      connectSources.add(new URL(customRpc).origin);
+    } catch {
+      // Ignore malformed custom RPC URL at config build time
+    }
+  }
+
+  return [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:",
+    "worker-src 'self' blob:",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    `connect-src ${Array.from(connectSources).join(" ")}`,
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join("; ");
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
@@ -54,6 +90,10 @@ const nextConfig = {
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
+          },
+          {
+            key: "Content-Security-Policy",
+            value: buildContentSecurityPolicy(),
           },
           {
             key: "Vary",

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { IS_CHAIN_DEPLOYED } from "@/lib/contracts";
 import { checkRateLimit } from "@/lib/rateLimit";
 import {
   assertZeroPhiPayload,
@@ -109,6 +110,22 @@ export async function DELETE(request: NextRequest) {
     .toLowerCase();
 
   if (resetAll) {
+    if (IS_CHAIN_DEPLOYED) {
+      return NextResponse.json(
+        {
+          error: "RELAY_RESET_DISABLED_IN_LIVE_MODE",
+          detail:
+            "Bulk vault resets are disabled while live Ethereum Sepolia contracts are active.",
+        },
+        {
+          status: 403,
+          headers: {
+            "Cache-Control": "no-store",
+            "X-RateLimit-Remaining": String(rl.remaining),
+          },
+        }
+      );
+    }
     clearVaultRecords();
     return NextResponse.json(
       { ok: true, cleared: true },

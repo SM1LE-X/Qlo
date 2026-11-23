@@ -1,6 +1,6 @@
 # Qlo — Product & Engineering Specification
 
-> **Mission:** Build **Qlo**—a live, judge-clickable, **$0-cost**, **100% MIT open-source** zero-knowledge health insurance claims and patient-sovereign encrypted medical records platform on **Base Sepolia** and **Vercel Hobby**—combining browser-local CMS-1500 & OCR intake with 8 on-chain-verified Groth16 policy-coverage predicates, private cumulative annual limits, and patient-controlled decryption/revocation.
+> **Mission:** Build **Qlo**—a live, judge-clickable, **$0-cost**, **100% MIT open-source** zero-knowledge health insurance claims and patient-sovereign encrypted medical records platform on **Ethereum Sepolia (`11155111`)** and **Vercel Hobby**—combining browser-local CMS-1500 & OCR intake with 8 on-chain-verified Groth16 policy-coverage predicates, private cumulative annual limits, and patient-controlled decryption/revocation.
 
 ---
 
@@ -12,7 +12,7 @@ Modern healthcare claim adjudication runs through centralized Electronic Data In
 - **Confirmed Human & Financial Fallout:** The U.S. HHS Office for Civil Rights (OCR) confirmed **192.7 million individuals** impacted (largest healthcare data breach in U.S. history); hospitals endured **2 to 6+ week cash-flow blackouts** with **60%** of surveyed providers needing 2 weeks to 3 months to recover normal operations; UnitedHealth disclosed **$2.45+ billion** in cumulative impact after a **$22 million** ransom payment.
 - **Why Naive Blockchains Fail Healthcare:** Putting raw ICD-10 diagnoses, CPT procedures, or prescriptions on a public L2 violates patient privacy instantly. Putting trust in external AI nodes or AVS operators re-introduces intermediary risk.
 
-**Qlo's Solution:** Replace clearinghouse intermediaries and unverified off-chain attestations with **client-side AES-256-GCM + ECDH cryptography**, **100% browser-local CMS-1500 intake & OCR**, **client-side Circom 2 Groth16 proofs (< 3 seconds)**, and **deterministic Base Sepolia smart contract settlement**.
+**Qlo's Solution:** Replace clearinghouse intermediaries and unverified off-chain attestations with **client-side AES-256-GCM + ECDH cryptography**, **100% browser-local CMS-1500 intake & OCR**, **client-side Circom 2 Groth16 proofs (< 3 seconds)**, and **deterministic Ethereum Sepolia smart contract settlement**.
 
 ---
 
@@ -26,7 +26,7 @@ Modern healthcare claim adjudication runs through centralized Electronic Data In
 | **Cumulative Annual Policy Limits**   | Absent                                         | **Enforced in Groth16 + Solidity:** `priorPolicySpent + claimAmount <= annualLimit` with `annualLimit` kept strictly private                                                                        |
 | **Provider Accreditation**            | Off-chain / AVS operator assumptions           | Depth-6 Poseidon Merkle proof binding `hospitalAddress` (`msg.sender`) + `hospitalLicenseId` against `HospitalRegistry`                                                                             |
 | **Patient Data Ownership & Consent**  | Absent (no encryption/revocation layer)        | Patient encrypts via **AES-256-GCM**, publishes **IPFS CIDv1** + 248-bit commitment, wraps DEK via **ECDH P-256** per grant, and enforces **time-bound grant/revoke** directly inside `ClaimsVault` |
-| **Settlement Verification & Latency** | EigenLayer + Othentic AVS + RISC0 (~2 minutes) | Native **Base Sepolia** Groth16 pairing verification + atomic ETH escrow payout (**< 5 seconds** total prove + submit)                                                                              |
+| **Settlement Verification & Latency** | EigenLayer + Othentic AVS + RISC0 (~2 minutes) | Native **Ethereum Sepolia** Groth16 pairing verification + atomic ETH escrow payout (**< 3 seconds** local prove + instant L1 confirmation) |
 | **Cost & Licensing**                  | Paid/complex infra, BUSL-1.1 performer         | **$0 total cash cost**, **100% MIT open-source**                                                                                                                                                    |
 
 ---
@@ -54,7 +54,7 @@ Every assumption from the initial draft was stress-tested against adversarial ex
    - _Trap:_ AES-GCM ciphertext without a key-exchange protocol leaves the hospital unable to decrypt; full `helia` + `libp2p` in Next.js triggers Webpack polyfill crashes, StrictMode IndexedDB locks, and fails cross-browser discovery without paid pinning.
    - _Fix:_ Hospitals register an **ECDH P-256** public key in `HospitalRegistry`; `HealthRecords.grantAccess` stores the opaque ephemeral-ECDH wrapped DEK on-chain (deleted on revoke). Storage computes deterministic **IPFS CIDv1** (`multiformats`) backed by **IndexedDB** + 1-click **`.qlo.json` encrypted bundle** portability + isolated non-blocking optional **Helia** worker.
 7. **Operational Reality — Windows Toolchain, Ceremony & Free Contract Verification:**
-   - _Trap:_ `circomkit` has Windows path bugs; `foundryup` requires Git Bash (not PowerShell or blocked WSL); `powersOfTau28_hez_final.ptau` is 288 GB; Basescan API keys aren't always pre-provisioned.
+   - _Trap:_ `circomkit` has Windows path bugs; `foundryup` requires Git Bash (not PowerShell or blocked WSL); `powersOfTau28_hez_final.ptau` is 288 GB; Etherscan API keys aren't always pre-provisioned.
    - _Fix:_ Install Foundry via Git Bash, fetch prebuilt `circom-windows-amd64.exe`, run direct `circom.exe + snarkjs + vitest`, download Ethereum Foundation PSE `ppot_0080_13.ptau` (~9.5 MB, $2^{13} = 8,192$ constraints), verify contracts via **Sourcify** (0 API keys) + optional Etherscan V2, and compile Next.js explicitly with `--webpack` + browser polyfills.
 8. **Protocol Gap — Missing Cumulative Annual Cap Enforcement:**
    - _Trap:_ Per-claim limits alone allow splitting a $50k claim into 50 consecutive $1k records to bypass policy limits.
@@ -64,10 +64,10 @@ Every assumption from the initial draft was stress-tested against adversarial ex
 
 ## 4. Target Production & Governance Boundaries
 
-- **Chain:** **Base Sepolia** (Chain ID `84532`, public RPC `https://sepolia.base.org`, fallback `https://base-sepolia-rpc.publicnode.com`). Native **ETH** escrow & settlement only.
-- **Strict Production Governance (Zero Demo Backdoors):** `HospitalRegistry` is strictly `Ownable2Step` (no public self-registration backdoor). Demo hospitals, active/expired policy commitments, and initial insurer escrow are deterministically provisioned at deploy time via `DeployBaseSepolia.s.sol`.
+- **Chain:** **Ethereum Sepolia** (Chain ID `11155111`, public RPCs `https://ethereum-sepolia-rpc.publicnode.com`, `https://1rpc.io/sepolia`, `https://sepolia.gateway.tenderly.co`). Native **ETH** escrow & settlement only.
+- **Strict Production Governance (Zero Demo Backdoors):** `HospitalRegistry` is strictly `Ownable2Step` (no public self-registration backdoor). Demo hospitals, active/expired policy commitments, and initial insurer escrow are deterministically provisioned at deploy time via `DeploySepolia.s.sol`.
 - **Host:** **Vercel Hobby** (`apps/web`, free GitHub-linked deployment).
-- **Zero-Cost Guarantee (Explicitly Excluded):** Pinata, Alchemy paid tiers, Infura, WalletConnect Cloud, Circle USDC, Chainlink oracles, EigenLayer/Othentic, Gaia external AI nodes, RISC0/Bonsai, real patient HIPAA PHI, break-glass backdoors, and Ethereum/Base Mainnet real funds.
+- **Zero-Cost Guarantee (Explicitly Excluded):** Pinata, Alchemy paid tiers, Infura, WalletConnect Cloud, Circle USDC, Chainlink oracles, EigenLayer/Othentic, Gaia external AI nodes, RISC0/Bonsai, real patient HIPAA PHI, break-glass backdoors, and Mainnet real funds.
 
 ---
 
@@ -88,7 +88,7 @@ Qlo/
 │   │   └── generate-fixtures.mjs      # Generates 2 sequential real Groth16 proofs for Foundry + UI
 │   └── test/claimValidity.test.ts     # 11-case Vitest soundness & negative test suite
 ├── contracts/
-│   ├── foundry.toml                   # Solc 0.8.28, OZ v5, Base Sepolia + Sourcify/Etherscan config
+│   ├── foundry.toml                   # Solc 0.8.28, OZ v5, Ethereum Sepolia + Sourcify/Etherscan config
 │   ├── src/
 │   │   ├── HospitalRegistry.sol
 │   │   ├── PolicyRegistry.sol
@@ -96,13 +96,13 @@ Qlo/
 │   │   ├── ClaimsVault.sol
 │   │   └── Groth16Verifier.sol
 │   ├── script/
-│   │   ├── DeployBaseSepolia.s.sol
+│   │   ├── DeploySepolia.s.sol
 │   │   └── export-abis.mjs
 │   └── test/
 │       ├── QloProtocol.t.sol          # Real Circom Groth16 proofs verified on-chain
 │       └── QloSecurity.t.sol          # 13 security/invariant tests + zero-PHI log audit
 ├── deployments/
-│   └── base-sepolia.json              # Canonical deployed contract addresses, tx hashes, zkey SHA-256
+│   └── sepolia.json                   # Canonical deployed contract addresses, deployBlock, zkey SHA-256
 ├── apps/web/
 │   ├── next.config.mjs                # Webpack polyfills, WASM/zkey cache headers
 │   ├── public/zk/                     # Preloaded ClaimValidity.wasm, .zkey, verification_key.json, manifest.json
@@ -127,9 +127,9 @@ Qlo/
 | **H0 – H1**     | Foundry install (Git Bash), `circom.exe` download, `git init`, workspace & CI setup                                                                                        | `forge --version`, `circom --version`, `pnpm` all green                                                                                          |
 | **H1 – H3**     | `MerkleProof.circom` + `ClaimValidity.circom`, Hermez `ptau_13`, `.zkey` Phase 2, SHA-256 manifest, 11 Vitest soundness tests + 2 real fixtures                            | `< 6,000` R1CS constraints, `< 3s` browser prove, 11/11 tests green                                                                              |
 | **H3 – H5.5**   | All 4 core Solidity contracts + OZ v5 + real-proof `QloProtocol.t.sol` + 13-test `QloSecurity.t.sol`                                                                       | `forge test --root contracts -vvv` 100% green                                                                                                    |
-| **H5.5 – H6.5** | Base Sepolia deploy (`https://sepolia.base.org`), Sourcify verification (0 keys) + optional Etherscan V2, seed escrow & policies, write `deployments/base-sepolia.json`    | All 5 contracts verified & clickable on explorer                                                                                                 |
+| **H5.5 – H6.5** | Ethereum Sepolia deploy (`11155111`), Sourcify verification (0 keys, 5/5 `exact_match`), seed escrow & policies, write `deployments/sepolia.json` | All 5 contracts verified & clickable on Sourcify & Etherscan |
 | **H6.5 – H9.5** | Next.js Clinical-Ops app (`--webpack`), WebCrypto ECDH+AES-GCM, CIDv1/IndexedDB/`.qlo.json`, CMS-1500/Tesseract OCR, `prover.worker.ts`, MIT animation stack, all 5 routes | **H9 Cutoff:** If optional Helia causes any Webpack friction, drop runtime Helia cleanly and keep `multiformats` CIDv1 + IndexedDB + `.qlo.json` |
-| **H9.5 – H11**  | GitHub CI green, Vercel Hobby production deploy, live Base Sepolia 7-step acceptance run + Chrome DevTools audit                                                           | Zero console/SSR errors; live Basescan payout tx + zero-PHI scan verified                                                                        |
+| **H9.5 – H11**  | GitHub CI green, Vercel Hobby production deploy, live Ethereum Sepolia E2E settlement & OWASP 2025/CSP perimeter audit | Zero console/SSR/CSP errors; live Etherscan payout tx + zero-PHI scan verified |
 | **H11 – H12**   | Final polish, update `README.md` with live explorer links, dry-run 3-minute judging script                                                                                 | Shipped & demo-ready                                                                                                                             |
 
 ---

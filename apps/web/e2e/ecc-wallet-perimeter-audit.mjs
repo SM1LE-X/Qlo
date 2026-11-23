@@ -86,6 +86,15 @@ async function main() {
     assert.equal(rootRes.headers.get("x-content-type-options"), "nosniff");
     assert.equal(rootRes.headers.get("x-frame-options"), "DENY");
     assert.equal(rootRes.headers.get("referrer-policy"), "no-referrer");
+    const cspHeader = rootRes.headers.get("content-security-policy") || "";
+    assert.match(cspHeader, /default-src 'self'/i, "CSP must declare default-src 'self'");
+    assert.match(cspHeader, /wasm-unsafe-eval/i, "CSP must allow WASM for Groth16 & Tesseract");
+    assert.match(cspHeader, /frame-ancestors 'none'/i, "CSP must enforce frame-ancestors 'none'");
+    assert.match(
+      cspHeader,
+      /ethereum-sepolia-rpc\.publicnode\.com/i,
+      "CSP connect-src must permit Ethereum Sepolia RPC"
+    );
     assert.match(rootRes.headers.get("vary") || "", /Accept-Encoding/i);
     const corsOrigin = rootRes.headers.get("access-control-allow-origin");
     assert.ok(
@@ -109,6 +118,7 @@ async function main() {
       !apiCorsOrigin || (apiCorsOrigin !== "https://evil.example" && apiCorsOrigin !== "*"),
       `Unexpected permissive API CORS header: ${apiCorsOrigin}`
     );
+    const healthJson = await healthRes.json();
 
     const relayStateRes = await fetch(`${BASE_URL}/api/relay/state`);
     assert.equal(relayStateRes.status, 200);
@@ -118,6 +128,29 @@ async function main() {
       remainingHeader !== null && /^\d+$/.test(remainingHeader),
       `Expected numeric X-RateLimit-Remaining header on /api/relay/state, got ${remainingHeader}`
     );
+
+    if (healthJson.deployed === true) {
+      const delStateRes = await fetch(`${BASE_URL}/api/relay/state`, { method: "DELETE" });
+      assert.equal(delStateRes.status, 403, "DELETE /api/relay/state must be blocked in live mode");
+      const delStateBody = await delStateRes.json();
+      assert.equal(delStateBody.error, "RELAY_RESET_DISABLED_IN_LIVE_MODE");
+
+      const postResetRes = await fetch(`${BASE_URL}/api/relay/state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset" }),
+      });
+      assert.equal(postResetRes.status, 403, "POST /api/relay/state reset must be blocked in live mode");
+
+      const delVaultResetRes = await fetch(`${BASE_URL}/api/relay/vault?reset=1`, {
+        method: "DELETE",
+      });
+      assert.equal(
+        delVaultResetRes.status,
+        403,
+        "DELETE /api/relay/vault?reset=1 must be blocked in live mode"
+      );
+    }
 
     const notFoundRes = await fetch(`${BASE_URL}/non-existent-route-ecc-probe`);
     assert.equal(notFoundRes.status, 404, "Unknown route must return 404");
@@ -207,9 +240,12 @@ async function main() {
     const page = await context.newPage();
     const pageErrors = [];
     const hydrationErrors = [];
+    const cspErrors = [];
     page.on("pageerror", (err) => pageErrors.push(err.message));
     page.on("console", (msg) => {
-      if (/hydration/i.test(msg.text())) hydrationErrors.push(msg.text());
+      const text = msg.text();
+      if (/hydration/i.test(text)) hydrationErrors.push(text);
+      if (/content security policy|refused to/i.test(text)) cspErrors.push(text);
     });
 
     await page.goto(`${BASE_URL}/hospital`, { waitUntil: "networkidle" });
@@ -234,9 +270,14 @@ async function main() {
     await page.waitForURL("**/patient", { timeout: 10000 });
     await page.getByText(/Patient Wallet Connected/i).waitFor({ state: "visible", timeout: 10000 });
 
+    for (const extraRoute of ["/", "/insurer", "/story"]) {
+      await page.goto(`${BASE_URL}${extraRoute}`, { waitUntil: "networkidle" });
+    }
+
     assert.equal(hydrationErrors.length, 0, `Hydration errors: ${hydrationErrors.join(" | ")}`);
+    assert.equal(cspErrors.length, 0, `CSP console violations: ${cspErrors.join(" | ")}`);
     assert.equal(pageErrors.length, 0, `Uncaught page errors: ${pageErrors.join(" | ")}`);
-    console.log("[audit:ecc] PASSED all OWASP 2025 perimeter & MetaMask E2E assertions!");
+    console.log("[audit:ecc] PASSED all OWASP 2025 perimeter, CSP, live-relay & MetaMask E2E assertions!");
   } finally {
     if (browser) await browser.close();
     server.kill("SIGTERM");
