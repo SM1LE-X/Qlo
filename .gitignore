@@ -29,6 +29,7 @@ circuits/build/*.zkey
 tools/circom.exe
 tools/circom
 
-# OS / Editor
+# OS / Editor / Runtime PIDs
 .DS_Store
 Thumbs.db
+.qlo-runtime/

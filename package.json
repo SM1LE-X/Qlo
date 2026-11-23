@@ -5,6 +5,10 @@
   "description": "Qlo — Zero-Knowledge Health Insurance Claims & Patient-Sovereign Records",
   "license": "MIT",
   "scripts": {
+    "start": "powershell -NoProfile -ExecutionPolicy Bypass -File start.ps1",
+    "stop": "powershell -NoProfile -ExecutionPolicy Bypass -File stop.ps1",
+    "restart": "powershell -NoProfile -ExecutionPolicy Bypass -File stop.ps1 && powershell -NoProfile -ExecutionPolicy Bypass -File start.ps1",
+    "samples:generate": "node scripts/generate-sample-bills.mjs",
     "circuits:ptau": "node circuits/scripts/download-ptau.mjs",
     "circuits:build": "node circuits/scripts/build.mjs",
     "circuits:fixtures": "node circuits/scripts/generate-fixtures.mjs",
