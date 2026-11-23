@@ -51,8 +51,14 @@ async function main() {
     const resetRes = await fetch(`${BASE_URL}/api/relay/state`, { method: "DELETE" });
     assert.equal(resetRes.status, 200, "Failed to reset clearinghouse relay state");
 
-    // 1. Server Zero-PHI Guardrail Check
-    console.log("[multi-actor] 1/6 Verifying Zero-PHI API enforcement on /api/relay/vault...");
+    // 1. Server Health, Zero-PHI & Cryptographic Integrity Guardrails
+    console.log("[multi-actor] 1/6 Verifying /api/health, Zero-PHI & commitment enforcement...");
+    const healthRes = await fetch(`${BASE_URL}/api/health`);
+    assert.equal(healthRes.status, 200, "/api/health must return 200");
+    const healthJson = await healthRes.json();
+    assert.equal(healthJson.ok, true, "/api/health ok must be true");
+    assert.equal(Number(healthJson.chainId), 84532, "/api/health chainId must be 84532");
+
     const phiAttemptRes = await fetch(`${BASE_URL}/api/relay/vault`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -64,13 +70,50 @@ async function main() {
           version: 1,
           alg: "AES-256-GCM",
           ivBase64: "AAAAAAAAAAAAAAAA",
-          ciphertextBase64: "AAAAAAAAAAAAAAAAAAAAAA==",
+          ciphertextBase64: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
         },
       }),
     });
     assert.equal(phiAttemptRes.status, 400, "Server must reject plaintext PHI payloads");
     const phiErr = await phiAttemptRes.json();
     assert.equal(phiErr.error, "ZERO_PHI_POLICY_VIOLATION");
+
+    const novelIcdRes = await fetch(`${BASE_URL}/api/relay/vault`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cid: "bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku",
+        recordCommitmentHex: "0x" + "11".repeat(32),
+        note: "Patient diagnosed with E11.9",
+        envelope: {
+          version: 1,
+          alg: "AES-256-GCM",
+          ivBase64: "AAAAAAAAAAAAAAAA",
+          ciphertextBase64: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        },
+      }),
+    });
+    assert.equal(novelIcdRes.status, 400, "Server must reject unencrypted ICD-10 patterns");
+    const novelIcdErr = await novelIcdRes.json();
+    assert.equal(novelIcdErr.error, "ZERO_PHI_POLICY_VIOLATION");
+
+    const forgedCommitRes = await fetch(`${BASE_URL}/api/relay/vault`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cid: "bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku",
+        recordCommitmentHex: "0x" + "11".repeat(32),
+        envelope: {
+          version: 1,
+          alg: "AES-256-GCM",
+          ivBase64: "AAAAAAAAAAAAAAAA",
+          ciphertextBase64: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        },
+      }),
+    });
+    assert.equal(forgedCommitRes.status, 400, "Server must reject forged recordCommitmentHex");
+    const forgedErr = await forgedCommitRes.json();
+    assert.equal(forgedErr.error, "INVALID_CIPHERTEXT_BUNDLE");
 
     browser = await chromium.launch({
       executablePath: EDGE_PATH,
@@ -96,6 +139,10 @@ async function main() {
     // 2. Hospital Portal opens first -> role isolation check + auto-publishes real ECDH public key
     console.log("[multi-actor] 2/6 Opening isolated Hospital RCM browser context...");
     await hospitalPage.goto(`${BASE_URL}/hospital`, { waitUntil: "networkidle" });
+    const hospHeaderText = await hospitalPage.locator("header").innerText();
+    assert.ok(hospHeaderText.includes("1. Patient") && hospHeaderText.includes("2. Hospital") && hospHeaderText.includes("3. Insurer"), "Top bar 1->2->3 switcher missing");
+    assert.ok(hospHeaderText.includes("Connect Wallet"), "Top bar Connect Wallet missing");
+    assert.ok(!/Acting as:/i.test(hospHeaderText), "Acting-as copy must not appear in top bar");
     const hospSidebarText = await hospitalPage.locator("aside").innerText();
     assert.ok(hospSidebarText.includes("Qlo Clearinghouse"), "Hospital brand missing");
     assert.ok(!hospSidebarText.includes("Patient Vault"), "Hospital sidebar should isolate away Patient Vault");
@@ -166,6 +213,7 @@ async function main() {
 
     await insurerPage.waitForSelector("text=0.9900 ETH", { timeout: 10000 });
     await insurerPage.waitForSelector("text=0.0100 ETH", { timeout: 10000 });
+    await insurerPage.waitForSelector("text=approvedHospitalRoot:", { timeout: 10000 });
     await insurerPage.waitForSelector("text=0 PHI BYTES DETECTED IN CALLDATA", { timeout: 10000 });
     await insurerPage.getByRole("button", { name: /835 ERA/i }).waitFor({ timeout: 5000 });
 

@@ -1,3 +1,7 @@
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import canonicalFixtures from "@/lib/canonicalFixtures.json";
 
 export interface RelayEncryptedEnvelope {
@@ -69,6 +73,15 @@ interface RelayStoreSingleton {
   chainState: RelayChainMirror;
 }
 
+const MAX_VAULT_BUNDLES = 150;
+const MAX_AUDIT_LOGS = 150;
+
+function prependAudit(state: RelayChainMirror, entry: RelayAuditEntry): void {
+  state.auditLogs = [entry, ...state.auditLogs].slice(0, MAX_AUDIT_LOGS);
+}
+const MAX_CIPHERTEXT_B64_LEN = 96_000;
+const VAULT_DISK_CACHE = path.join(os.tmpdir(), "qlo-zero-phi-vault.json");
+
 const FORBIDDEN_PHI_KEYS = new Set([
   "icd10code",
   "cptcode",
@@ -99,6 +112,9 @@ const PHI_VALUE_CANARIES = [
   "cpt 15777",
 ];
 
+const GENERIC_ICD10_REGEX = /\b[A-TV-Z][0-9]{2}\.[0-9A-Z]{1,4}\b/i;
+const SSN_REGEX = /\b\d{3}-\d{2}-\d{4}\b/;
+
 function createDefaultChainState(): RelayChainMirror {
   return {
     hospitalPubKeys: {},
@@ -115,14 +131,46 @@ function createDefaultChainState(): RelayChainMirror {
   };
 }
 
+function loadVaultDiskCache(targetMap: Map<string, RelayCiphertextRecord>): void {
+  try {
+    if (!fs.existsSync(VAULT_DISK_CACHE)) return;
+    const raw = fs.readFileSync(VAULT_DISK_CACHE, "utf8");
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return;
+    for (const entry of parsed.slice(0, MAX_VAULT_BUNDLES)) {
+      if (
+        Array.isArray(entry) &&
+        typeof entry[0] === "string" &&
+        entry[1] &&
+        typeof entry[1] === "object"
+      ) {
+        targetMap.set(entry[0], entry[1] as RelayCiphertextRecord);
+      }
+    }
+  } catch {
+    // Non-fatal on read-only or fresh environments
+  }
+}
+
+function persistVaultCache(map: Map<string, RelayCiphertextRecord>): void {
+  try {
+    const entries = Array.from(map.entries()).slice(0, MAX_VAULT_BUNDLES);
+    fs.writeFileSync(VAULT_DISK_CACHE, JSON.stringify(entries));
+  } catch {
+    // Non-fatal in read-only serverless containers
+  }
+}
+
 declare global {
   var __qloRelayStore: RelayStoreSingleton | undefined;
 }
 
 export function getRelayStore(): RelayStoreSingleton {
   if (!globalThis.__qloRelayStore) {
+    const vaultBundles = new Map<string, RelayCiphertextRecord>();
+    loadVaultDiskCache(vaultBundles);
     globalThis.__qloRelayStore = {
-      vaultBundles: new Map<string, RelayCiphertextRecord>(),
+      vaultBundles,
       chainState: createDefaultChainState(),
     };
   }
@@ -131,7 +179,7 @@ export function getRelayStore(): RelayStoreSingleton {
 
 /**
  * Enforces strict server-side Zero-PHI guarantees: rejects any payload
- * carrying plaintext clinical field names or canary values outside ciphertext.
+ * carrying plaintext clinical field names, ICD-10 patterns, SSNs, or canary values outside ciphertext.
  */
 export function assertZeroPhiPayload(payload: unknown): string | null {
   const visit = (node: unknown, keyPath: string): string | null => {
@@ -139,8 +187,14 @@ export function assertZeroPhiPayload(payload: unknown): string | null {
     if (typeof node === "string") {
       if (
         keyPath.endsWith("envelope.ciphertextBase64") ||
-        keyPath.endsWith("envelope.ivBase64")
+        keyPath.endsWith("envelope.ivBase64") ||
+        keyPath.endsWith(".createdAt") ||
+        keyPath.endsWith(".timestamp") ||
+        keyPath.endsWith(".cid")
       ) {
+        return null;
+      }
+      if (/^0x[0-9a-f]+$/i.test(node) || /^baf[a-z0-9]+$/i.test(node)) {
         return null;
       }
       const lower = node.toLowerCase();
@@ -148,6 +202,12 @@ export function assertZeroPhiPayload(payload: unknown): string | null {
         if (lower.includes(canary)) {
           return `Forbidden clinical token "${canary}" detected at ${keyPath}`;
         }
+      }
+      if (GENERIC_ICD10_REGEX.test(node)) {
+        return `Unencrypted ICD-10 diagnosis code pattern rejected at ${keyPath}`;
+      }
+      if (SSN_REGEX.test(node)) {
+        return `Unencrypted identifier pattern rejected at ${keyPath}`;
       }
       return null;
     }
@@ -173,9 +233,22 @@ export function assertZeroPhiPayload(payload: unknown): string | null {
   return visit(payload, "payload");
 }
 
+export function clearVaultRecords(): void {
+  const store = getRelayStore();
+  store.vaultBundles.clear();
+  persistVaultCache(store.vaultBundles);
+}
+
+export function deleteVaultRecord(recordCommitmentHex: string): void {
+  const store = getRelayStore();
+  store.vaultBundles.delete(recordCommitmentHex.trim().toLowerCase());
+  persistVaultCache(store.vaultBundles);
+}
+
 export function resetRelayStore(): RelayChainMirror {
   const store = getRelayStore();
   store.vaultBundles.clear();
+  persistVaultCache(store.vaultBundles);
   store.chainState = createDefaultChainState();
   return store.chainState;
 }
@@ -198,13 +271,48 @@ export function upsertVaultRecord(raw: unknown): RelayCiphertextRecord {
     env.alg !== "AES-256-GCM" ||
     typeof env.ivBase64 !== "string" ||
     typeof env.ciphertextBase64 !== "string" ||
-    env.ciphertextBase64.length < 16
+    env.ciphertextBase64.length > MAX_CIPHERTEXT_B64_LEN
   ) {
     throw new Error("Invalid AES-256-GCM encrypted envelope");
   }
 
+  const ivBuf = Buffer.from(env.ivBase64, "base64");
+  const cipherBuf = Buffer.from(env.ciphertextBase64, "base64");
+  if (ivBuf.length !== 12 || cipherBuf.length < 24) {
+    throw new Error("Invalid AES-256-GCM IV or ciphertext byte length");
+  }
+
+  const canonicalEnvelope: RelayEncryptedEnvelope = {
+    version: 1,
+    alg: "AES-256-GCM",
+    ivBase64: env.ivBase64,
+    ciphertextBase64: env.ciphertextBase64,
+  };
+  const digestHex = crypto
+    .createHash("sha256")
+    .update(Buffer.from(JSON.stringify(canonicalEnvelope), "utf8"))
+    .digest("hex");
+  const expectedCommit = (
+    "0x" + (BigInt("0x" + digestHex) >> 8n).toString(16).padStart(64, "0")
+  ).toLowerCase();
+  if (expectedCommit !== commit) {
+    throw new Error("Ciphertext does not match declared 248-bit recordCommitmentHex");
+  }
+
   const store = getRelayStore();
   const existing = store.vaultBundles.get(commit);
+  if (!existing && store.vaultBundles.size >= MAX_VAULT_BUNDLES) {
+    let oldestKey: string | null = null;
+    let oldestTime = "\uffff";
+    for (const [k, v] of store.vaultBundles.entries()) {
+      if (v.createdAt < oldestTime) {
+        oldestTime = v.createdAt;
+        oldestKey = k;
+      }
+    }
+    if (oldestKey) store.vaultBundles.delete(oldestKey);
+  }
+
   const recordId =
     typeof body.recordId === "string" && body.recordId.trim()
       ? body.recordId.trim()
@@ -218,12 +326,7 @@ export function upsertVaultRecord(raw: unknown): RelayCiphertextRecord {
     cid,
     recordCommitmentHex: commit as `0x${string}`,
     recordId,
-    envelope: {
-      version: 1,
-      alg: "AES-256-GCM",
-      ivBase64: env.ivBase64,
-      ciphertextBase64: env.ciphertextBase64,
-    },
+    envelope: canonicalEnvelope,
     createdAt:
       typeof body.createdAt === "string" && body.createdAt
         ? body.createdAt
@@ -240,6 +343,7 @@ export function upsertVaultRecord(raw: unknown): RelayCiphertextRecord {
   };
 
   store.vaultBundles.set(commit, entry);
+  persistVaultCache(store.vaultBundles);
   return entry;
 }
 
@@ -294,17 +398,15 @@ export function applyRelayAction(body: Record<string, unknown>): RelayChainMirro
     if (bundle) {
       bundle.recordId = recId;
       bundle.displayLabel = `Encrypted Record #${recId}`;
+      persistVaultCache(store.vaultBundles);
     }
-    state.auditLogs = [
-      {
-        id: `reg-${Date.now()}-${recId}`,
-        kind: "registered",
-        title: `Record #${recId} Registered (Clearinghouse Relay)`,
-        detail: `CIDv1 ${cid} | 248-bit Commit ${commit}`,
-        timestamp,
-      },
-      ...state.auditLogs,
-    ];
+    prependAudit(state, {
+      id: `reg-${Date.now()}-${recId}`,
+      kind: "registered",
+      title: `Record #${recId} Registered (Clearinghouse Relay)`,
+      detail: `CIDv1 ${cid} | 248-bit Commit ${commit}`,
+      timestamp,
+    });
     return state;
   }
 
@@ -337,17 +439,15 @@ export function applyRelayAction(body: Record<string, unknown>): RelayChainMirro
       bundle.hospitalAddress = hospitalAddress;
       bundle.recordId = recordId;
       bundle.displayLabel = `Encrypted Record #${recordId}`;
+      persistVaultCache(store.vaultBundles);
     }
-    state.auditLogs = [
-      {
-        id: `grant-${Date.now()}-${recordId}`,
-        kind: "granted",
-        title: `Access Granted (${grantMinutes}m) — Record #${recordId}`,
-        detail: `Hospital ${hospitalAddress} | ECDH P-256 Wrapped DEK (${(encryptedDekHex.length - 2) / 2} bytes)`,
-        timestamp,
-      },
-      ...state.auditLogs,
-    ];
+    prependAudit(state, {
+      id: `grant-${Date.now()}-${recordId}`,
+      kind: "granted",
+      title: `Access Granted (${grantMinutes}m) — Record #${recordId}`,
+      detail: `Hospital ${hospitalAddress} | ECDH P-256 Wrapped DEK (${(encryptedDekHex.length - 2) / 2} bytes)`,
+      timestamp,
+    });
     return state;
   }
 
@@ -359,32 +459,26 @@ export function applyRelayAction(body: Record<string, unknown>): RelayChainMirro
     }
     // Keep ciphertext content-addressed like IPFS; delete only the wrapped DEK grant.
     delete state.grants[`${recordId}:${hospitalAddress}`];
-    state.auditLogs = [
-      {
-        id: `rev-${Date.now()}-${recordId}`,
-        kind: "revoked",
-        title: `Access Revoked — Record #${recordId}`,
-        detail: `Hospital ${hospitalAddress} blocked; wrapped DEK deleted`,
-        timestamp,
-      },
-      ...state.auditLogs,
-    ];
+    prependAudit(state, {
+      id: `rev-${Date.now()}-${recordId}`,
+      kind: "revoked",
+      title: `Access Revoked — Record #${recordId}`,
+      detail: `Hospital ${hospitalAddress} blocked; wrapped DEK deleted`,
+      timestamp,
+    });
     return state;
   }
 
   if (action === "logAccess") {
     const recordId = String(body.recordId ?? "?").trim();
     const hospitalAddress = String(body.hospitalAddress ?? "").trim();
-    state.auditLogs = [
-      {
-        id: `log-acc-${Date.now()}-${recordId}`,
-        kind: "accessed",
-        title: `Explicit Access Audit Logged — Record #${recordId}`,
-        detail: `HealthRecords.logAccess(${recordId}) verified for ${hospitalAddress}`,
-        timestamp,
-      },
-      ...state.auditLogs,
-    ];
+    prependAudit(state, {
+      id: `log-acc-${Date.now()}-${recordId}`,
+      kind: "accessed",
+      title: `Explicit Access Audit Logged — Record #${recordId}`,
+      detail: `HealthRecords.logAccess(${recordId}) verified for ${hospitalAddress}`,
+      timestamp,
+    });
     return state;
   }
 
@@ -440,17 +534,14 @@ export function applyRelayAction(body: Record<string, unknown>): RelayChainMirro
     ];
 
     const ethStr = (Number(amount) / 1e18).toFixed(4);
-    state.auditLogs = [
-      {
-        id: `settle-${Date.now()}-${nullifier.slice(0, 8)}`,
-        kind: "settled",
-        title: `Claim Settled (+${ethStr} ETH)`,
-        detail: `Nullifier ${nullifier.slice(0, 16)}... | Zero PHI emitted`,
-        timestamp,
-        txHash,
-      },
-      ...state.auditLogs,
-    ];
+    prependAudit(state, {
+      id: `settle-${Date.now()}-${nullifier.slice(0, 8)}`,
+      kind: "settled",
+      title: `Claim Settled (+${ethStr} ETH)`,
+      detail: `Nullifier ${nullifier.slice(0, 16)}... | Zero PHI emitted`,
+      timestamp,
+      txHash,
+    });
     return state;
   }
 

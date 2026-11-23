@@ -15,7 +15,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useAccount, usePublicClient, useWriteContract } from "wagmi";
+import type { Abi } from "viem";
+import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
 import { BrowserMockupCard } from "@/components/ui/browser-mockup-card";
 import { Badge } from "@/components/ui/card";
 import { CopyHash } from "@/components/ui/copy-hash";
@@ -27,12 +28,19 @@ import { StatCard } from "@/components/ui/stat-card";
 import { TactileButton } from "@/components/ui/tactile-button";
 import canonicalFixtures from "@/lib/canonicalFixtures.json";
 import { getProviderDisplayName } from "@/lib/clinicalCatalog";
-import { fetchSettledClaimsEvents } from "@/lib/chainEvents";
+import { fetchOnChainVaultSnapshot, fetchSettledClaimsEvents } from "@/lib/chainEvents";
 import { CONTRACTS, DEPLOYMENT, IS_CHAIN_DEPLOYED, explorerTxUrl } from "@/lib/contracts";
 import { generateX12835Era } from "@/lib/healthcareStandards";
 import { loadLocalChainMirror, saveLocalChainMirror, type LocalSettledClaim } from "@/lib/localState";
 import { fetchRelayState, postRelayAction } from "@/lib/relayClient";
-import { formatWeiToEth, parseEthToWei, shortHex } from "@/lib/utils";
+import {
+  decodeContractError,
+  ensureBaseSepoliaChain,
+  preflightSimulateAndWrite,
+  validatePositiveEthInput,
+} from "@/lib/txHelpers";
+import { useWalletRoles } from "@/lib/useWalletRoles";
+import { formatWeiToEth, shortHex } from "@/lib/utils";
 
 const PHI_CANARIES = ["I21.0", "I25.10", "99285", "99214", "Aspirin", "Ticagrelor", "SYNTH-CASE"];
 const LEDGER_PAGE_SIZE = 5;
@@ -61,10 +69,15 @@ function scanHexForPhi(hexStr: string): string[] {
 export default function InsurerPage() {
   const { address } = useAccount();
   const publicClient = usePublicClient();
+  const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
+  const roles = useWalletRoles();
 
   const [escrowWei, setEscrowWei] = useState<bigint>(0n);
   const [policySpentWei, setPolicySpentWei] = useState<bigint>(0n);
+  const [vaultPaused, setVaultPaused] = useState<boolean>(false);
+  const [onChainHospitalRoot, setOnChainHospitalRoot] = useState<bigint | null>(null);
+  const [txBusy, setTxBusy] = useState<boolean>(false);
   const [depositEth, setDepositEth] = useState("0.05");
   const [withdrawEth, setWithdrawEth] = useState("0.025");
   const [customPolicyCommit, setCustomPolicyCommit] = useState("");
@@ -81,16 +94,6 @@ export default function InsurerPage() {
   const [phiHits, setPhiHits] = useState<string[] | null>(null);
 
   const refreshStats = async () => {
-    const remote = !IS_CHAIN_DEPLOYED ? await fetchRelayState() : null;
-    const mirror = remote ?? loadLocalChainMirror();
-    setSettledList(mirror.settledClaims);
-    if (mirror.settledClaims.length > 0 && !selectedClaim) {
-      const first = mirror.settledClaims[0];
-      setSelectedClaim(first);
-      setInspectedCalldata(first.rawCalldataHex);
-      setPhiHits(scanHexForPhi(first.rawCalldataHex));
-    }
-
     if (IS_CHAIN_DEPLOYED && publicClient) {
       const zeroAddr = "0x0000000000000000000000000000000000000000";
       const seeded =
@@ -99,25 +102,19 @@ export default function InsurerPage() {
           ? (DEPLOYMENT as { seededInsurer?: string }).seededInsurer
           : canonicalFixtures.accounts.insurer;
       const targetInsurer = (address || seeded) as `0x${string}`;
-      const [bal, spent, onChainClaims] = await Promise.all([
-        publicClient.readContract({
-          address: CONTRACTS.ClaimsVault.address,
-          abi: CONTRACTS.ClaimsVault.abi,
-          functionName: "insurerEscrow",
-          args: [targetInsurer],
-        }),
-        publicClient.readContract({
-          address: CONTRACTS.ClaimsVault.address,
-          abi: CONTRACTS.ClaimsVault.abi,
-          functionName: "policySpent",
-          args: [BigInt(canonicalFixtures.activePolicy.commitment)],
-        }),
+      const [snapshot, onChainClaims] = await Promise.all([
+        fetchOnChainVaultSnapshot(publicClient, targetInsurer),
         fetchSettledClaimsEvents(publicClient),
       ]);
-      setEscrowWei(bal as bigint);
-      setPolicySpentWei(spent as bigint);
+      if (snapshot.insurerEscrowWei !== null) setEscrowWei(snapshot.insurerEscrowWei);
+      if (snapshot.policySpentWei !== null) setPolicySpentWei(snapshot.policySpentWei);
+      if (snapshot.paused !== null) setVaultPaused(snapshot.paused);
+      setOnChainHospitalRoot(snapshot.hospitalRoot);
       setSettledList(onChainClaims);
-      if (onChainClaims.length > 0 && !selectedClaim) {
+      if (
+        onChainClaims.length > 0 &&
+        (!selectedClaim || onChainClaims[0].txHash !== selectedClaim.txHash)
+      ) {
         const newest = onChainClaims[0];
         setSelectedClaim(newest);
         setTxHashInput(newest.txHash);
@@ -129,67 +126,91 @@ export default function InsurerPage() {
           // Non-fatal if RPC tx lookup is delayed
         }
       }
-    } else {
-      setEscrowWei(BigInt(mirror.insurerEscrowWei));
-      setPolicySpentWei(
-        BigInt(mirror.policySpentWei[canonicalFixtures.activePolicy.commitment] ?? "0")
-      );
+      return;
     }
+
+    const remote = await fetchRelayState();
+    const mirror = remote ?? loadLocalChainMirror();
+    setSettledList(mirror.settledClaims);
+    if (mirror.settledClaims.length > 0 && !selectedClaim) {
+      const first = mirror.settledClaims[0];
+      setSelectedClaim(first);
+      setInspectedCalldata(first.rawCalldataHex);
+      setPhiHits(scanHexForPhi(first.rawCalldataHex));
+    }
+    setEscrowWei(BigInt(mirror.insurerEscrowWei));
+    setPolicySpentWei(
+      BigInt(mirror.policySpentWei[canonicalFixtures.activePolicy.commitment] ?? "0")
+    );
   };
 
   useEffect(() => {
     refreshStats().catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address]);
+  }, [address, publicClient]);
 
   const handleDepositEscrow = async () => {
-    const val = parseEthToWei(depositEth);
-    if (IS_CHAIN_DEPLOYED) {
-      if (!address || !publicClient) {
-        toast.error("Connect Insurer MetaMask wallet first");
-        return;
+    if (txBusy) return;
+    setTxBusy(true);
+    try {
+      const val = validatePositiveEthInput(depositEth, "Deposit ETH amount");
+      if (IS_CHAIN_DEPLOYED) {
+        if (!address || !publicClient) {
+          throw new Error("Connect Insurer MetaMask wallet first");
+        }
+        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+        await preflightSimulateAndWrite({
+          publicClient,
+          account: address,
+          address: CONTRACTS.ClaimsVault.address,
+          abi: CONTRACTS.ClaimsVault.abi as Abi,
+          functionName: "depositEscrow",
+          value: val,
+          writeContractAsync,
+        });
+        toast.success(`Deposited ${depositEth} ETH into ClaimsVault escrow`);
+      } else {
+        const updated = await postRelayAction({
+          action: "deposit",
+          amountWei: val.toString(),
+        });
+        if (!updated) {
+          const mirror = loadLocalChainMirror();
+          mirror.insurerEscrowWei = (BigInt(mirror.insurerEscrowWei) + val).toString();
+          saveLocalChainMirror(mirror);
+        }
+        window.dispatchEvent(new Event("storage"));
+        toast.success(`Added ${depositEth} ETH to clearinghouse escrow`);
       }
-      const hash = await writeContractAsync({
-        address: CONTRACTS.ClaimsVault.address,
-        abi: CONTRACTS.ClaimsVault.abi,
-        functionName: "depositEscrow",
-        value: val,
-      });
-      await publicClient.waitForTransactionReceipt({ hash });
-      toast.success(`Deposited ${depositEth} ETH into ClaimsVault escrow`);
-    } else {
-      const updated = await postRelayAction({
-        action: "deposit",
-        amountWei: val.toString(),
-      });
-      if (!updated) {
-        const mirror = loadLocalChainMirror();
-        mirror.insurerEscrowWei = (BigInt(mirror.insurerEscrowWei) + val).toString();
-        saveLocalChainMirror(mirror);
-      }
-      window.dispatchEvent(new Event("storage"));
-      toast.success(`Added ${depositEth} ETH to clearinghouse escrow`);
+      await Promise.all([refreshStats(), roles.refetch()]);
+    } catch (err) {
+      toast.error(decodeContractError(err));
+    } finally {
+      setTxBusy(false);
     }
-    await refreshStats();
   };
 
   const handleWithdrawEscrow = async () => {
-    const val = parseEthToWei(withdrawEth);
-    if (IS_CHAIN_DEPLOYED) {
-      if (!address || !publicClient) {
-        toast.error("Connect Insurer MetaMask wallet first");
-        return;
-      }
-      const hash = await writeContractAsync({
-        address: CONTRACTS.ClaimsVault.address,
-        abi: CONTRACTS.ClaimsVault.abi,
-        functionName: "withdrawEscrow",
-        args: [val],
-      });
-      await publicClient.waitForTransactionReceipt({ hash });
-      toast.success(`Withdrew ${withdrawEth} ETH from ClaimsVault escrow`);
-    } else {
-      try {
+    if (txBusy) return;
+    setTxBusy(true);
+    try {
+      const val = validatePositiveEthInput(withdrawEth, "Withdraw ETH amount");
+      if (IS_CHAIN_DEPLOYED) {
+        if (!address || !publicClient) {
+          throw new Error("Connect Insurer MetaMask wallet first");
+        }
+        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+        await preflightSimulateAndWrite({
+          publicClient,
+          account: address,
+          address: CONTRACTS.ClaimsVault.address,
+          abi: CONTRACTS.ClaimsVault.abi as Abi,
+          functionName: "withdrawEscrow",
+          args: [val],
+          writeContractAsync,
+        });
+        toast.success(`Withdrew ${withdrawEth} ETH from ClaimsVault escrow`);
+      } else {
         const updated = await postRelayAction({
           action: "withdraw",
           amountWei: val.toString(),
@@ -198,46 +219,53 @@ export default function InsurerPage() {
           const mirror = loadLocalChainMirror();
           const bal = BigInt(mirror.insurerEscrowWei);
           if (bal < val) {
-            toast.error("Insufficient escrow balance to withdraw");
-            return;
+            throw new Error("Insufficient escrow balance to withdraw");
           }
           mirror.insurerEscrowWei = (bal - val).toString();
           saveLocalChainMirror(mirror);
         }
         window.dispatchEvent(new Event("storage"));
         toast.success(`Withdrew ${withdrawEth} ETH from clearinghouse escrow`);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Insufficient escrow balance to withdraw");
-        return;
       }
+      await Promise.all([refreshStats(), roles.refetch()]);
+    } catch (err) {
+      toast.error(decodeContractError(err));
+    } finally {
+      setTxBusy(false);
     }
-    await refreshStats();
   };
 
   const handleRegisterPolicy = async () => {
+    if (txBusy) return;
     const raw = customPolicyCommit.trim() || canonicalFixtures.activePolicy.commitmentHex;
+    setTxBusy(true);
     try {
       const commit = BigInt(raw);
       if (IS_CHAIN_DEPLOYED) {
         if (!address || !publicClient) {
-          toast.error("Connect Insurer MetaMask wallet first");
-          return;
+          throw new Error("Connect Insurer MetaMask wallet first");
         }
-        const hash = await writeContractAsync({
+        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+        await preflightSimulateAndWrite({
+          publicClient,
+          account: address,
           address: CONTRACTS.PolicyRegistry.address,
-          abi: CONTRACTS.PolicyRegistry.abi,
+          abi: CONTRACTS.PolicyRegistry.abi as Abi,
           functionName: "registerPolicy",
           args: [commit],
+          writeContractAsync,
         });
-        await publicClient.waitForTransactionReceipt({ hash });
         setPolicyStatus(`Registered ${raw.slice(0, 14)}... on Base Sepolia`);
         toast.success("Registered policy commitment in PolicyRegistry");
+        await Promise.all([refreshStats(), roles.refetch()]);
       } else {
         setPolicyStatus(`Verified BN254 commitment ${raw.slice(0, 16)}... ready for PolicyRegistry`);
         toast.success("Policy commitment validated for PolicyRegistry");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Invalid policy commitment");
+      toast.error(decodeContractError(err));
+    } finally {
+      setTxBusy(false);
     }
   };
 
@@ -330,8 +358,15 @@ export default function InsurerPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <Badge variant="teal">Payer Treasury Workspace</Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="teal">Insurer Audit View</Badge>
+          <Badge variant={roles.isInsurer ? "emerald" : IS_CHAIN_DEPLOYED ? "neutral" : "teal"}>
+            {roles.isInsurer
+              ? "Insurer Treasury Wallet"
+              : IS_CHAIN_DEPLOYED
+              ? "Public Read-Only Audit View"
+              : "Sandbox Treasury Active"}
+          </Badge>
           <span className="text-xs font-mono-tabular text-[#71717A]">
             Escrow · Policy Commitments · Calldata Audit
           </span>
@@ -359,7 +394,12 @@ export default function InsurerPage() {
               aria-label="Deposit ETH amount"
               className="w-20 rounded-lg border border-[#E4E4E7] bg-white px-2.5 py-1.5 text-xs font-mono-tabular text-[#09090B] focus:border-[#0F766E] focus:outline-none"
             />
-            <TactileButton size="sm" variant="primary" onClick={handleDepositEscrow}>
+            <TactileButton
+              size="sm"
+              variant="primary"
+              onClick={handleDepositEscrow}
+              disabled={txBusy || (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))}
+            >
               <Landmark className="h-3.5 w-3.5" />
               Deposit ETH
             </TactileButton>
@@ -372,7 +412,15 @@ export default function InsurerPage() {
               aria-label="Withdraw ETH amount"
               className="w-20 rounded-lg border border-[#E4E4E7] bg-white px-2.5 py-1.5 text-xs font-mono-tabular text-[#09090B] focus:border-[#0F766E] focus:outline-none"
             />
-            <TactileButton size="sm" variant="secondary" onClick={handleWithdrawEscrow}>
+            <TactileButton
+              size="sm"
+              variant="secondary"
+              onClick={handleWithdrawEscrow}
+              disabled={
+                txBusy ||
+                (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain || escrowWei === 0n))
+              }
+            >
               Withdraw ETH
             </TactileButton>
           </div>
@@ -404,7 +452,12 @@ export default function InsurerPage() {
               onChange={(e) => setCustomPolicyCommit(e.target.value)}
               className="flex-1 min-w-0 rounded-lg border border-[#E4E4E7] bg-white px-2.5 py-1.5 text-[11px] font-mono-tabular text-[#09090B] focus:border-[#0F766E] focus:outline-none"
             />
-            <TactileButton size="sm" variant="secondary" onClick={handleRegisterPolicy}>
+            <TactileButton
+              size="sm"
+              variant="secondary"
+              onClick={handleRegisterPolicy}
+              disabled={txBusy || (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))}
+            >
               Register
             </TactileButton>
           </div>
@@ -463,40 +516,37 @@ export default function InsurerPage() {
           <div className="flex items-start justify-between gap-2 border-b border-[#F4F4F5] pb-3">
             <div>
               <h2 className="text-sm font-semibold text-[#09090B]">
-                Capital Allocation &amp; Policy Cap Mix
+                Treasury Liquidity &amp; Reserve Mix
               </h2>
               <p className="text-xs text-[#52525B] mt-0.5">
-                Live liquidity distribution across available escrow, settled claims, and policy pool.
+                Live distribution between available ClaimsVault escrow and settled claim payouts.
               </p>
             </div>
-            <Badge variant="emerald">Solvent</Badge>
+            <Badge variant={vaultPaused ? "crimson" : "emerald"}>
+              {vaultPaused ? "Paused" : "Solvent"}
+            </Badge>
           </div>
 
           <DonutChart
-            centerLabel="Pool Total"
-            centerValue={`${(remainingEscrowNum + liveSpentEthNum + 0.03).toFixed(4)} ETH`}
+            centerLabel="Treasury Pool"
+            centerValue={`${(remainingEscrowNum + Math.max(disbursedTotalNum, liveSpentEthNum)).toFixed(4)} ETH`}
             formatValue={(v) => `${v.toFixed(4)} ETH`}
             data={[
               {
                 label: "Available Escrow",
-                value: remainingEscrowNum > 0 ? remainingEscrowNum : 0.02,
+                value: remainingEscrowNum,
                 color: "#047857",
               },
               {
-                label: "Settled Claims",
+                label: "Settled Disbursements",
                 value: Math.max(disbursedTotalNum, liveSpentEthNum),
                 color: "#0F766E",
-              },
-              {
-                label: "Seeded Policy Cap",
-                value: 0.03,
-                color: "#0F4C81",
               },
             ]}
           />
 
           <div className="flex items-center justify-between text-[11px] text-[#71717A] border-t border-[#F4F4F5] pt-2.5">
-            <span>Zero private cap scalars leave Poseidon(6)</span>
+            <span>Private annual caps remain sealed inside Poseidon(6)</span>
             <span className="font-mono-tabular font-medium text-[#09090B]">
               {settledList.length} TXs
             </span>
@@ -582,7 +632,7 @@ export default function InsurerPage() {
                         <ArrowUpDown className="h-3 w-3" />
                       </button>
                     </th>
-                    <th className="px-4 py-2.5 font-medium">Nullifier</th>
+                    <th className="px-4 py-2.5 font-medium">Public Inputs</th>
                     <th className="px-4 py-2.5 font-medium">Privacy Audit</th>
                     <th className="px-4 py-2.5 text-right font-medium">
                       <button
@@ -608,8 +658,16 @@ export default function InsurerPage() {
                           {shortHex(row.hospital, 8, 6)}
                         </div>
                       </td>
-                      <td className="px-4 py-3 font-mono-tabular text-[#52525B]">
-                        {row.nullifier.slice(0, 14)}...
+                      <td className="px-4 py-3 font-mono-tabular text-[11px] text-[#52525B] space-y-0.5">
+                        <div>
+                          claimNullifier: {row.nullifier.slice(0, 12)}...
+                        </div>
+                        <div className="text-[#71717A]">
+                          policyCommit: {shortHex(row.policyCommitment || canonicalFixtures.activePolicy.commitment, 10, 4)}
+                        </div>
+                        <div className="text-[#71717A]">
+                          hospitalRoot: {(row.pubSignals?.[0] ?? (onChainHospitalRoot?.toString() || canonicalFixtures.hospitalRoot)).slice(0, 12)}...
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant="emerald">0 PHI Verified</Badge>
@@ -750,8 +808,18 @@ export default function InsurerPage() {
                 <div className="space-y-1.5 text-xs font-mono-tabular text-[#09090B]">
                   <div>hospital: {selectedClaim.hospital}</div>
                   <div>claimAmount: {formatWeiToEth(selectedClaim.amountWei)} ETH</div>
-                  <div>nullifier: {selectedClaim.nullifier.slice(0, 22)}...</div>
-                  <div>recordCommit: {selectedClaim.recordCommitmentHex.slice(0, 22)}...</div>
+                  <div>policyCommitment: {selectedClaim.policyCommitment.slice(0, 22)}...</div>
+                  <div>claimNullifier: {selectedClaim.nullifier.slice(0, 22)}...</div>
+                  <div>
+                    approvedHospitalRoot:{" "}
+                    {(
+                      selectedClaim.pubSignals?.[0] ??
+                      onChainHospitalRoot?.toString() ??
+                      canonicalFixtures.hospitalRoot
+                    ).slice(0, 22)}
+                    ...
+                  </div>
+                  <div>recordCommitment: {selectedClaim.recordCommitmentHex.slice(0, 22)}...</div>
                 </div>
               ) : (
                 <div className="text-xs text-[#52525B] space-y-1.5">

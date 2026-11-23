@@ -11,6 +11,7 @@ const SELECTORS = {
   getPolicy: "0x2b07fce3", // getPolicy(uint256)
   insurerEscrow: "0x4432c349", // insurerEscrow(address)
   totalClaimsSettled: "0x29eb2cf4", // totalClaimsSettled()
+  paused: "0x5c975abb", // paused()
 };
 
 function parseCliLiveUrl() {
@@ -41,6 +42,7 @@ async function rpcCall(rpcs, method, params) {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+        signal: AbortSignal.timeout(10000),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
@@ -72,6 +74,7 @@ async function main() {
     process.env.BASE_SEPOLIA_RPC_URL,
     "https://sepolia.base.org",
     "https://base-sepolia-rpc.publicnode.com",
+    "https://base-sepolia.drpc.org",
   ].filter(Boolean);
 
   const chainResp = await rpcCall(rpcs, "eth_chainId", []);
@@ -130,9 +133,14 @@ async function main() {
     { to: deployment.contracts.ClaimsVault, data: SELECTORS.totalClaimsSettled },
     "latest",
   ]);
+  const pausedResp = await rpcCall(rpcs, "eth_call", [
+    { to: deployment.contracts.ClaimsVault, data: SELECTORS.paused },
+    "latest",
+  ]);
+  assert.equal(BigInt(pausedResp.result), 0n, "ClaimsVault is paused on Base Sepolia");
   const escrowEth = Number(BigInt(escrowResp.result)) / 1e18;
   console.log(
-    `[verify-live]     ClaimsVault seededInsurer=${deployment.seededInsurer} escrow=${escrowEth} ETH, totalClaimsSettled=${BigInt(settledResp.result)}`
+    `[verify-live]     ClaimsVault seededInsurer=${deployment.seededInsurer} escrow=${escrowEth} ETH, totalClaimsSettled=${BigInt(settledResp.result)}, paused=false`
   );
 
   // Optional live web URL verification
@@ -158,13 +166,38 @@ async function main() {
       assert.equal(res.status, 200, `Expected HTTP 200 for ${liveUrl}${p}, got ${res.status}`);
     }
 
+    const healthRes = await fetch(`${liveUrl}/api/health`);
+    assert.equal(healthRes.status, 200, `Expected HTTP 200 for ${liveUrl}/api/health, got ${healthRes.status}`);
+    const healthJson = await healthRes.json();
+    assert.equal(healthJson.ok, true, "Live /api/health returned ok != true");
+    assert.equal(Number(healthJson.chainId), 84532, "Live /api/health chainId mismatch");
+
+    const phiProbe = await fetch(`${liveUrl}/api/relay/vault`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cid: "bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku",
+        recordCommitmentHex: "0x" + "11".repeat(32),
+        icd10Code: "I21.0",
+        envelope: {
+          version: 1,
+          alg: "AES-256-GCM",
+          ivBase64: "AAAAAAAAAAAAAAAA",
+          ciphertextBase64: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        },
+      }),
+    });
+    assert.equal(phiProbe.status, 400, "Live relay did not block plaintext PHI payload");
+    const phiErr = await phiProbe.json();
+    assert.equal(phiErr.error, "ZERO_PHI_POLICY_VIOLATION", "Unexpected Zero-PHI error code");
+
     const manifest = await (await fetch(`${liveUrl}/zk/manifest.json`)).json();
     assert.equal(
       manifest.zkeySha256,
       deployment.zkeySha256,
       "Live /zk/manifest.json zkeySha256 mismatch vs deployments/base-sepolia.json"
     );
-    console.log(`[verify-live]     All 11 web routes + ZK/OCR assets returned HTTP 200 and matched zkeySha256!`);
+    console.log(`[verify-live]     All 11 web routes + /api/health + Zero-PHI relay probe + ZK/OCR assets passed!`);
   } else {
     console.log("[verify-live] Tip: pass --url https://<your-vercel-app>.vercel.app to also verify the live frontend.");
   }

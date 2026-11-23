@@ -33,18 +33,37 @@ if ($pkTrimmed -notmatch "^(0x)?[0-9a-fA-F]{64}$") {
 $pkNormalized = if ($pkTrimmed.StartsWith("0x")) { $pkTrimmed } else { "0x$pkTrimmed" }
 [Environment]::SetEnvironmentVariable("DEPLOYER_PRIVATE_KEY", $pkNormalized, "Process")
 
-$rpcUrl = [Environment]::GetEnvironmentVariable("BASE_SEPOLIA_RPC_URL", "Process")
-if (-not $rpcUrl) {
-    $rpcUrl = "https://sepolia.base.org"
-    [Environment]::SetEnvironmentVariable("BASE_SEPOLIA_RPC_URL", $rpcUrl, "Process")
-}
-
 $foundryBin = Join-Path $env:USERPROFILE ".foundry\bin"
 $forge = Join-Path $foundryBin "forge.exe"
 $cast = Join-Path $foundryBin "cast.exe"
 if (-not (Test-Path $forge) -or -not (Test-Path $cast)) {
     throw "Foundry binaries not found in $foundryBin. Install Foundry first."
 }
+
+$customRpc = [Environment]::GetEnvironmentVariable("BASE_SEPOLIA_RPC_URL", "Process")
+$rpcCandidates = @(
+    $customRpc,
+    "https://sepolia.base.org",
+    "https://base-sepolia-rpc.publicnode.com",
+    "https://base-sepolia.drpc.org"
+) | Where-Object { $_ -and $_.Trim() -ne "" } | Select-Object -Unique
+
+$rpcUrl = ""
+foreach ($candidate in $rpcCandidates) {
+    try {
+        $probeChain = (& $cast chain-id --rpc-url $candidate 2>$null).Trim()
+        if ($LASTEXITCODE -eq 0 -and $probeChain -eq "84532") {
+            $rpcUrl = $candidate
+            break
+        }
+    } catch {
+        # Try next public RPC endpoint
+    }
+}
+if (-not $rpcUrl) {
+    throw "Unable to reach a live Base Sepolia RPC (Chain ID 84532). Check your network or set BASE_SEPOLIA_RPC_URL in .env."
+}
+[Environment]::SetEnvironmentVariable("BASE_SEPOLIA_RPC_URL", $rpcUrl, "Process")
 
 $deployerAddress = (& $cast wallet address --private-key $pkNormalized).Trim()
 if ($LASTEXITCODE -ne 0 -or -not $deployerAddress) {
@@ -62,13 +81,44 @@ $minWei = [decimal]::Parse("5000000000000000") # 0.005 ETH minimum gas margin
 if ($balanceWei -lt $minWei) {
     throw "Insufficient Base Sepolia ETH ($balanceWeiStr wei) on $deployerAddress. Fund ~0.05 Base Sepolia ETH via https://www.alchemy.com/faucets/base-sepolia or https://faucet.quicknode.com/base/sepolia."
 }
+$recommendedWei = [decimal]::Parse("25000000000000000") # 0.025 ETH recommended for full 0.02 ETH escrow
+if ($balanceWei -lt $recommendedWei) {
+    Write-Warning "Deployer holds under 0.025 ETH; DeployBaseSepolia.s.sol will automatically scale initial escrow deposit cleanly above the 0.004 ETH gas reserve."
+}
 $balanceEth = [math]::Round([double]($balanceWei / 1000000000000000000), 5)
 Write-Host "[deploy] Deployer balance: $balanceEth ETH"
 
-if (-not [Environment]::GetEnvironmentVariable("EXTRA_HOSPITAL_ADDRESS", "Process")) {
-    [Environment]::SetEnvironmentVariable("EXTRA_HOSPITAL_ADDRESS", $deployerAddress, "Process")
-    Write-Host "[deploy] EXTRA_HOSPITAL_ADDRESS defaulted to deployer wallet for 1-wallet 3-role demo"
+$existingExtrasRaw = @(
+    [Environment]::GetEnvironmentVariable("EXTRA_HOSPITAL_ADDRESS", "Process"),
+    [Environment]::GetEnvironmentVariable("EXTRA_HOSPITAL_ADDRESSES", "Process")
+) | Where-Object { $_ -and $_.Trim() -ne "" }
+
+$rawHospitalList = @($deployerAddress)
+foreach ($rawChunk in $existingExtrasRaw) {
+    foreach ($candidateAddr in ($rawChunk -split ",")) {
+        $trimmedAddr = $candidateAddr.Trim()
+        if (-not $trimmedAddr) { continue }
+        if ($trimmedAddr -notmatch "^0x[0-9a-fA-F]{40}$") {
+            throw "Invalid EXTRA_HOSPITAL_ADDRESS entry '$trimmedAddr'. Expected 20-byte 0x Ethereum address."
+        }
+        $rawHospitalList += $trimmedAddr
+    }
 }
+
+$seenLower = @{}
+$mergedHospitals = @()
+foreach ($addr in $rawHospitalList) {
+    $lower = $addr.ToLowerInvariant()
+    if (-not $seenLower.ContainsKey($lower)) {
+        $seenLower[$lower] = $true
+        $mergedHospitals += $addr
+    }
+}
+
+$mergedHospitalCsv = $mergedHospitals -join ","
+[Environment]::SetEnvironmentVariable("EXTRA_HOSPITAL_ADDRESS", $mergedHospitalCsv, "Process")
+Write-Host "[deploy] Accredited extra hospital wallets in Poseidon root: $mergedHospitalCsv"
+
 if (-not [Environment]::GetEnvironmentVariable("EXTRA_HOSPITAL_NPI", "Process")) {
     [Environment]::SetEnvironmentVariable("EXTRA_HOSPITAL_NPI", "1234567890", "Process")
 }

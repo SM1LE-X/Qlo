@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit } from "@/lib/rateLimit";
 import {
   applyRelayAction,
   assertZeroPhiPayload,
@@ -8,15 +9,40 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+function rateLimitResponse(retryAfterSec: number) {
+  return NextResponse.json(
+    {
+      error: "RATE_LIMIT_EXCEEDED",
+      detail: "Too many clearinghouse state requests. Retry shortly.",
+    },
+    {
+      status: 429,
+      headers: {
+        "Retry-After": String(retryAfterSec),
+        "Cache-Control": "no-store",
+      },
+    }
+  );
+}
+
+export async function GET(request: NextRequest) {
+  const rl = checkRateLimit(request, "relay-read", 180, 60_000);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
+
   const { chainState } = getRelayStore();
   return NextResponse.json(chainState, {
     status: 200,
-    headers: { "Cache-Control": "no-store" },
+    headers: {
+      "Cache-Control": "no-store",
+      "X-RateLimit-Remaining": String(rl.remaining),
+    },
   });
 }
 
 export async function POST(request: NextRequest) {
+  const rl = checkRateLimit(request, "relay-write", 60, 60_000);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
+
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const phiViolation = assertZeroPhiPayload(body);
@@ -30,7 +56,10 @@ export async function POST(request: NextRequest) {
     const updated = applyRelayAction(body);
     return NextResponse.json(updated, {
       status: 200,
-      headers: { "Cache-Control": "no-store" },
+      headers: {
+        "Cache-Control": "no-store",
+        "X-RateLimit-Remaining": String(rl.remaining),
+      },
     });
   } catch (err) {
     return NextResponse.json(
@@ -43,10 +72,16 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  const rl = checkRateLimit(request, "relay-write", 60, 60_000);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
+
   const fresh = resetRelayStore();
   return NextResponse.json(fresh, {
     status: 200,
-    headers: { "Cache-Control": "no-store" },
+    headers: {
+      "Cache-Control": "no-store",
+      "X-RateLimit-Remaining": String(rl.remaining),
+    },
   });
 }

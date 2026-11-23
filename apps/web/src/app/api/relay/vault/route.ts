@@ -1,13 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit } from "@/lib/rateLimit";
 import {
   assertZeroPhiPayload,
+  clearVaultRecords,
+  deleteVaultRecord,
   getRelayStore,
   upsertVaultRecord,
 } from "@/lib/relayStore";
 
 export const dynamic = "force-dynamic";
 
+function rateLimitResponse(retryAfterSec: number) {
+  return NextResponse.json(
+    {
+      error: "RATE_LIMIT_EXCEEDED",
+      detail: "Too many clearinghouse vault requests. Retry shortly.",
+    },
+    {
+      status: 429,
+      headers: {
+        "Retry-After": String(retryAfterSec),
+        "Cache-Control": "no-store",
+      },
+    }
+  );
+}
+
 export async function GET(request: NextRequest) {
+  const rl = checkRateLimit(request, "relay-read", 180, 60_000);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
+
   const { vaultBundles, chainState } = getRelayStore();
   const hospital = request.nextUrl.searchParams.get("hospital")?.trim().toLowerCase();
   const patient = request.nextUrl.searchParams.get("patient")?.trim().toLowerCase();
@@ -32,12 +54,18 @@ export async function GET(request: NextRequest) {
     { entries },
     {
       status: 200,
-      headers: { "Cache-Control": "no-store" },
+      headers: {
+        "Cache-Control": "no-store",
+        "X-RateLimit-Remaining": String(rl.remaining),
+      },
     }
   );
 }
 
 export async function POST(request: NextRequest) {
+  const rl = checkRateLimit(request, "relay-write", 60, 60_000);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
+
   try {
     const body = (await request.json()) as unknown;
     const phiViolation = assertZeroPhiPayload(body);
@@ -51,7 +79,13 @@ export async function POST(request: NextRequest) {
     const saved = upsertVaultRecord(body);
     return NextResponse.json(
       { ok: true, entry: saved },
-      { status: 201, headers: { "Cache-Control": "no-store" } }
+      {
+        status: 201,
+        headers: {
+          "Cache-Control": "no-store",
+          "X-RateLimit-Remaining": String(rl.remaining),
+        },
+      }
     );
   } catch (err) {
     return NextResponse.json(
@@ -65,7 +99,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const { vaultBundles } = getRelayStore();
+  const rl = checkRateLimit(request, "relay-write", 60, 60_000);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
+
   const resetAll = request.nextUrl.searchParams.get("reset") === "1";
   const commit = request.nextUrl.searchParams
     .get("recordCommitmentHex")
@@ -73,16 +109,31 @@ export async function DELETE(request: NextRequest) {
     .toLowerCase();
 
   if (resetAll) {
-    vaultBundles.clear();
-    return NextResponse.json({ ok: true, cleared: true });
+    clearVaultRecords();
+    return NextResponse.json(
+      { ok: true, cleared: true },
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "no-store",
+          "X-RateLimit-Remaining": String(rl.remaining),
+        },
+      }
+    );
   }
 
   if (commit) {
-    vaultBundles.delete(commit);
+    deleteVaultRecord(commit);
   }
 
   return NextResponse.json(
     { ok: true },
-    { status: 200, headers: { "Cache-Control": "no-store" } }
+    {
+      status: 200,
+      headers: {
+        "Cache-Control": "no-store",
+        "X-RateLimit-Remaining": String(rl.remaining),
+      },
+    }
   );
 }

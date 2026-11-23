@@ -41,8 +41,14 @@ contract DeployBaseSepolia is Script {
         policyRegistry.registerPolicy(genesisJson.readUint(".expiredPolicyCommitment"));
 
         uint256 initialEscrow = vm.envOr("INITIAL_ESCROW_WEI", uint256(0.02 ether));
-        if (deployer.balance > initialEscrow + 0.005 ether && initialEscrow > 0) {
-            claimsVault.depositEscrow{value: initialEscrow}();
+        uint256 gasReserve = 0.004 ether;
+        if (initialEscrow > 0 && deployer.balance > gasReserve) {
+            uint256 depositAmount = deployer.balance > initialEscrow + gasReserve
+                ? initialEscrow
+                : deployer.balance - gasReserve;
+            if (depositAmount > 0) {
+                claimsVault.depositEscrow{value: depositAmount}();
+            }
         }
 
         vm.stopBroadcast();

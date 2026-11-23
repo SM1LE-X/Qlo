@@ -32,6 +32,7 @@ import { ACCREDITED_PROVIDERS, COVERED_CLINICAL_SCHEDULE } from "@/lib/clinicalC
 import { CONTRACTS, DEPLOYMENT, IS_CHAIN_DEPLOYED } from "@/lib/contracts";
 import { loadLocalChainMirror } from "@/lib/localState";
 import { motionTransitions } from "@/lib/motion-tokens";
+import { fetchRelayState } from "@/lib/relayClient";
 import { formatWeiToEth } from "@/lib/utils";
 import { verifyZkeyIntegrity, type ZkeyIntegrityResult } from "@/lib/zkeyIntegrity";
 
@@ -112,14 +113,15 @@ export default function HomePage() {
 
   useEffect(() => {
     verifyZkeyIntegrity().then(setZkeyInfo).catch(() => undefined);
-    const syncMirror = () => {
-      const mirror = loadLocalChainMirror();
+    const syncMirror = async () => {
+      const remote = !IS_CHAIN_DEPLOYED ? await fetchRelayState() : null;
+      const mirror = remote ?? loadLocalChainMirror();
       setLocalStats({
         escrowEth: Number(formatWeiToEth(mirror.insurerEscrowWei, 4)),
         claims: mirror.settledClaims.length,
       });
     };
-    syncMirror();
+    syncMirror().catch(() => undefined);
     window.addEventListener("storage", syncMirror);
     return () => window.removeEventListener("storage", syncMirror);
   }, []);
@@ -282,27 +284,27 @@ export default function HomePage() {
         />
       </section>
 
-      {/* 3. Three Independent Stakeholder Portals Showcase */}
+      {/* 3. Three Focused Protocol Workspaces · Wallet-Only Auth */}
       <SpotlightCard accent="neutral" className="p-6 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#F4F4F5] pb-4">
           <div>
             <h2 className="text-base font-semibold text-[#09090B]">
-              Built for Three Independent Organizations
+              Three Focused Workspaces · Automatic Wallet Role Detection
             </h2>
             <p className="text-xs text-[#52525B]">
-              Each party signs in to an isolated portal with strict role separation—encrypted payloads, wrapped DEKs, and settlements synchronize live across browser windows via our Zero-PHI relay.
+              Connect MetaMask once via Wagmi + Viem—Qlo reads live Base Sepolia contract state (`HealthRecords`, `HospitalRegistry`, `ClaimsVault`) to surface verified `Patient`, `Approved Hospital`, and `Insurer` role badges across all 3 steps.
             </p>
           </div>
-          <Badge variant="teal">Cross-Browser Live Sync</Badge>
+          <Badge variant="teal">Wallet-Only Auth · Zero Login</Badge>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {WORKSPACE_TABS.map((tab, idx) => {
             const Icon = tab.icon;
             const roleLabels = [
-              { actor: "Person 1 · Member", sees: "Plaintext CMS-1500, ICD-10, Rx & Consent Keys", hidden: "Hospital Prover & Insurer Reserve Ops" },
-              { actor: "Person 2 · Billing / RCM", sees: "Authorized Records, Groth16 Prover & 837P / FHIR", hidden: "Revoked Records & Payer Private Annual Cap" },
-              { actor: "Person 3 · Health Plan Ops", sees: "Treasury Escrow, Ledger, 835 ERA & Calldata Scan", hidden: "Member ICD-10 Diagnoses, CPT Codes & Rx" },
+              { actor: "Step 1 · /patient", sees: "Local OCR, AES-256-GCM Anchor & Consent Keys", hidden: "Hospital Prover & Insurer Reserve Ops" },
+              { actor: "Step 2 · /hospital", sees: "Patient Grant Check, Groth16 Prover & 837P / FHIR", hidden: "Revoked Records & Payer Private Annual Cap" },
+              { actor: "Step 3 · /insurer", sees: "Escrow Pool, Public Signal Ledger & Zero-PHI Scan", hidden: "Member ICD-10 Diagnoses, CPT Codes & Rx" },
             ][idx];
             return (
               <div

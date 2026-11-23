@@ -71,11 +71,35 @@ async function main() {
     },
   ];
 
-  if (process.env.EXTRA_HOSPITAL_ADDRESS) {
-    hospitals.push({
-      address: process.env.EXTRA_HOSPITAL_ADDRESS,
-      licenseId: process.env.EXTRA_HOSPITAL_NPI || "1234567890",
-      name: "Live Judge Hospital",
+  const extraRaw = [process.env.EXTRA_HOSPITAL_ADDRESS, process.env.EXTRA_HOSPITAL_ADDRESSES]
+    .filter(Boolean)
+    .join(",");
+  if (extraRaw.trim()) {
+    const extraAddrs = extraRaw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => /^0x[0-9a-fA-F]{40}$/.test(s));
+    const extraNpis = (process.env.EXTRA_HOSPITAL_NPI || "1234567890")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const seen = new Set(hospitals.map((h) => h.address.toLowerCase()));
+    let addedCount = 0;
+    extraAddrs.forEach((addr, idx) => {
+      const lower = addr.toLowerCase();
+      if (seen.has(lower)) return;
+      seen.add(lower);
+      addedCount += 1;
+      const licenseId = extraNpis[idx] || extraNpis[0] || "1234567890";
+      hospitals.push({
+        address: addr,
+        licenseId,
+        name:
+          addedCount === 1
+            ? "Primary Deployer Facility"
+            : `Accredited Judge / Partner Hospital #${addedCount}`,
+      });
     });
   }
 
@@ -94,7 +118,7 @@ async function main() {
   const activePolicy = {
     policyId: "2026001",
     patientCommit: "884422119900776655",
-    policyExpiry: (baseTimestamp + 365n * 86400n).toString(),
+    policyExpiry: "1893456000", // 2030-01-01T00:00:00Z (hackathon-safe future expiry)
     annualLimitWei: "30000000000000000", // 0.03 ETH
     coveredCptRoot: cptTree.root.toString(),
     policySalt: "9182736455463728191029384756",
@@ -111,7 +135,7 @@ async function main() {
   const expiredPolicy = {
     policyId: "2025099",
     patientCommit: "884422119900776655",
-    policyExpiry: (baseTimestamp - 86400n).toString(),
+    policyExpiry: "1700000000", // 2023-11-14T22:13:20Z (unconditionally expired on all post-2023 clocks)
     annualLimitWei: "30000000000000000",
     coveredCptRoot: cptTree.root.toString(),
     policySalt: "1928374655647382910192837465",

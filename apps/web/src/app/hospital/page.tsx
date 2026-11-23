@@ -16,7 +16,8 @@ import {
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useAccount, usePublicClient, useWriteContract } from "wagmi";
+import type { Abi } from "viem";
+import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
 import { Badge } from "@/components/ui/card";
 import { DecryptedText } from "@/components/ui/decrypted-text";
 import { NumberTicker } from "@/components/ui/number-ticker";
@@ -66,6 +67,12 @@ import {
   saveEncryptedRecordToVault,
   type StoredVaultEntry,
 } from "@/lib/storage";
+import {
+  decodeContractError,
+  ensureBaseSepoliaChain,
+  preflightSimulateAndWrite,
+} from "@/lib/txHelpers";
+import { useWalletRoles } from "@/lib/useWalletRoles";
 import { formatWeiToEth, parseEthToWei } from "@/lib/utils";
 
 const PREDICATE_LABELS = [
@@ -84,7 +91,9 @@ type AttackId = "replay" | "cpt" | "expired" | "cap" | "revoked";
 export default function HospitalPage() {
   const { address } = useAccount();
   const publicClient = usePublicClient();
+  const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
+  const roles = useWalletRoles();
 
   const [entries, setEntries] = useState<StoredVaultEntry[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<StoredVaultEntry | null>(null);
@@ -114,8 +123,38 @@ export default function HospitalPage() {
   });
   const [standardsTab, setStandardsTab] = useState<"fhir" | "x12">("fhir");
   const [refreshingInbox, setRefreshingInbox] = useState(false);
+  const [txBusy, setTxBusy] = useState(false);
+  const [onChainKeyRegistered, setOnChainKeyRegistered] = useState(false);
+  const [accessStatus, setAccessStatus] = useState<"unknown" | "checking" | "granted" | "missing">("unknown");
+  const [accessExpiresAt, setAccessExpiresAt] = useState(0);
 
-  const syncMetrics = (customMirror?: ReturnType<typeof loadLocalChainMirror> | null) => {
+  const matchedProvider =
+    canonicalFixtures.hospitals.find(
+      (h) => h.address.toLowerCase() === hospitalAddr.toLowerCase()
+    ) ?? null;
+
+  const syncMetrics = async (customMirror?: ReturnType<typeof loadLocalChainMirror> | null) => {
+    if (IS_CHAIN_DEPLOYED && publicClient) {
+      try {
+        const [payoutWei, count] = await Promise.all([
+          publicClient.readContract({
+            address: CONTRACTS.ClaimsVault.address,
+            abi: CONTRACTS.ClaimsVault.abi,
+            functionName: "totalPayoutWei",
+          }) as Promise<bigint>,
+          publicClient.readContract({
+            address: CONTRACTS.ClaimsVault.address,
+            abi: CONTRACTS.ClaimsVault.abi,
+            functionName: "totalClaimsSettled",
+          }) as Promise<bigint>,
+        ]);
+        setProviderRevenueEth(Number(formatWeiToEth(payoutWei, 4)));
+        setSettledClaimsCount(Number(count));
+        return;
+      } catch {
+        // Fallback to cached state if RPC throttles
+      }
+    }
     const mirror = customMirror ?? loadLocalChainMirror();
     const totalWei = mirror.settledClaims.reduce((acc, c) => acc + BigInt(c.amountWei), 0n);
     setProviderRevenueEth(Number(formatWeiToEth(totalWei, 4)));
@@ -128,70 +167,74 @@ export default function HospitalPage() {
       const kp = await getOrCreateHospitalKeypair(targetAddr);
       setHospitalPubKeyHex(kp.publicKeyHex);
 
-      if (!IS_CHAIN_DEPLOYED) {
-        const [localItems, relayedItems, remoteMirror] = await Promise.all([
-          listVaultEntries().catch(() => [] as StoredVaultEntry[]),
-          fetchHospitalRelayVault(targetAddr),
-          fetchRelayState(),
-        ]);
+      const [localItems, relayedItems, remoteMirror] = await Promise.all([
+        listVaultEntries().catch(() => [] as StoredVaultEntry[]),
+        fetchHospitalRelayVault(targetAddr),
+        fetchRelayState(),
+      ]);
 
-        if (
-          forceSyncKey ||
-          !remoteMirror?.hospitalPubKeys?.[targetAddr.toLowerCase()]
-        ) {
-          await postRelayAction({
-            action: "publishPubKey",
-            hospitalAddress: targetAddr,
-            publicKeyHex: kp.publicKeyHex,
-            force: forceSyncKey,
-          });
-        }
-
-        const mergedByCommit = new Map<string, StoredVaultEntry>();
-        for (const item of localItems) {
-          mergedByCommit.set(item.recordCommitmentHex.toLowerCase(), item);
-        }
-        for (const rel of relayedItems) {
-          const key = rel.recordCommitmentHex.toLowerCase();
-          const existing = mergedByCommit.get(key);
-          if (!existing) {
-            mergedByCommit.set(key, rel);
-            await saveEncryptedRecordToVault(rel).catch(() => undefined);
-          } else if (!existing.recordId && rel.recordId) {
-            mergedByCommit.set(key, { ...existing, recordId: rel.recordId });
-          }
-        }
-
-        const mergedList = Array.from(mergedByCommit.values()).sort((a, b) =>
-          b.createdAt.localeCompare(a.createdAt)
-        );
-        setEntries(mergedList);
-        setSelectedEntry((prev) => {
-          if (
-            prev &&
-            mergedList.some(
-              (x) =>
-                x.recordCommitmentHex.toLowerCase() ===
-                prev.recordCommitmentHex.toLowerCase()
-            )
-          ) {
-            return (
-              mergedList.find(
-                (x) =>
-                  x.recordCommitmentHex.toLowerCase() ===
-                  prev.recordCommitmentHex.toLowerCase()
-              ) ?? mergedList[0] ?? null
-            );
-          }
-          return mergedList[0] ?? null;
+      if (forceSyncKey || !remoteMirror?.hospitalPubKeys?.[targetAddr.toLowerCase()]) {
+        await postRelayAction({
+          action: "publishPubKey",
+          hospitalAddress: targetAddr,
+          publicKeyHex: kp.publicKeyHex,
+          force: forceSyncKey,
         });
-        syncMetrics(remoteMirror);
-      } else {
-        const localItems = await listVaultEntries().catch(() => [] as StoredVaultEntry[]);
-        setEntries(localItems);
-        if (localItems.length > 0) setSelectedEntry(localItems[0]);
-        syncMetrics();
       }
+
+      const mergedByCommit = new Map<string, StoredVaultEntry>();
+      for (const item of localItems) {
+        mergedByCommit.set(item.recordCommitmentHex.toLowerCase(), item);
+      }
+      for (const rel of relayedItems) {
+        const key = rel.recordCommitmentHex.toLowerCase();
+        const existing = mergedByCommit.get(key);
+        if (!existing) {
+          mergedByCommit.set(key, rel);
+          await saveEncryptedRecordToVault(rel).catch(() => undefined);
+        } else if (!existing.recordId && rel.recordId) {
+          mergedByCommit.set(key, { ...existing, recordId: rel.recordId });
+        }
+      }
+
+      const mergedList = Array.from(mergedByCommit.values()).sort((a, b) =>
+        b.createdAt.localeCompare(a.createdAt)
+      );
+      setEntries(mergedList);
+      setSelectedEntry((prev) => {
+        if (
+          prev &&
+          mergedList.some(
+            (x) => x.recordCommitmentHex.toLowerCase() === prev.recordCommitmentHex.toLowerCase()
+          )
+        ) {
+          return (
+            mergedList.find(
+              (x) =>
+                x.recordCommitmentHex.toLowerCase() === prev.recordCommitmentHex.toLowerCase()
+            ) ?? mergedList[0] ?? null
+          );
+        }
+        return mergedList[0] ?? null;
+      });
+
+      if (IS_CHAIN_DEPLOYED && publicClient) {
+        try {
+          const onChainPub = (await publicClient.readContract({
+            address: CONTRACTS.HospitalRegistry.address,
+            abi: CONTRACTS.HospitalRegistry.abi,
+            functionName: "hospitalEncryptionPubKey",
+            args: [targetAddr as `0x${string}`],
+          })) as `0x${string}`;
+          setOnChainKeyRegistered(Boolean(onChainPub && onChainPub.length >= 132));
+        } catch {
+          setOnChainKeyRegistered(false);
+        }
+      } else {
+        setOnChainKeyRegistered(false);
+      }
+
+      await syncMetrics(IS_CHAIN_DEPLOYED ? null : remoteMirror);
     } finally {
       setRefreshingInbox(false);
     }
@@ -206,40 +249,144 @@ export default function HospitalPage() {
     if (address) setHospitalAddr(address);
   }, [address]);
 
+  useEffect(() => {
+    let active = true;
+    if (!selectedEntry) {
+      setAccessStatus("unknown");
+      setAccessExpiresAt(0);
+      return;
+    }
+
+    const checkGrantStatus = async () => {
+      setAccessStatus("checking");
+      if (IS_CHAIN_DEPLOYED && publicClient) {
+        try {
+          const recId = (await publicClient.readContract({
+            address: CONTRACTS.HealthRecords.address,
+            abi: CONTRACTS.HealthRecords.abi,
+            functionName: "commitmentToRecordId",
+            args: [selectedEntry.recordCommitmentHex],
+          })) as bigint;
+          if (!active) return;
+          if (recId === 0n) {
+            setAccessStatus("missing");
+            setAccessExpiresAt(0);
+            return;
+          }
+          const [exp, dekBytes] = (await publicClient.readContract({
+            address: CONTRACTS.HealthRecords.address,
+            abi: CONTRACTS.HealthRecords.abi,
+            functionName: "getGrant",
+            args: [recId, hospitalAddr as `0x${string}`],
+          })) as [bigint, `0x${string}`];
+          if (!active) return;
+          if (exp > 0n && dekBytes && dekBytes !== "0x") {
+            setAccessStatus("granted");
+            setAccessExpiresAt(Number(exp));
+          } else {
+            setAccessStatus("missing");
+            setAccessExpiresAt(0);
+          }
+          return;
+        } catch {
+          if (!active) return;
+          setAccessStatus("unknown");
+          return;
+        }
+      }
+
+      const remote = await fetchRelayState();
+      if (!active) return;
+      const mirror = remote ?? loadLocalChainMirror();
+      const rec = mirror.records.find(
+        (r) =>
+          r.recordCommitmentHex.toLowerCase() ===
+          selectedEntry.recordCommitmentHex.toLowerCase()
+      );
+      if (!rec) {
+        setAccessStatus("missing");
+        setAccessExpiresAt(0);
+        return;
+      }
+      const grant = mirror.grants[`${rec.recordId}:${hospitalAddr.toLowerCase()}`];
+      const now = Math.floor(Date.now() / 1000);
+      if (grant && grant.expiresAt > now) {
+        setAccessStatus("granted");
+        setAccessExpiresAt(grant.expiresAt);
+      } else {
+        setAccessStatus("missing");
+        setAccessExpiresAt(0);
+      }
+    };
+
+    checkGrantStatus().catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [selectedEntry, hospitalAddr, publicClient, settledTx]);
+
   const appendLog = (text: string, tone: "info" | "ok" | "warn" | "err" = "info") => {
     setTerminalLines((prev) => [...prev, { text, tone }]);
   };
 
   const handleRegisterHospitalPubKey = async () => {
-    if (!hospitalPubKeyHex) return;
-    if (IS_CHAIN_DEPLOYED) {
-      if (!address || !publicClient) {
-        toast.error("Connect Hospital MetaMask wallet first");
-        return;
-      }
-      const hash = await writeContractAsync({
-        address: CONTRACTS.HospitalRegistry.address,
-        abi: CONTRACTS.HospitalRegistry.abi,
-        functionName: "registerEncryptionPubKey",
-        args: [hospitalPubKeyHex as `0x${string}`],
-      });
-      await publicClient.waitForTransactionReceipt({ hash });
-      toast.success("Registered ECDH P-256 public key in HospitalRegistry");
-    } else {
+    if (!hospitalPubKeyHex || txBusy) return;
+    setTxBusy(true);
+    try {
       await postRelayAction({
         action: "publishPubKey",
         hospitalAddress: hospitalAddr,
         publicKeyHex: hospitalPubKeyHex,
         force: true,
       });
-      const mirror = loadLocalChainMirror();
-      mirror.hospitalPubKeys[hospitalAddr.toLowerCase()] = hospitalPubKeyHex;
-      saveLocalChainMirror(mirror);
-      toast.success("Synced Hospital ECDH P-256 public key to clearinghouse directory");
+
+      if (IS_CHAIN_DEPLOYED) {
+        if (!address || !publicClient) {
+          throw new Error("Connect Hospital MetaMask wallet first");
+        }
+        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+        const { hash } = await preflightSimulateAndWrite({
+          publicClient,
+          account: address,
+          address: CONTRACTS.HospitalRegistry.address,
+          abi: CONTRACTS.HospitalRegistry.abi as Abi,
+          functionName: "registerEncryptionPubKey",
+          args: [hospitalPubKeyHex as `0x${string}`],
+          writeContractAsync,
+        });
+        setOnChainKeyRegistered(true);
+        appendLog(`Registered ECDH pubkey on Base Sepolia: ${hash}`, "ok");
+        toast.success("Registered ECDH P-256 public key in HospitalRegistry");
+        await roles.refetch();
+      } else {
+        const mirror = loadLocalChainMirror();
+        mirror.hospitalPubKeys[hospitalAddr.toLowerCase()] = hospitalPubKeyHex;
+        saveLocalChainMirror(mirror);
+        toast.success("Synced Hospital ECDH P-256 public key to clearinghouse directory");
+      }
+    } catch (err) {
+      const msg = decodeContractError(err);
+      appendLog(msg, "err");
+      toast.error(msg);
+    } finally {
+      setTxBusy(false);
     }
   };
 
   const handleImportBundle = async (file: File) => {
+    const MAX_BUNDLE_BYTES = 512 * 1024; // 512 KB ceiling for encrypted bundles
+    if (file.size > MAX_BUNDLE_BYTES) {
+      toast.error("Encrypted bundle exceeds 512 KB maximum size.");
+      return;
+    }
+    if (!file.name.toLowerCase().endsWith(".json")) {
+      toast.error("Import a valid .qlo.json encrypted bundle file.");
+      return;
+    }
+    if (file.type && !["application/json", "text/plain"].includes(file.type.toLowerCase())) {
+      toast.error(`Unsupported bundle MIME type: ${file.type}`);
+      return;
+    }
     try {
       const raw = await file.text();
       const imported = await importAndVerifyQloBundle(raw);
@@ -337,24 +484,28 @@ export default function HospitalPage() {
   };
 
   const handleLogAccessAudit = async () => {
-    if (!selectedEntry) return;
+    if (!selectedEntry || txBusy) return;
+    setTxBusy(true);
     try {
       if (IS_CHAIN_DEPLOYED && publicClient) {
         if (!address) throw new Error("Connect Hospital MetaMask wallet");
+        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
         const recId = (await publicClient.readContract({
           address: CONTRACTS.HealthRecords.address,
           abi: CONTRACTS.HealthRecords.abi,
           functionName: "commitmentToRecordId",
           args: [selectedEntry.recordCommitmentHex],
         })) as bigint;
-        if (recId === 0n) throw new Error("Record not registered");
-        const hash = await writeContractAsync({
+        if (recId === 0n) throw new Error("Record not registered on Base Sepolia");
+        const { hash } = await preflightSimulateAndWrite({
+          publicClient,
+          account: address,
           address: CONTRACTS.HealthRecords.address,
-          abi: CONTRACTS.HealthRecords.abi,
+          abi: CONTRACTS.HealthRecords.abi as Abi,
           functionName: "logAccess",
           args: [recId],
+          writeContractAsync,
         });
-        await publicClient.waitForTransactionReceipt({ hash });
         appendLog(`Logged RecordAccessed(${recId.toString()}) on Base Sepolia: ${hash}`, "ok");
         toast.success("Logged immutable RecordAccessed audit event on Base Sepolia");
       } else {
@@ -387,9 +538,11 @@ export default function HospitalPage() {
         toast.success(`Logged RecordAccessed audit entry for Record #${recId}`);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to log access";
+      const msg = decodeContractError(err);
       appendLog(msg, "err");
       toast.error(msg);
+    } finally {
+      setTxBusy(false);
     }
   };
 
@@ -405,14 +558,36 @@ export default function HospitalPage() {
 
     try {
       let priorSpentWei = 0n;
+      let claimTimestampOverride: bigint | undefined;
       const commitmentBigInt = BigInt(canonicalFixtures.activePolicy.commitment);
       if (IS_CHAIN_DEPLOYED && publicClient) {
-        priorSpentWei = (await publicClient.readContract({
-          address: CONTRACTS.ClaimsVault.address,
-          abi: CONTRACTS.ClaimsVault.abi,
-          functionName: "policySpent",
-          args: [commitmentBigInt],
-        })) as bigint;
+        const [spent, latestBlock, onChainRoot] = await Promise.all([
+          publicClient.readContract({
+            address: CONTRACTS.ClaimsVault.address,
+            abi: CONTRACTS.ClaimsVault.abi,
+            functionName: "policySpent",
+            args: [commitmentBigInt],
+          }) as Promise<bigint>,
+          publicClient.getBlock({ blockTag: "latest" }),
+          publicClient.readContract({
+            address: CONTRACTS.HospitalRegistry.address,
+            abi: CONTRACTS.HospitalRegistry.abi,
+            functionName: "hospitalRoot",
+          }) as Promise<bigint>,
+        ]);
+        priorSpentWei = spent;
+        claimTimestampOverride = latestBlock.timestamp;
+        if (onChainRoot !== BigInt(canonicalFixtures.hospitalRoot)) {
+          appendLog(
+            "WARNING: On-chain HospitalRegistry.hospitalRoot() differs from local canonicalFixtures.json.",
+            "warn"
+          );
+        } else {
+          appendLog(
+            `Synced live Base Sepolia block clock (${latestBlock.timestamp.toString()}) & root`,
+            "info"
+          );
+        }
       } else {
         const remote = await fetchRelayState();
         const mirror = remote ?? loadLocalChainMirror();
@@ -426,6 +601,7 @@ export default function HospitalPage() {
         recordCommitment: BigInt(selectedEntry.recordCommitmentHex),
         hospitalAddress: hospitalAddr,
         priorPolicySpentWei: priorSpentWei,
+        claimTimestampOverride,
       });
 
       const out = await generateClaimProof(input, (stage) => {
@@ -450,21 +626,26 @@ export default function HospitalPage() {
   };
 
   const handleSettle = async () => {
-    if (!proverOutput || !selectedEntry) return;
+    if (!proverOutput || !selectedEntry || txBusy) return;
     const { pA, pB, pC, pubSignals, rawCalldataHex } = proverOutput.solidity;
+    setTxBusy(true);
     try {
       const amountFmt = formatWeiToEth(pubSignals[3], 4);
       if (IS_CHAIN_DEPLOYED) {
         if (!address || !publicClient) throw new Error("Connect Hospital MetaMask wallet");
-        const hash = await writeContractAsync({
+        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+        const { hash } = await preflightSimulateAndWrite({
+          publicClient,
+          account: address,
           address: CONTRACTS.ClaimsVault.address,
-          abi: CONTRACTS.ClaimsVault.abi,
+          abi: CONTRACTS.ClaimsVault.abi as Abi,
           functionName: "submitClaim",
           args: [pA, pB, pC, pubSignals],
+          writeContractAsync,
         });
-        await publicClient.waitForTransactionReceipt({ hash });
         setSettledAmountEth(amountFmt);
         setSettledTx(hash);
+        await Promise.all([syncMetrics(), roles.refetch()]);
         appendLog(`Base Sepolia Tx Settled: ${hash}`, "ok");
         toast.success("Claim settled on Base Sepolia — ETH transferred to Hospital!");
       } else {
@@ -540,14 +721,16 @@ export default function HospitalPage() {
         window.dispatchEvent(new Event("storage"));
         setSettledAmountEth(amountFmt);
         setSettledTx(pseudoHash);
-        syncMetrics(relayed);
+        await syncMetrics(relayed);
         appendLog(`Settled ${amountFmt} ETH (0 PHI bytes in calldata)`, "ok");
         toast.success(`Auto-settled ${amountFmt} ETH to Hospital!`);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Settlement reverted";
+      const msg = decodeContractError(err);
       appendLog(`ON-CHAIN REVERT: ${msg}`, "err");
       toast.error(msg);
+    } finally {
+      setTxBusy(false);
     }
   };
 
@@ -568,10 +751,22 @@ export default function HospitalPage() {
           );
         }
         const mirror = loadLocalChainMirror();
-        if (IS_CHAIN_DEPLOYED) {
-          await writeContractAsync({
+        if (IS_CHAIN_DEPLOYED && publicClient) {
+          const used = (await publicClient.readContract({
             address: CONTRACTS.ClaimsVault.address,
             abi: CONTRACTS.ClaimsVault.abi,
+            functionName: "nullifierUsed",
+            args: [proverOutput.solidity.pubSignals[2]],
+          })) as boolean;
+          if (!used) {
+            throw new Error(
+              "Settle the generated proof on Base Sepolia once first, then click Replay to observe ClaimsVault.NullifierAlreadyUsed()."
+            );
+          }
+          await publicClient.simulateContract({
+            account: hospitalAddr as `0x${string}`,
+            address: CONTRACTS.ClaimsVault.address,
+            abi: CONTRACTS.ClaimsVault.abi as Abi,
             functionName: "submitClaim",
             args: [
               proverOutput.solidity.pA,
@@ -707,7 +902,7 @@ export default function HospitalPage() {
         );
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = decodeContractError(err);
       setAttackResult({ status: "blocked", detail: msg });
       appendLog(`ATTACK BLOCKED [${kind.toUpperCase()}]: ${msg}`, "err");
     }
@@ -719,8 +914,21 @@ export default function HospitalPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Badge variant="teal">Provider Clearinghouse Workspace</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="teal">Hospital Claims Portal</Badge>
+            <Badge
+              variant={
+                (IS_CHAIN_DEPLOYED ? roles.isApprovedHospital : Boolean(matchedProvider))
+                  ? "emerald"
+                  : "amber"
+              }
+            >
+              {(IS_CHAIN_DEPLOYED ? roles.isApprovedHospital : Boolean(matchedProvider))
+                ? "Approved Hospital · In Poseidon hospitalRoot"
+                : IS_CHAIN_DEPLOYED
+                ? "Wallet Not Accredited in hospitalRoot"
+                : "Select Accredited Facility Below"}
+            </Badge>
             <span className="text-xs font-mono-tabular text-[#71717A]">
               Groth16 WASM · Instant ETH Settlement
             </span>
@@ -743,7 +951,12 @@ export default function HospitalPage() {
             <RefreshCw className={`h-3.5 w-3.5 text-[#0F766E] ${refreshingInbox ? "animate-spin" : ""}`} />
             Refresh Inbox
           </TactileButton>
-          <TactileButton size="sm" variant="secondary" onClick={handleRegisterHospitalPubKey}>
+          <TactileButton
+            size="sm"
+            variant="secondary"
+            onClick={handleRegisterHospitalPubKey}
+            disabled={txBusy || (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))}
+          >
             <KeyRound className="h-3.5 w-3.5 text-[#0F766E]" />
             Sync Hospital ECDH Key
           </TactileButton>
@@ -899,11 +1112,72 @@ export default function HospitalPage() {
             variant="emerald"
             className="w-full"
             onClick={handleUnwrapAndDecrypt}
-            disabled={!selectedEntry}
+            disabled={!selectedEntry || txBusy}
           >
             <KeyRound className="h-4 w-4" />
             Unwrap ECDH DEK &amp; Decrypt Locally
           </TactileButton>
+
+          {selectedEntry ? (
+            <div
+              className={`rounded-xl border px-3 py-2.5 flex items-center justify-between gap-2 ${
+                accessStatus === "granted"
+                  ? "border-[#A7F3D0] bg-[#ECFDF5]/70 text-[#047857]"
+                  : accessStatus === "missing"
+                  ? "border-[#FECACA] bg-[#FEF2F2]/80 text-[#B91C1C]"
+                  : "border-[#E4E4E7] bg-[#FAFAFA] text-[#52525B]"
+              }`}
+            >
+              <span className="font-semibold">
+                {accessStatus === "granted"
+                  ? "Patient Access: Granted (Active)"
+                  : accessStatus === "missing"
+                  ? "Patient Access: Not Granted / Revoked"
+                  : "Checking patient access permission..."}
+              </span>
+              {accessStatus === "granted" && accessExpiresAt > 0 ? (
+                <span className="font-mono-tabular text-[10px]">
+                  Until {new Date(accessExpiresAt * 1000).toLocaleTimeString()}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+
+          {!matchedProvider ? (
+            <div className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2.5 text-[#92400E] space-y-1">
+              <div className="font-semibold">Hospital Accreditation Notice</div>
+              <p className="text-[11px] leading-relaxed">
+                Address {hospitalAddr.slice(0, 10)}... is not present in the Poseidon hospital Merkle root. Select an accredited facility above or deploy with EXTRA_HOSPITAL_ADDRESS set to your MetaMask address.
+              </p>
+            </div>
+          ) : null}
+
+          {IS_CHAIN_DEPLOYED && roles.isApprovedHospital && !onChainKeyRegistered ? (
+            <div className="rounded-xl border border-[#BAE6FD] bg-[#F0F9FF] px-3 py-2 text-[#0F4C81] text-[11px]">
+              Tip: Click <span className="font-semibold">Sync Hospital ECDH Key</span> above to anchor this facility&apos;s P-256 public key on-chain in <code className="font-mono-tabular">HospitalRegistry</code>.
+            </div>
+          ) : null}
+
+          {matchedProvider &&
+          decryptedClaim &&
+          decryptedClaim.renderingNpi.trim() !== matchedProvider.licenseId ? (
+            <div className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] p-3 flex items-center justify-between gap-2 text-[#92400E]">
+              <div className="text-[11px]">
+                Claim NPI ({decryptedClaim.renderingNpi}) differs from selected facility NPI ({matchedProvider.licenseId}).
+              </div>
+              <TactileButton
+                size="sm"
+                variant="amber"
+                onClick={() =>
+                  setDecryptedClaim((prev) =>
+                    prev ? { ...prev, renderingNpi: matchedProvider.licenseId } : prev
+                  )
+                }
+              >
+                Match Facility NPI
+              </TactileButton>
+            </div>
+          ) : null}
 
           {entries.length === 0 ? (
             <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-3.5 space-y-2 text-xs">
@@ -1001,7 +1275,15 @@ export default function HospitalPage() {
               {proveStage === "computing_witness" ? "Proving in WASM..." : "Generate Groth16 Proof"}
             </TactileButton>
 
-            <TactileButton variant="emerald" onClick={handleSettle} disabled={!proverOutput}>
+            <TactileButton
+              variant="emerald"
+              onClick={handleSettle}
+              disabled={
+                !proverOutput ||
+                txBusy ||
+                (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain || !roles.isApprovedHospital))
+              }
+            >
               <Landmark className="h-4 w-4" />
               Submit &amp; Auto-Settle ETH
             </TactileButton>

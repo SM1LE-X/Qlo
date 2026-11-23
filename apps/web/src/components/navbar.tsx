@@ -3,51 +3,27 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import {
-  Activity,
-  AlertTriangle,
-  CheckCircle2,
-  Compass,
-  Cpu,
-  FileLock2,
-  Landmark,
-  Search,
-  ShieldCheck,
-  Wallet,
-} from "lucide-react";
-import { useAccount, useChainId, useConnect, useDisconnect, useSwitchChain } from "wagmi";
-import { baseSepolia } from "wagmi/chains";
+import { Compass, Search, ShieldCheck } from "lucide-react";
 import { IS_CHAIN_DEPLOYED } from "@/lib/contracts";
 import { loadLocalChainMirror } from "@/lib/localState";
-import { motionTransitions } from "@/lib/motion-tokens";
 import { fetchRelayState } from "@/lib/relayClient";
 import { listVaultEntries } from "@/lib/storage";
-import { cn, shortHex } from "@/lib/utils";
+import { useWalletRoles } from "@/lib/useWalletRoles";
+import { cn } from "@/lib/utils";
 import { verifyZkeyIntegrity } from "@/lib/zkeyIntegrity";
-import { Badge } from "./ui/card";
 import { CommandMenu } from "./ui/command-menu";
 import { OnboardingModal } from "./ui/onboarding-guide";
-import { TactileButton } from "./ui/tactile-button";
-
-const NAV_LINKS = [
-  { href: "/", label: "Overview", icon: Activity },
-  { href: "/patient", label: "Patient Portal", icon: FileLock2 },
-  { href: "/hospital", label: "Hospital RCM", icon: Cpu },
-  { href: "/insurer", label: "Insurer Treasury", icon: Landmark },
-  { href: "/story", label: "Trust Center", icon: ShieldCheck },
-];
+import { WalletAuthControls, WorkflowStepSwitcher } from "./wallet-auth-bar";
 
 /**
- * Clean light frosted product header for Qlo's public routes (/ and /story).
+ * Persistent light header for Qlo's public routes (/ and /story):
+ * renders the 3-step switcher (1. Patient -> 2. Hospital -> 3. Insurer),
+ * automatic contract role badges, Base Sepolia chain status, and a single
+ * wallet-only Connect Wallet control.
  */
 export function Navbar() {
   const pathname = usePathname();
-  const { address, isConnected } = useAccount();
-  const chainId = useChainId();
-  const { connect, connectors } = useConnect();
-  const { disconnect } = useDisconnect();
-  const { switchChain } = useSwitchChain();
+  const roles = useWalletRoles();
 
   const [zkeyStatus, setZkeyStatus] = useState<"checking" | "verified" | "mismatch">("checking");
   const [zkeySha, setZkeySha] = useState<string>("");
@@ -93,13 +69,11 @@ export function Navbar() {
     };
   }, []);
 
-  const wrongChain = isConnected && chainId !== baseSepolia.id;
-
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-[#E4E4E7]/85 bg-white/85 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl flex-nowrap items-center justify-between gap-2 px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3.5 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
             <Link href="/" className="flex items-center gap-2 group shrink-0">
               <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#09090B] text-white font-mono-tabular font-bold text-sm shadow-xs">
                 Q
@@ -112,35 +86,20 @@ export function Navbar() {
               </div>
             </Link>
 
-            <nav
-              aria-label="Primary navigation"
-              className="hidden md:flex items-center gap-0.5 rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-1"
+            <WorkflowStepSwitcher pathname={pathname} layoutId="qlo-public-step-nav" />
+
+            <Link
+              href="/story"
+              className={cn(
+                "hidden lg:inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
+                pathname === "/story"
+                  ? "border-[#0F766E]/40 bg-[#F0FDFA] text-[#0F766E]"
+                  : "border-[#E4E4E7] bg-white text-[#52525B] hover:border-[#D4D4D8] hover:text-[#09090B]"
+              )}
             >
-              {NAV_LINKS.map((item) => {
-                const Icon = item.icon;
-                const active = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "relative inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-medium transition-colors",
-                      active ? "text-[#09090B]" : "text-[#52525B] hover:text-[#09090B]"
-                    )}
-                  >
-                    {active ? (
-                      <motion.span
-                        layoutId="qlo-active-nav"
-                        transition={motionTransitions.springMorph}
-                        className="absolute inset-0 rounded-lg bg-white shadow-xs border border-[#E4E4E7]/80"
-                      />
-                    ) : null}
-                    <Icon className={cn("relative z-10 h-3.5 w-3.5", active && "text-[#0F766E]")} />
-                    <span className="relative z-10">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Trust Center
+            </Link>
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
@@ -164,58 +123,7 @@ export function Navbar() {
               <kbd className="rounded bg-[#E4E4E7]/70 px-1 text-[10px]">⌘K</kbd>
             </button>
 
-            {zkeyStatus === "verified" ? (
-              <Badge variant="emerald" className="hidden sm:inline-flex whitespace-nowrap">
-                <CheckCircle2 className="h-3 w-3" />
-                <span className="font-mono-tabular">zkey {shortHex(zkeySha, 6, 4)}</span>
-              </Badge>
-            ) : zkeyStatus === "checking" ? (
-              <Badge variant="amber" className="hidden sm:inline-flex whitespace-nowrap">
-                Verifying zkey...
-              </Badge>
-            ) : (
-              <Badge variant="crimson" className="hidden sm:inline-flex whitespace-nowrap">
-                zkey check failed
-              </Badge>
-            )}
-
-            {IS_CHAIN_DEPLOYED ? (
-              <Badge variant="teal" className="hidden sm:inline-flex whitespace-nowrap">
-                Base Sepolia
-              </Badge>
-            ) : (
-              <Badge variant="neutral" className="hidden sm:inline-flex whitespace-nowrap">
-                Sandbox
-              </Badge>
-            )}
-
-            {wrongChain ? (
-              <TactileButton
-                size="sm"
-                variant="amber"
-                onClick={() => switchChain({ chainId: baseSepolia.id })}
-              >
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Switch Network
-              </TactileButton>
-            ) : isConnected && address ? (
-              <TactileButton size="sm" variant="secondary" onClick={() => disconnect()}>
-                <Wallet className="h-3.5 w-3.5 text-[#0F766E]" />
-                <span className="font-mono-tabular">{shortHex(address, 6, 4)}</span>
-              </TactileButton>
-            ) : (
-              <TactileButton
-                size="sm"
-                variant="primary"
-                onClick={() => {
-                  const injectedConn = connectors[0];
-                  if (injectedConn) connect({ connector: injectedConn });
-                }}
-              >
-                <Wallet className="h-3.5 w-3.5" />
-                Connect Wallet
-              </TactileButton>
-            )}
+            <WalletAuthControls roles={roles} zkeyStatus={zkeyStatus} zkeySha={zkeySha} />
           </div>
         </div>
       </header>
@@ -230,7 +138,7 @@ export function Navbar() {
         onOpenChange={setOnboardingOpen}
         vaultCount={onboardingStats.vaultCount}
         hasActiveGrant={onboardingStats.hasActiveGrant}
-        settledCount={onboardingStats.settledCount}
+        settledCount={IS_CHAIN_DEPLOYED ? roles.totalClaimsSettled : onboardingStats.settledCount}
         zkeyVerified={zkeyStatus === "verified"}
       />
     </>

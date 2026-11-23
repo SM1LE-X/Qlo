@@ -11,7 +11,8 @@ import {
   ShieldOff,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useAccount, usePublicClient, useWriteContract } from "wagmi";
+import type { Abi } from "viem";
+import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
 import { AnimatedFileUpload } from "@/components/ui/animated-file-upload";
 import { AuditTimeline, type AuditEventItem } from "@/components/ui/audit-timeline";
 import { Badge } from "@/components/ui/card";
@@ -55,6 +56,12 @@ import {
   serializeQloBundle,
   type StoredVaultEntry,
 } from "@/lib/storage";
+import {
+  decodeContractError,
+  ensureBaseSepoliaChain,
+  preflightSimulateAndWrite,
+} from "@/lib/txHelpers";
+import { useWalletRoles } from "@/lib/useWalletRoles";
 import { shortHex } from "@/lib/utils";
 
 const INPUT_CLASS =
@@ -63,7 +70,9 @@ const INPUT_CLASS =
 export default function PatientPage() {
   const { address } = useAccount();
   const publicClient = usePublicClient();
+  const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
+  const roles = useWalletRoles();
 
   const [claim, setClaim] = useState<Cms1500Claim>(SYNTHETIC_CMS1500_PRESETS[0]);
   const [ocrStatus, setOcrStatus] = useState<string>("");
@@ -89,31 +98,116 @@ export default function PatientPage() {
   const completeness = validateCms1500Completeness(claim);
 
   const syncOverviewState = async () => {
-    const remote = !IS_CHAIN_DEPLOYED ? await fetchRelayState() : null;
-    const mirror = remote ?? loadLocalChainMirror();
+    const items = await listVaultEntries().catch(() => [] as StoredVaultEntry[]);
     const now = Math.floor(Date.now() / 1000);
+
+    if (IS_CHAIN_DEPLOYED && publicClient) {
+      let onChainSettled = 0;
+      try {
+        const settled = (await publicClient.readContract({
+          address: CONTRACTS.ClaimsVault.address,
+          abi: CONTRACTS.ClaimsVault.abi,
+          functionName: "totalClaimsSettled",
+        })) as bigint;
+        onChainSettled = Number(settled);
+      } catch {
+        onChainSettled = roles.totalClaimsSettled;
+      }
+
+      const grantsMap: Record<string, { expiresAt: number }> = {};
+      const hydratedItems: StoredVaultEntry[] = [];
+
+      for (const item of items) {
+        let recIdStr = item.recordId || "";
+        try {
+          const recId = (await publicClient.readContract({
+            address: CONTRACTS.HealthRecords.address,
+            abi: CONTRACTS.HealthRecords.abi,
+            functionName: "commitmentToRecordId",
+            args: [item.recordCommitmentHex],
+          })) as bigint;
+          if (recId > 0n) {
+            recIdStr = recId.toString();
+            const hospTarget = item.hospitalAddress || targetHospital;
+            const [exp] = (await publicClient.readContract({
+              address: CONTRACTS.HealthRecords.address,
+              abi: CONTRACTS.HealthRecords.abi,
+              functionName: "getGrant",
+              args: [recId, hospTarget as `0x${string}`],
+            })) as [bigint, `0x${string}`];
+            if (exp > 0n) {
+              grantsMap[`${recIdStr}:${hospTarget.toLowerCase()}`] = {
+                expiresAt: Number(exp),
+              };
+            }
+          }
+        } catch {
+          // Non-fatal on RPC jitter
+        }
+
+        const updatedItem = recIdStr && recIdStr !== item.recordId
+          ? { ...item, recordId: recIdStr }
+          : item;
+        if (updatedItem !== item) {
+          await saveEncryptedRecordToVault(updatedItem).catch(() => undefined);
+        }
+        hydratedItems.push(updatedItem);
+      }
+
+      setVaultItems(hydratedItems);
+      setActiveGrantsMap(grantsMap);
+      setActiveGrantsCount(
+        Object.values(grantsMap).filter((g) => g.expiresAt > now).length
+      );
+      setSettledClaimsCount(onChainSettled);
+
+      return { mirror: null, items: hydratedItems, grantsMap };
+    }
+
+    const remote = await fetchRelayState();
+    const mirror = remote ?? loadLocalChainMirror();
     setActiveGrantsMap(mirror.grants);
     setActiveGrantsCount(Object.values(mirror.grants).filter((g) => g.expiresAt > now).length);
     setSettledClaimsCount(mirror.settledClaims.length);
-    const items = await listVaultEntries().catch(() => [] as StoredVaultEntry[]);
     setVaultItems(items);
-    return { mirror, items };
+    return { mirror, items, grantsMap: mirror.grants };
   };
 
   useEffect(() => {
-    syncOverviewState().then(({ mirror, items }) => {
+    syncOverviewState().then(({ mirror, items, grantsMap }) => {
       if (IS_CHAIN_DEPLOYED && publicClient) {
         fetchPatientAuditEvents(publicClient)
           .then(setAuditItems)
           .catch(() => undefined);
-      } else {
-        setAuditItems(
-          mirror.auditLogs.map((a) => ({
-            ...a,
-            explorerUrl: a.txHash && IS_CHAIN_DEPLOYED ? explorerTxUrl(a.txHash) : undefined,
-          }))
-        );
+        const latestRegistered = items.find((i) => i.recordId);
+        if (latestRegistered) {
+          setVaultEntry(latestRegistered);
+          setCid(latestRegistered.cid);
+          setRegisteredRecordId(latestRegistered.recordId ?? "");
+          const hospTarget = (latestRegistered.hospitalAddress || targetHospital).toLowerCase();
+          const g = grantsMap[`${latestRegistered.recordId}:${hospTarget}`];
+          if (g && g.expiresAt > Math.floor(Date.now() / 1000)) {
+            setGrantExpiresAt(g.expiresAt);
+          }
+          const dekJson = sessionStorage.getItem(
+            `qlo-dek-${latestRegistered.recordCommitmentHex.toLowerCase()}`
+          );
+          if (dekJson) {
+            const dekBytes = new Uint8Array(JSON.parse(dekJson) as number[]);
+            setEncrypted({
+              envelope: latestRegistered.envelope,
+              envelopeBytes: new TextEncoder().encode(JSON.stringify(latestRegistered.envelope)),
+              dekRawBytes: dekBytes,
+              recordCommitment: BigInt(latestRegistered.recordCommitmentHex),
+              recordCommitmentHex: latestRegistered.recordCommitmentHex,
+            });
+          }
+        }
+        return;
       }
+
+      if (!mirror) return;
+      setAuditItems(mirror.auditLogs);
 
       if (mirror.records.length > 0) {
         const latestRec = mirror.records[mirror.records.length - 1];
@@ -156,6 +250,7 @@ export default function PatientPage() {
 
     const id = setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000);
     return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publicClient]);
 
   useEffect(() => {
@@ -193,6 +288,32 @@ export default function PatientPage() {
   };
 
   const handleTextFileUpload = async (file: File) => {
+    const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB client intake cap
+    const ALLOWED_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".txt", ".json", ".edi"];
+    const ALLOWED_MIMES = new Set([
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+      "text/plain",
+      "application/json",
+      "application/edi-x12",
+      "",
+    ]);
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error("File exceeds 5 MB maximum upload limit.");
+      return;
+    }
+    const ext = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] ?? "";
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      toast.error("Unsupported file extension. Upload PNG, JPG, WEBP, TXT, JSON, or EDI.");
+      return;
+    }
+    if (!ALLOWED_MIMES.has(file.type.toLowerCase())) {
+      toast.error(`Unsupported file MIME type: ${file.type}`);
+      return;
+    }
+
     if (file.type.startsWith("image/")) {
       await handleOcrFile(file, file.name);
       return;
@@ -263,39 +384,64 @@ export default function PatientPage() {
     try {
       if (IS_CHAIN_DEPLOYED) {
         if (!address || !publicClient) throw new Error("Connect MetaMask on Base Sepolia first");
-        const hash = await writeContractAsync({
-          address: CONTRACTS.HealthRecords.address,
-          abi: CONTRACTS.HealthRecords.abi,
-          functionName: "registerRecord",
-          args: [encrypted.recordCommitmentHex, cid],
-        });
-        await publicClient.waitForTransactionReceipt({ hash });
-        const recId = (await publicClient.readContract({
+        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+
+        const existingRecId = (await publicClient.readContract({
           address: CONTRACTS.HealthRecords.address,
           abi: CONTRACTS.HealthRecords.abi,
           functionName: "commitmentToRecordId",
           args: [encrypted.recordCommitmentHex],
         })) as bigint;
-        const idStr = recId.toString();
+
+        let idStr = "";
+        let txHash: `0x${string}` | undefined;
+
+        if (existingRecId > 0n) {
+          idStr = existingRecId.toString();
+          toast.success(`Record #${idStr} is already anchored on Base Sepolia`);
+        } else {
+          const { hash } = await preflightSimulateAndWrite({
+            publicClient,
+            account: address,
+            address: CONTRACTS.HealthRecords.address,
+            abi: CONTRACTS.HealthRecords.abi as Abi,
+            functionName: "registerRecord",
+            args: [encrypted.recordCommitmentHex, cid],
+            writeContractAsync,
+          });
+          txHash = hash;
+          const recId = (await publicClient.readContract({
+            address: CONTRACTS.HealthRecords.address,
+            abi: CONTRACTS.HealthRecords.abi,
+            functionName: "commitmentToRecordId",
+            args: [encrypted.recordCommitmentHex],
+          })) as bigint;
+          idStr = recId.toString();
+          toast.success(`Registered record #${idStr} on Base Sepolia`);
+        }
+
         setRegisteredRecordId(idStr);
         if (vaultEntry) {
           const updated = { ...vaultEntry, recordId: idStr };
           setVaultEntry(updated);
           await saveEncryptedRecordToVault(updated);
+          await pushCiphertextToRelay(updated);
         }
-        toast.success(`Registered record #${idStr} on Base Sepolia`);
-        setAuditItems((prev) => [
-          {
-            id: `reg-${Date.now()}`,
-            kind: "registered",
-            title: `Record #${idStr} Registered On-Chain`,
-            detail: `CIDv1 ${cid} | Commitment ${encrypted.recordCommitmentHex}`,
-            timestamp: new Date().toLocaleTimeString(),
-            txHash: hash,
-            explorerUrl: explorerTxUrl(hash),
-          },
-          ...prev,
-        ]);
+        if (txHash) {
+          setAuditItems((prev) => [
+            {
+              id: `reg-${Date.now()}`,
+              kind: "registered",
+              title: `Record #${idStr} Registered On-Chain`,
+              detail: `CIDv1 ${cid} | Commitment ${encrypted.recordCommitmentHex}`,
+              timestamp: new Date().toLocaleTimeString(),
+              txHash,
+              explorerUrl: explorerTxUrl(txHash),
+            },
+            ...prev,
+          ]);
+        }
+        await Promise.all([syncOverviewState(), roles.refetch()]);
       } else {
         const updatedMirror = await postRelayAction({
           action: "registerRecord",
@@ -342,7 +488,7 @@ export default function PatientPage() {
         toast.success(`Registered encrypted record #${recId} & published Zero-PHI ciphertext bundle`);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Registration failed");
+      toast.error(decodeContractError(err));
     } finally {
       setBusy(false);
     }
@@ -368,7 +514,7 @@ export default function PatientPage() {
           setPubKeySource("On-Chain HospitalRegistry");
         }
       }
-      if (!hospitalPubHex && !IS_CHAIN_DEPLOYED) {
+      if (!hospitalPubHex) {
         const relayState = await fetchRelayState();
         const remoteKey = relayState?.hospitalPubKeys?.[targetHospital.toLowerCase()];
         if (remoteKey && remoteKey.length >= 132) {
@@ -388,9 +534,24 @@ export default function PatientPage() {
 
       if (IS_CHAIN_DEPLOYED) {
         if (!address || !publicClient) throw new Error("Connect MetaMask on Base Sepolia");
-        const hash = await writeContractAsync({
+        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+
+        if (vaultEntry) {
+          const entryWithTarget: StoredVaultEntry = {
+            ...vaultEntry,
+            recordId: registeredRecordId,
+            hospitalAddress: targetHospital,
+          };
+          setVaultEntry(entryWithTarget);
+          await saveEncryptedRecordToVault(entryWithTarget);
+          await pushCiphertextToRelay(entryWithTarget);
+        }
+
+        const { hash } = await preflightSimulateAndWrite({
+          publicClient,
+          account: address,
           address: CONTRACTS.HealthRecords.address,
-          abi: CONTRACTS.HealthRecords.abi,
+          abi: CONTRACTS.HealthRecords.abi as Abi,
           functionName: "grantAccess",
           args: [
             BigInt(registeredRecordId),
@@ -398,8 +559,8 @@ export default function PatientPage() {
             durationSeconds,
             encryptedDekHex,
           ],
+          writeContractAsync,
         });
-        await publicClient.waitForTransactionReceipt({ hash });
         setGrantExpiresAt(expiresAt);
         toast.success(`Granted ${grantMinutes}-minute ECDH-wrapped DEK access on Base Sepolia`);
         setAuditItems((prev) => [
@@ -414,6 +575,7 @@ export default function PatientPage() {
           },
           ...prev,
         ]);
+        await Promise.all([syncOverviewState(), roles.refetch()]);
       } else {
         if (vaultEntry) {
           const entryWithTarget: StoredVaultEntry = {
@@ -462,7 +624,7 @@ export default function PatientPage() {
         toast.success(`Granted ${grantMinutes}-minute ECDH-wrapped access to Hospital`);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Grant failed");
+      toast.error(decodeContractError(err));
     } finally {
       setBusy(false);
     }
@@ -474,13 +636,16 @@ export default function PatientPage() {
     try {
       if (IS_CHAIN_DEPLOYED) {
         if (!address || !publicClient) throw new Error("Connect MetaMask on Base Sepolia");
-        const hash = await writeContractAsync({
+        await ensureBaseSepoliaChain(roles.chainId, switchChainAsync);
+        const { hash } = await preflightSimulateAndWrite({
+          publicClient,
+          account: address,
           address: CONTRACTS.HealthRecords.address,
-          abi: CONTRACTS.HealthRecords.abi,
+          abi: CONTRACTS.HealthRecords.abi as Abi,
           functionName: "revokeAccess",
           args: [BigInt(registeredRecordId), targetHospital as `0x${string}`],
+          writeContractAsync,
         });
-        await publicClient.waitForTransactionReceipt({ hash });
         setGrantExpiresAt(0);
         toast.success("Access revoked on Base Sepolia — Hospital settlement now blocked!");
         setAuditItems((prev) => [
@@ -495,6 +660,7 @@ export default function PatientPage() {
           },
           ...prev,
         ]);
+        await Promise.all([syncOverviewState(), roles.refetch()]);
       } else {
         const updatedMirror = await postRelayAction({
           action: "revoke",
@@ -521,7 +687,7 @@ export default function PatientPage() {
         toast.success("Access revoked! Hospital decryption & settlement are now blocked.");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Revoke failed");
+      toast.error(decodeContractError(err));
     } finally {
       setBusy(false);
     }
@@ -532,8 +698,15 @@ export default function PatientPage() {
       {/* Workspace Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Badge variant="teal">Member Portal</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="teal">Patient Dashboard</Badge>
+            <Badge variant={roles.isPatient ? "emerald" : IS_CHAIN_DEPLOYED ? "amber" : "neutral"}>
+              {roles.isPatient
+                ? "Patient Wallet Connected"
+                : IS_CHAIN_DEPLOYED
+                ? "Connect Wallet to Anchor"
+                : "Sandbox Mode Open"}
+            </Badge>
             <span className="text-xs font-mono-tabular text-[#71717A]">
               IndexedDB · CIDv1 · ECDH P-256
             </span>
@@ -853,7 +1026,7 @@ export default function PatientPage() {
               variant="secondary"
               className="w-full"
               onClick={handleRegisterOnChain}
-              disabled={busy || !encrypted}
+              disabled={busy || !encrypted || (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))}
             >
               Register Commitment &amp; CID On-Chain
               {registeredRecordId ? ` (Record #${registeredRecordId})` : ""}
@@ -970,7 +1143,11 @@ export default function PatientPage() {
               <TactileButton
                 variant="emerald"
                 onClick={handleGrantAccess}
-                disabled={busy || !registeredRecordId}
+                disabled={
+                  busy ||
+                  !registeredRecordId ||
+                  (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))
+                }
               >
                 <KeyRound className="h-4 w-4" />
                 Grant {grantMinutes}m Access (Wrap DEK)
@@ -978,7 +1155,11 @@ export default function PatientPage() {
               <TactileButton
                 variant="crimson"
                 onClick={handleRevokeAccess}
-                disabled={busy || !registeredRecordId}
+                disabled={
+                  busy ||
+                  !registeredRecordId ||
+                  (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))
+                }
               >
                 <ShieldOff className="h-4 w-4" />
                 Revoke Immediately
