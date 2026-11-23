@@ -18,10 +18,15 @@
       "address": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
       "licenseId": "1987654321",
       "name": "Bay General Surgical"
+    },
+    {
+      "address": "0x9c1cDD59AA337bc9d3B48A109f532cE45e1fc718",
+      "licenseId": "1234567890",
+      "name": "Primary Deployer Facility"
     }
   ],
-  "hospitalRoot": "8709022830388533459533825871292275037324654383623077656834094484107294720092",
-  "hospitalRootHex": "0x134121da7d52b4a29c9ca16a0f277922af13e722bab0658534aaa6911700c05c",
+  "hospitalRoot": "3613927615166459101485815438548372375636336018070071485457358684871073566122",
+  "hospitalRootHex": "0x07fd69196215d391793c13c8a04d1a63922e38228ae716aa15b17bf994498daa",
   "coveredCpts": [
     99285,
     99214,

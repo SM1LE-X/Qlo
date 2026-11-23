@@ -1,17 +1,17 @@
 {
-  "deployed": false,
   "chainId": 11155111,
-  "network": "sepolia",
-  "explorerBaseUrl": "https://sepolia.etherscan.io",
-  "sourcifyBaseUrl": "https://repo.sourcify.dev/contracts/full_match/11155111",
-  "zkeySha256": "7f26163076e3dcc5e61175e96fb6ce8a95b36dac8ba27c7e7ee5edcee4771746",
-  "seededInsurer": "0x0000000000000000000000000000000000000000",
-  "deployBlock": 0,
   "contracts": {
-    "Groth16Verifier": "0x0000000000000000000000000000000000000000",
-    "HospitalRegistry": "0x0000000000000000000000000000000000000000",
-    "PolicyRegistry": "0x0000000000000000000000000000000000000000",
-    "HealthRecords": "0x0000000000000000000000000000000000000000",
-    "ClaimsVault": "0x0000000000000000000000000000000000000000"
-  }
+    "ClaimsVault": "0xB170D66d32C26168A56516d0aDb464B7762cC559",
+    "Groth16Verifier": "0x587FB82b3429d9Be80e23791809A92DAD352D019",
+    "HealthRecords": "0x547273d15522AA461af233e5b4d7abb70D0bD8ce",
+    "HospitalRegistry": "0xCf150397a7416D54c3828ffaC1B808a5C51B563D",
+    "PolicyRegistry": "0xc37c6A5e705B9aa9eB2680aBb2A72Ebf9080ebCF"
+  },
+  "deployBlock": 12194573,
+  "deployed": true,
+  "explorerBaseUrl": "https://sepolia.etherscan.io",
+  "network": "sepolia",
+  "seededInsurer": "0x9c1cDD59AA337bc9d3B48A109f532cE45e1fc718",
+  "sourcifyBaseUrl": "https://repo.sourcify.dev/contracts/full_match/11155111",
+  "zkeySha256": "7f26163076e3dcc5e61175e96fb6ce8a95b36dac8ba27c7e7ee5edcee4771746"
 }
