@@ -1,19 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Landmark } from "lucide-react";
+import { Landmark, Lock } from "lucide-react";
 import { toast } from "sonner";
 import type { Abi } from "viem";
 import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
 import { CalldataAuditPanel, scanHexForPhi } from "@/components/insurer/calldata-audit-panel";
 import { SettledClaimsTable } from "@/components/insurer/settled-claims-table";
 import { Badge } from "@/components/ui/card";
-import { CopyHash } from "@/components/ui/copy-hash";
-import { DonutChart } from "@/components/ui/donut-chart";
-import { InteractiveAreaChart } from "@/components/ui/interactive-area-chart";
-import { NumberTicker } from "@/components/ui/number-ticker";
-import { SpotlightCard } from "@/components/ui/spotlight-card";
-import { StatCard } from "@/components/ui/stat-card";
 import { TactileButton } from "@/components/ui/tactile-button";
 import canonicalFixtures from "@/lib/canonicalFixtures.json";
 import { getProviderDisplayName } from "@/lib/clinicalCatalog";
@@ -312,215 +306,140 @@ export default function InsurerPage() {
     (safePage + 1) * LEDGER_PAGE_SIZE
   );
 
-  const liveEscrowEthNum = Number(formatWeiToEth(escrowWei, 4));
-  const liveSpentEthNum = Number(formatWeiToEth(policySpentWei, 4));
-  const remainingEscrowNum = Math.max(0, Number(liveEscrowEthNum.toFixed(4)));
-  const disbursedTotalNum = Number(
-    settledList
-      .reduce((acc, row) => acc + Number(formatWeiToEth(row.amountWei, 4)), 0)
-      .toFixed(4)
-  );
+  const liveEscrowEth = formatWeiToEth(escrowWei, 4);
+  const liveSpentEth = formatWeiToEth(policySpentWei, 4);
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
+      {/* Clean Header */}
+      <div className="space-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="teal">Insurer Audit View</Badge>
-          <Badge variant={roles.isInsurer ? "emerald" : IS_CHAIN_DEPLOYED ? "neutral" : "teal"}>
-            {roles.isInsurer
-              ? "Insurer Treasury Wallet"
-              : IS_CHAIN_DEPLOYED
-              ? "Public Read-Only Audit View"
-              : "Sandbox Treasury Active"}
-          </Badge>
-          <span className="text-xs font-mono-tabular text-[#71717A]">
-            Escrow · Policy Commitments · Calldata Audit
+          <span className="text-xs font-semibold uppercase tracking-wider text-[#047857]">
+            Step 3 of 3
           </span>
+          <Badge variant={roles.isInsurer ? "emerald" : "neutral"}>
+            {roles.isInsurer
+              ? "Insurer Wallet Connected"
+              : IS_CHAIN_DEPLOYED
+              ? "Public Read-Only Audit"
+              : "Sandbox Mode"}
+          </Badge>
+          {vaultPaused ? <Badge variant="crimson">Vault Paused</Badge> : null}
         </div>
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#09090B]">
-          Insurer Escrow &amp; Treasury Audit
+          Insurer Settlement &amp; Privacy Audit
         </h1>
-        <p className="text-xs sm:text-sm text-[#52525B]">
-          Manage ClaimsVault ETH reserves, track aggregate disbursements without exposing private annual caps, and audit calldata for zero clinical leakage.
+        <p className="text-sm text-[#52525B] max-w-2xl">
+          Fund the claims escrow pool, track every verified automatic payout, and confirm zero patient medical details are exposed on Ethereum Sepolia.
         </p>
       </div>
 
-      {/* Top 3 Porcelain Treasury Cards */}
-      <div id="insurer-reserves" className="grid grid-cols-1 md:grid-cols-3 gap-4 scroll-mt-20">
-        <SpotlightCard accent="emerald" className="p-6 space-y-3">
-          <div className="text-xs font-medium text-[#52525B]">Insurer Escrow Balance</div>
-          <div className="text-3xl font-bold tracking-tight text-[#047857]">
-            <NumberTicker value={Number(formatWeiToEth(escrowWei, 4))} decimals={4} suffix=" ETH" />
+      {/* Top 3 Real Live Cards (No Fake Charts) */}
+      <div id="insurer-reserves" className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="rounded-2xl border border-[#E4E4E7] bg-white p-5 space-y-3 shadow-2xs">
+          <div className="text-xs font-medium text-[#52525B]">Escrow Pool Balance</div>
+          <div className="text-2xl font-bold font-mono-tabular text-[#047857]">
+            {liveEscrowEth} ETH
           </div>
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <input
-              id="deposit-eth-input"
-              value={depositEth}
-              onChange={(e) => setDepositEth(e.target.value)}
-              aria-label="Deposit ETH amount"
-              className="w-20 rounded-lg border border-[#E4E4E7] bg-white px-2.5 py-1.5 text-xs font-mono-tabular text-[#09090B] focus:border-[#0F766E] focus:outline-none"
-            />
-            <TactileButton
-              size="sm"
-              variant="primary"
-              onClick={handleDepositEscrow}
-              disabled={txBusy || (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))}
-            >
-              <Landmark className="h-3.5 w-3.5" />
-              Deposit ETH
-            </TactileButton>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              id="withdraw-eth-input"
-              value={withdrawEth}
-              onChange={(e) => setWithdrawEth(e.target.value)}
-              aria-label="Withdraw ETH amount"
-              className="w-20 rounded-lg border border-[#E4E4E7] bg-white px-2.5 py-1.5 text-xs font-mono-tabular text-[#09090B] focus:border-[#0F766E] focus:outline-none"
-            />
-            <TactileButton
-              size="sm"
-              variant="secondary"
-              onClick={handleWithdrawEscrow}
-              disabled={
-                txBusy ||
-                (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain || escrowWei === 0n))
-              }
-            >
-              Withdraw ETH
-            </TactileButton>
-          </div>
-        </SpotlightCard>
-
-        <SpotlightCard accent="amber" className="p-6 space-y-2">
-          <div className="text-xs font-medium text-[#52525B]">Cumulative Policy Spend (On-Chain)</div>
-          <div className="text-3xl font-bold tracking-tight text-[#09090B]">
-            <NumberTicker
-              value={Number(formatWeiToEth(policySpentWei, 4))}
-              decimals={4}
-              suffix=" ETH"
-            />
-          </div>
-          <div className="inline-flex rounded-full border border-[#FDE68A] bg-[#FFFBEB] px-2.5 py-0.5 text-[11px] font-mono-tabular font-medium text-[#B45309]">
-            Private Annual Cap: HIDDEN IN POSEIDON(6)
-          </div>
-        </SpotlightCard>
-
-        <SpotlightCard accent="neutral" className="p-6 space-y-2.5">
-          <div className="text-xs font-medium text-[#52525B]">Active Policy Commitment</div>
-          <CopyHash value={canonicalFixtures.activePolicy.commitmentHex} />
-          <div className="flex items-center gap-2 pt-1">
-            <input
-              id="policy-commit-input"
-              aria-label="Policy commitment hex or decimal"
-              placeholder="0x... custom commitment"
-              value={customPolicyCommit}
-              onChange={(e) => setCustomPolicyCommit(e.target.value)}
-              className="flex-1 min-w-0 rounded-lg border border-[#E4E4E7] bg-white px-2.5 py-1.5 text-[11px] font-mono-tabular text-[#09090B] focus:border-[#0F766E] focus:outline-none"
-            />
-            <TactileButton
-              size="sm"
-              variant="secondary"
-              onClick={handleRegisterPolicy}
-              disabled={txBusy || (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))}
-            >
-              Register
-            </TactileButton>
-          </div>
-          {policyStatus ? (
-            <div className="text-[11px] font-mono-tabular text-[#047857]">{policyStatus}</div>
-          ) : (
-            <div className="text-[11px] text-[#52525B]">
-              Settled Claims Recorded:{" "}
-              <span className="font-mono-tabular font-semibold text-[#047857]">
-                {settledList.length}
-              </span>
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center gap-2">
+              <input
+                id="deposit-eth-input"
+                value={depositEth}
+                onChange={(e) => setDepositEth(e.target.value)}
+                aria-label="Deposit ETH amount"
+                className="w-20 rounded-lg border border-[#E4E4E7] bg-[#FAFAFA] px-2.5 py-1.5 text-xs font-mono-tabular text-[#09090B] focus:border-[#0F766E] focus:bg-white focus:outline-none"
+              />
+              <TactileButton
+                size="sm"
+                variant="primary"
+                onClick={handleDepositEscrow}
+                disabled={txBusy || (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))}
+              >
+                <Landmark className="h-3.5 w-3.5" />
+                Fund Escrow
+              </TactileButton>
             </div>
-          )}
-        </SpotlightCard>
-      </div>
-
-      {/* Treasury Analytics Row */}
-      <div id="insurer-analytics" className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch scroll-mt-20">
-        <div className="lg:col-span-7">
-          <InteractiveAreaChart
-            className="h-full"
-            title="Escrow Reserve & Claim Disbursement Velocity"
-            subtitle="Deterministic treasury buffer trend merged with live Ethereum Sepolia / sandbox escrow balance"
-            defaultRange="30D"
-            accentColor="#0F4C81"
-            formatValue={(v) => `${v.toFixed(4)} ETH`}
-            data={{
-              "7D": [
-                { label: "Mon", value: 0.02 },
-                { label: "Tue", value: 0.032 },
-                { label: "Wed", value: 0.028 },
-                { label: "Thu", value: 0.045 },
-                { label: "Fri", value: 0.041 },
-                { label: "Sat", value: 0.048 },
-                { label: "Live", value: Math.max(0.02, remainingEscrowNum) },
-              ],
-              "30D": [
-                { label: "W1", value: 0.02 },
-                { label: "W2", value: 0.038 },
-                { label: "W3", value: 0.029 },
-                { label: "W4", value: 0.052 },
-                { label: "W5", value: 0.044 },
-                { label: "Live", value: Math.max(0.02, remainingEscrowNum + disbursedTotalNum) },
-              ],
-              "1Y": [
-                { label: "Q1", value: 0.12 },
-                { label: "Q2", value: 0.19 },
-                { label: "Q3", value: 0.24 },
-                { label: "Q4", value: Number((0.25 + remainingEscrowNum).toFixed(4)) },
-              ],
-            }}
-          />
+            <div className="flex items-center gap-2">
+              <input
+                id="withdraw-eth-input"
+                value={withdrawEth}
+                onChange={(e) => setWithdrawEth(e.target.value)}
+                aria-label="Withdraw ETH amount"
+                className="w-20 rounded-lg border border-[#E4E4E7] bg-[#FAFAFA] px-2.5 py-1.5 text-xs font-mono-tabular text-[#09090B] focus:border-[#0F766E] focus:bg-white focus:outline-none"
+              />
+              <TactileButton
+                size="sm"
+                variant="secondary"
+                onClick={handleWithdrawEscrow}
+                disabled={
+                  txBusy ||
+                  (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain || escrowWei === 0n))
+                }
+              >
+                Withdraw
+              </TactileButton>
+            </div>
+          </div>
         </div>
 
-        <SpotlightCard accent="neutral" className="lg:col-span-5 p-5 flex flex-col justify-between space-y-4">
-          <div className="flex items-start justify-between gap-2 border-b border-[#F4F4F5] pb-3">
-            <div>
-              <h2 className="text-sm font-semibold text-[#09090B]">
-                Treasury Liquidity &amp; Reserve Mix
-              </h2>
-              <p className="text-xs text-[#52525B] mt-0.5">
-                Live distribution between available ClaimsVault escrow and settled claim payouts.
-              </p>
+        <div className="rounded-2xl border border-[#E4E4E7] bg-white p-5 space-y-2 shadow-2xs flex flex-col justify-between">
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-[#52525B]">Total Paid to Hospitals</div>
+            <div className="text-2xl font-bold font-mono-tabular text-[#09090B]">
+              {liveSpentEth} ETH
             </div>
-            <Badge variant={vaultPaused ? "crimson" : "emerald"}>
-              {vaultPaused ? "Paused" : "Solvent"}
-            </Badge>
+            <div className="text-xs text-[#71717A]">
+              {settledList.length} verified {settledList.length === 1 ? "claim" : "claims"} settled automatically
+            </div>
+          </div>
+          <div className="text-[11px] text-[#52525B] rounded-lg border border-[#F4F4F5] bg-[#FAFAFA] px-3 py-2">
+            Annual policy limit stays private inside the ZK proof.
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-[#E4E4E7] bg-white p-5 space-y-2 shadow-2xs flex flex-col justify-between">
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-[#52525B] flex items-center gap-1.5">
+              <Lock className="h-3.5 w-3.5 text-[#047857]" />
+              Medical Data Exposed
+            </div>
+            <div className="text-2xl font-bold font-mono-tabular text-[#047857]">0 Bytes</div>
+            <div className="text-xs text-[#52525B]">
+              Diagnoses, procedure codes, and prescriptions never touch the blockchain.
+            </div>
           </div>
 
-          <DonutChart
-            centerLabel="Treasury Pool"
-            centerValue={`${(remainingEscrowNum + Math.max(disbursedTotalNum, liveSpentEthNum)).toFixed(4)} ETH`}
-            formatValue={(v) => `${v.toFixed(4)} ETH`}
-            data={[
-              {
-                label: "Available Escrow",
-                value: remainingEscrowNum,
-                color: "#047857",
-              },
-              {
-                label: "Settled Disbursements",
-                value: Math.max(disbursedTotalNum, liveSpentEthNum),
-                color: "#0F766E",
-              },
-            ]}
-          />
-
-          <div className="flex items-center justify-between text-[11px] text-[#71717A] border-t border-[#F4F4F5] pt-2.5">
-            <span>Private annual caps remain sealed inside Poseidon(6)</span>
-            <span className="font-mono-tabular font-medium text-[#09090B]">
-              {settledList.length} TXs
-            </span>
-          </div>
-        </SpotlightCard>
+          <details className="text-[11px] pt-2 border-t border-[#F4F4F5]">
+            <summary className="cursor-pointer font-medium text-[#52525B] select-none">
+              Register custom policy hash
+            </summary>
+            <div className="mt-2 flex items-center gap-1.5">
+              <input
+                id="policy-commit-input"
+                aria-label="Policy commitment hex or decimal"
+                placeholder="0x... policy hash"
+                value={customPolicyCommit}
+                onChange={(e) => setCustomPolicyCommit(e.target.value)}
+                className="flex-1 min-w-0 rounded-lg border border-[#E4E4E7] bg-[#FAFAFA] px-2 py-1 font-mono-tabular text-[11px] text-[#09090B]"
+              />
+              <TactileButton
+                size="sm"
+                variant="secondary"
+                onClick={handleRegisterPolicy}
+                disabled={txBusy || (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))}
+              >
+                Save
+              </TactileButton>
+            </div>
+            {policyStatus ? (
+              <div className="mt-1 font-mono-tabular text-[#047857]">{policyStatus}</div>
+            ) : null}
+          </details>
+        </div>
       </div>
 
-      {/* OpenSourceUI Light Settled Claims Ledger Table */}
+      {/* Settled Claims Log */}
       <SettledClaimsTable
         totalClaimsCount={settledList.length}
         sortedClaimsCount={sortedClaims.length}
@@ -539,6 +458,7 @@ export default function InsurerPage() {
         onChangePage={setLedgerPage}
       />
 
+      {/* Side-by-Side Public Inputs vs Hidden Medical Data */}
       <CalldataAuditPanel
         selectedClaim={selectedClaim}
         phiHits={phiHits}

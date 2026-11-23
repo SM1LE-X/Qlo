@@ -1,21 +1,16 @@
 "use client";
 
-import { Download, KeyRound, Lock, ShieldOff } from "lucide-react";
-import { CopyHash } from "@/components/ui/copy-hash";
-import { DecryptedText } from "@/components/ui/decrypted-text";
-import { SpotlightCard } from "@/components/ui/spotlight-card";
+import Link from "next/link";
+import { ArrowRight, CheckCircle2, Download, KeyRound, Lock, ShieldOff } from "lucide-react";
+import { Badge } from "@/components/ui/card";
 import { TactileButton } from "@/components/ui/tactile-button";
-import { WalletPassCard } from "@/components/ui/wallet-pass-card";
 import { ACCREDITED_PROVIDERS } from "@/lib/clinicalCatalog";
+import { IS_CHAIN_DEPLOYED } from "@/lib/contracts";
 import { type EncryptedRecordResult } from "@/lib/crypto";
-import { type Cms1500Claim } from "@/lib/intake";
 import { type StoredVaultEntry } from "@/lib/storage";
-
-const INPUT_CLASS =
-  "mt-1 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 font-mono-tabular text-xs text-[#09090B] placeholder-[#A1A1AA] focus:border-[#0F766E] focus:outline-none transition-colors";
+import { shortHex } from "@/lib/utils";
 
 interface PatientConsentPanelProps {
-  claim: Cms1500Claim;
   encrypted: EncryptedRecordResult | null;
   cid: string;
   registeredRecordId: string;
@@ -23,7 +18,6 @@ interface PatientConsentPanelProps {
   targetHospital: string;
   onChangeTargetHospital: (addr: string) => void;
   connectedAddress?: string;
-  pubKeySource: string;
   grantMinutes: number;
   onChangeGrantMinutes: (mins: number) => void;
   busy: boolean;
@@ -38,7 +32,6 @@ interface PatientConsentPanelProps {
 }
 
 export function PatientConsentPanel({
-  claim,
   encrypted,
   cid,
   registeredRecordId,
@@ -46,7 +39,6 @@ export function PatientConsentPanel({
   targetHospital,
   onChangeTargetHospital,
   connectedAddress,
-  pubKeySource,
   grantMinutes,
   onChangeGrantMinutes,
   busy,
@@ -59,202 +51,187 @@ export function PatientConsentPanel({
   onGrantAccess,
   onRevokeAccess,
 }: PatientConsentPanelProps) {
+  const grantActive = secondsRemaining > 0;
+  const isOwnWalletTarget = Boolean(
+    connectedAddress && connectedAddress.toLowerCase() === targetHospital.toLowerCase()
+  );
+
   return (
-    <div id="patient-consent" className="lg:col-span-5 space-y-5 scroll-mt-20">
-      <WalletPassCard
-        policyId={claim.insuredPolicyId || "2026001"}
-        patientAlias={claim.patientAlias || "SYNTH-CASE"}
-        icd10Code={claim.icd10Code}
-        cptCode={claim.cptCode}
-        claimAmountEth={claim.claimAmountEth || "0"}
-        encrypted={Boolean(encrypted)}
-        cid={cid}
-        recordCommitmentHex={encrypted?.recordCommitmentHex}
-        recordId={registeredRecordId}
-        secondsRemaining={secondsRemaining}
-        targetHospital={targetHospital}
-      />
-
-      <SpotlightCard accent="neutral" className="p-6 space-y-4">
-        <div className="border-b border-[#F4F4F5] pb-3">
-          <h2 className="text-sm font-semibold text-[#09090B]">
-            2. AES-256-GCM Encrypt &amp; CIDv1
+    <div id="patient-consent" className="lg:col-span-5 space-y-5">
+      {/* Step 2: Encrypt & Anchor */}
+      <div className="rounded-2xl border border-[#E4E4E7] bg-white p-6 space-y-4 shadow-2xs">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-[#09090B]">
+            2. Encrypt &amp; Save Record
           </h2>
-        </div>
-
-        <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-3 text-xs space-y-1">
-          <div className="text-[#71717A] text-[10px] uppercase tracking-wider font-mono-tabular">
-            Live Cryptographic View
-          </div>
-          <DecryptedText
-            text={`ICD:${claim.icd10Code} | CPT:${claim.cptCode} | RX:${claim.prescription}`}
-            encrypted={Boolean(encrypted)}
-          />
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <TactileButton
-            variant="primary"
-            onClick={onEncryptLocally}
-            disabled={busy || !completenessValid}
-          >
-            <Lock className="h-4 w-4" />
-            Encrypt Locally (AES-256-GCM)
-          </TactileButton>
-          {vaultEntry ? (
-            <TactileButton
-              variant="secondary"
-              onClick={() => onDownloadBundle(vaultEntry, registeredRecordId)}
-            >
-              <Download className="h-4 w-4" />
-              .qlo.json
-            </TactileButton>
+          {registeredRecordId ? (
+            <Badge variant="emerald">Saved (#{registeredRecordId})</Badge>
+          ) : encrypted ? (
+            <Badge variant="teal">Encrypted</Badge>
           ) : null}
         </div>
 
-        {encrypted && cid ? (
-          <div className="space-y-2 pt-1">
-            <CopyHash label="IPFS CIDv1" value={cid} />
-            <CopyHash label="248-bit Commit" value={encrypted.recordCommitmentHex} />
-            <div className="text-[11px] font-mono-tabular text-[#047857]">
-              Ciphertext persisted in IndexedDB (<code className="font-semibold">qlo-vault-v1</code>)
-            </div>
-          </div>
-        ) : null}
-      </SpotlightCard>
+        <p className="text-xs text-[#52525B] leading-relaxed">
+          Your browser encrypts this medical record locally with AES-256 and writes only an anonymous hash to Ethereum Sepolia.
+        </p>
 
-      <SpotlightCard accent="emerald" className="p-6 space-y-4 text-xs">
-        <div className="border-b border-[#F4F4F5] pb-3">
-          <h2 className="text-sm font-semibold text-[#09090B]">
-            3. On-Chain Consent &amp; ECDH Key Wrap
-          </h2>
+        <div className="space-y-2.5">
+          <TactileButton
+            variant={encrypted ? "secondary" : "primary"}
+            className="w-full"
+            onClick={onEncryptLocally}
+            disabled={busy || !completenessValid}
+          >
+            {encrypted ? (
+              <>
+                <CheckCircle2 className="h-4 w-4 text-[#047857]" />
+                Encrypted Locally (Re-Encrypt)
+              </>
+            ) : (
+              <>
+                <Lock className="h-4 w-4" />
+                Encrypt Record on Device
+              </>
+            )}
+          </TactileButton>
+
+          <TactileButton
+            variant={encrypted && !registeredRecordId ? "primary" : "secondary"}
+            className="w-full"
+            onClick={onRegisterOnChain}
+            disabled={busy || !encrypted || !canSignChainTx}
+          >
+            {registeredRecordId
+              ? `Saved On-Chain (Record #${registeredRecordId})`
+              : "Save Fingerprint On-Chain"}
+          </TactileButton>
+
+          {IS_CHAIN_DEPLOYED && !canSignChainTx ? (
+            <p className="text-[11px] text-[#B45309]">
+              Connect MetaMask on Ethereum Sepolia (top right) to save on-chain.
+            </p>
+          ) : null}
         </div>
 
-        <TactileButton
-          variant="secondary"
-          className="w-full"
-          onClick={onRegisterOnChain}
-          disabled={busy || !encrypted || !canSignChainTx}
-        >
-          Register Commitment &amp; CID On-Chain
-          {registeredRecordId ? ` (Record #${registeredRecordId})` : ""}
-        </TactileButton>
+        {encrypted && cid && vaultEntry ? (
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] px-3 py-2 text-[11px]">
+            <span className="font-mono-tabular text-[#52525B] truncate">
+              Hash: {shortHex(encrypted.recordCommitmentHex, 10, 6)}
+            </span>
+            <button
+              type="button"
+              onClick={() => onDownloadBundle(vaultEntry, registeredRecordId)}
+              className="inline-flex items-center gap-1 font-medium text-[#0F766E] hover:underline shrink-0 cursor-pointer"
+            >
+              <Download className="h-3 w-3" />
+              Backup
+            </button>
+          </div>
+        ) : null}
+      </div>
 
-        <div className="space-y-2.5 border-t border-[#F4F4F5] pt-3">
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="font-medium text-[#52525B]">Accredited Provider Directory</span>
-              <span className="font-mono-tabular text-[#71717A]">
-                {ACCREDITED_PROVIDERS.length} verified on-chain
+      {/* Step 3: Grant / Revoke Hospital Access */}
+      <div className="rounded-2xl border border-[#E4E4E7] bg-white p-6 space-y-4 shadow-2xs">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-[#09090B]">
+            3. Share with Hospital
+          </h2>
+          <Badge variant={grantActive ? "emerald" : "neutral"}>
+            {grantActive ? "Access Granted" : "Not Shared"}
+          </Badge>
+        </div>
+
+        <p className="text-xs text-[#52525B] leading-relaxed">
+          Choose which hospital wallet can temporarily decrypt this record to file your claim.
+        </p>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <label htmlFor="hosp-addr" className="font-medium text-[#52525B]">
+              Hospital Wallet
+            </label>
+            {connectedAddress && !isOwnWalletTarget ? (
+              <button
+                type="button"
+                onClick={() => onChangeTargetHospital(connectedAddress)}
+                className="text-[11px] font-medium text-[#0F766E] hover:underline cursor-pointer"
+              >
+                Use my connected wallet
+              </button>
+            ) : isOwnWalletTarget ? (
+              <span className="text-[11px] font-medium text-[#047857]">
+                Using your wallet ✓
               </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {ACCREDITED_PROVIDERS.map((prov) => {
-                const selected = prov.address.toLowerCase() === targetHospital.toLowerCase();
-                return (
-                  <button
-                    key={prov.address}
-                    type="button"
-                    onClick={() => onChangeTargetHospital(prov.address)}
-                    className={`rounded-xl border px-3 py-2 text-left transition-colors cursor-pointer ${
-                      selected
-                        ? "border-[#0F766E] bg-[#F0FDFA]/80"
-                        : "border-[#E4E4E7] bg-[#FAFAFA] hover:border-[#D4D4D8] hover:bg-white"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-1.5">
-                      <span className="truncate font-semibold text-[#09090B] text-[11px]">
-                        {prov.name}
-                      </span>
-                      <span className="shrink-0 rounded bg-[#ECFDF5] px-1.5 py-0.5 font-mono-tabular text-[9px] font-semibold text-[#047857]">
-                        NPI
-                      </span>
-                    </div>
-                    <div className="mt-0.5 truncate text-[10px] text-[#52525B]">
-                      {prov.specialty} · {prov.city}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            ) : null}
           </div>
 
-          <label
-            htmlFor="hosp-addr"
-            className="text-[#52525B] font-medium flex items-center justify-between gap-2"
+          <select
+            aria-label="Choose accredited hospital"
+            value={
+              ACCREDITED_PROVIDERS.some(
+                (p) => p.address.toLowerCase() === targetHospital.toLowerCase()
+              )
+                ? ACCREDITED_PROVIDERS.find(
+                    (p) => p.address.toLowerCase() === targetHospital.toLowerCase()
+                  )?.address
+                : "__custom"
+            }
+            onChange={(e) => {
+              if (e.target.value !== "__custom") {
+                onChangeTargetHospital(e.target.value);
+              }
+            }}
+            className="w-full rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 text-xs text-[#09090B] focus:border-[#0F766E] focus:outline-none"
           >
-            <span>Target Accredited Hospital</span>
-            <span className="flex items-center gap-2">
-              {connectedAddress &&
-              connectedAddress.toLowerCase() !== targetHospital.toLowerCase() ? (
-                <button
-                  type="button"
-                  onClick={() => onChangeTargetHospital(connectedAddress)}
-                  className="text-[10px] font-mono-tabular text-[#0F766E] underline hover:text-[#09090B] cursor-pointer"
-                >
-                  Use my wallet
-                </button>
-              ) : null}
-              {pubKeySource ? (
-                <span className="text-[10px] font-mono-tabular text-[#047857]">
-                  {pubKeySource}
-                </span>
-              ) : null}
-            </span>
-          </label>
+            {ACCREDITED_PROVIDERS.map((prov) => (
+              <option key={prov.address} value={prov.address}>
+                {connectedAddress &&
+                prov.address.toLowerCase() === connectedAddress.toLowerCase()
+                  ? `Your Wallet — ${prov.name} (${shortHex(prov.address, 6, 4)})`
+                  : `${prov.name} (${shortHex(prov.address, 6, 4)})`}
+              </option>
+            ))}
+            {!ACCREDITED_PROVIDERS.some(
+              (p) => p.address.toLowerCase() === targetHospital.toLowerCase()
+            ) ? (
+              <option value="__custom">Custom ({shortHex(targetHospital, 6, 4)})</option>
+            ) : null}
+          </select>
 
           <input
             id="hosp-addr"
             value={targetHospital}
             onChange={(e) => onChangeTargetHospital(e.target.value)}
-            className={INPUT_CLASS}
+            className="w-full rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] px-3 py-1.5 font-mono-tabular text-[11px] text-[#52525B] focus:border-[#0F766E] focus:bg-white focus:outline-none"
           />
 
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex items-center gap-2 pt-1 text-xs">
+            <span className="text-[#71717A]">Access lasts:</span>
             {[10, 30].map((mins) => (
               <button
                 key={mins}
                 type="button"
                 onClick={() => onChangeGrantMinutes(mins)}
-                className={`rounded-lg border px-3 py-1.5 font-mono-tabular cursor-pointer transition-colors ${
+                className={`rounded-lg border px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors ${
                   grantMinutes === mins
-                    ? "border-[#99F6E4] bg-[#F0FDFA] text-[#0F766E] font-semibold"
-                    : "border-[#E4E4E7] bg-white text-[#52525B] hover:border-[#D4D4D8]"
+                    ? "border-[#0F766E] bg-[#F0FDFA] text-[#0F766E]"
+                    : "border-[#E4E4E7] bg-white text-[#52525B]"
                 }`}
               >
                 {mins} min
               </button>
             ))}
           </div>
-
-          <div className="rounded-xl border border-[#99F6E4] bg-[#F0FDFA]/60 p-3 space-y-1 text-[11px]">
-            <div className="font-semibold text-[#0F766E]">
-              Consent Scope Disclosure (SMART-on-FHIR Standard)
-            </div>
-            <p className="text-[#52525B] leading-relaxed">
-              Authorizes{" "}
-              <span className="font-semibold text-[#09090B]">
-                {ACCREDITED_PROVIDERS.find(
-                  (p) => p.address.toLowerCase() === targetHospital.toLowerCase()
-                )?.name ?? targetHospital}
-              </span>{" "}
-              to unwrap record{" "}
-              <span className="font-mono-tabular font-semibold text-[#09090B]">
-                #{registeredRecordId || "—"}
-              </span>{" "}
-              for <span className="font-semibold text-[#09090B]">{grantMinutes} minutes</span> exclusively to compute a zero-knowledge eligibility proof. Insurer sees <span className="font-semibold text-[#047857]">0 clinical bytes</span>.
-            </p>
-          </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2.5">
           <TactileButton
             variant="emerald"
             onClick={onGrantAccess}
             disabled={busy || !registeredRecordId || !canSignChainTx}
           >
             <KeyRound className="h-4 w-4" />
-            Grant {grantMinutes}m Access (Wrap DEK)
+            Grant Access
           </TactileButton>
           <TactileButton
             variant="crimson"
@@ -262,10 +239,30 @@ export function PatientConsentPanel({
             disabled={busy || !registeredRecordId || !canSignChainTx}
           >
             <ShieldOff className="h-4 w-4" />
-            Revoke Immediately
+            Revoke
           </TactileButton>
         </div>
-      </SpotlightCard>
+
+        {!registeredRecordId ? (
+          <p className="text-[11px] text-[#71717A]">
+            Finish Step 2 above first to unlock sharing controls.
+          </p>
+        ) : null}
+
+        {grantActive ? (
+          <div className="rounded-xl border border-[#A7F3D0] bg-[#ECFDF5] p-3.5 space-y-2.5">
+            <div className="text-xs font-semibold text-[#047857]">
+              ✓ Access granted! Your hospital can now prove and submit this claim.
+            </div>
+            <Link href="/hospital" className="block">
+              <TactileButton variant="primary" size="sm" className="w-full">
+                Continue to Step 2: Hospital Portal
+                <ArrowRight className="h-3.5 w-3.5" />
+              </TactileButton>
+            </Link>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

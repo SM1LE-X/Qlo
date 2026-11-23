@@ -722,20 +722,14 @@ export default function HospitalPage() {
         matchedProviderPresent={Boolean(matchedProvider)}
         isConnected={roles.isConnected}
         wrongChain={roles.wrongChain}
+        onChainKeyRegistered={onChainKeyRegistered}
         refreshingInbox={refreshingInbox}
         txBusy={txBusy}
-        settledTx={settledTx}
-        hasProverOutput={Boolean(proverOutput)}
-        hasDecryptedClaim={Boolean(decryptedClaim)}
-        providerRevenueEth={providerRevenueEth}
-        settledClaimsCount={settledClaimsCount}
-        lastProofElapsedMs={proverOutput?.elapsedMs}
         onRefreshInbox={() => refreshHospitalInbox(hospitalAddr, false)}
         onRegisterHospitalPubKey={handleRegisterHospitalPubKey}
-        onImportBundle={handleImportBundle}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <HospitalRecordQueueCard
           hospitalAddr={hospitalAddr}
           onChangeHospitalAddr={setHospitalAddr}
@@ -751,9 +745,6 @@ export default function HospitalPage() {
           accessStatus={accessStatus}
           accessExpiresAt={accessExpiresAt}
           matchedProvider={matchedProvider}
-          isChainDeployed={IS_CHAIN_DEPLOYED}
-          isApprovedHospitalRole={roles.isApprovedHospital}
-          onChainKeyRegistered={onChainKeyRegistered}
           decryptedClaim={decryptedClaim}
           onMatchFacilityNpi={(npi) =>
             setDecryptedClaim((prev) => (prev ? { ...prev, renderingNpi: npi } : prev))
@@ -761,6 +752,7 @@ export default function HospitalPage() {
           completenessValid={Boolean(completeness?.valid)}
           accessError={accessError}
           onLogAccessAudit={handleLogAccessAudit}
+          onImportBundle={handleImportBundle}
         />
 
         <HospitalProverCard
@@ -775,24 +767,29 @@ export default function HospitalPage() {
           onSettle={handleSettle}
           settledTx={settledTx}
           settledAmountEth={settledAmountEth}
-          hospitalAddr={hospitalAddr}
-          selectedRecordCommitmentHex={selectedEntry?.recordCommitmentHex}
           terminalLines={terminalLines}
         />
       </div>
 
-      <StandardsStagingCard
-        standardsTab={standardsTab}
-        onChangeTab={setStandardsTab}
-        decryptedClaim={decryptedClaim}
-        hospitalAddr={hospitalAddr}
-      />
+      <details className="rounded-2xl border border-[#E4E4E7] bg-white p-5 shadow-2xs">
+        <summary className="cursor-pointer text-sm font-semibold text-[#09090B] select-none">
+          Advanced Demo Tools: Fraud Rejection Tests (5 Attacks) &amp; FHIR / X12 Exports
+        </summary>
+        <div className="mt-5 space-y-5">
+          <FraudGuardrailsCard
+            activeAttack={activeAttack}
+            attackResult={attackResult}
+            onRunScenario={runAttackScenario}
+          />
 
-      <FraudGuardrailsCard
-        activeAttack={activeAttack}
-        attackResult={attackResult}
-        onRunScenario={runAttackScenario}
-      />
+          <StandardsStagingCard
+            standardsTab={standardsTab}
+            onChangeTab={setStandardsTab}
+            decryptedClaim={decryptedClaim}
+            hospitalAddr={hospitalAddr}
+          />
+        </div>
+      </details>
     </div>
   );
 }

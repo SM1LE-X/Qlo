@@ -681,16 +681,9 @@ export default function PatientPage() {
         isPatientRole={roles.isPatient}
         isChainDeployed={IS_CHAIN_DEPLOYED}
         secondsRemaining={secondsRemaining}
-        grantExpiresAt={grantExpiresAt}
-        nowSec={nowSec}
-        registeredRecordId={registeredRecordId}
-        hasEncrypted={Boolean(encrypted)}
-        vaultCount={vaultItems.length}
-        activeGrantsCount={activeGrantsCount}
-        settledClaimsCount={settledClaimsCount}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <Cms1500IntakeCard
           claim={claim}
           onChangeClaim={setClaim}
@@ -702,7 +695,6 @@ export default function PatientPage() {
         />
 
         <PatientConsentPanel
-          claim={claim}
           encrypted={encrypted}
           cid={cid}
           registeredRecordId={registeredRecordId}
@@ -710,7 +702,6 @@ export default function PatientPage() {
           targetHospital={targetHospital}
           onChangeTargetHospital={setTargetHospital}
           connectedAddress={address}
-          pubKeySource={pubKeySource}
           grantMinutes={grantMinutes}
           onChangeGrantMinutes={setGrantMinutes}
           busy={busy}
@@ -725,25 +716,32 @@ export default function PatientPage() {
         />
       </div>
 
-      <PatientVaultTable
-        vaultItems={vaultItems}
-        targetHospital={targetHospital}
-        activeGrantsMap={activeGrantsMap}
-        nowSec={nowSec}
-        onDownloadBundle={(item) => downloadBundleEntry(item)}
-      />
+      <details className="rounded-2xl border border-[#E4E4E7] bg-white p-5 shadow-2xs">
+        <summary className="cursor-pointer text-sm font-semibold text-[#09090B] select-none">
+          Saved Records, Activity Log &amp; Covered Procedures ({vaultItems.length} saved · {auditItems.length} events)
+        </summary>
+        <div className="mt-5 space-y-6">
+          <PatientVaultTable
+            vaultItems={vaultItems}
+            targetHospital={targetHospital}
+            activeGrantsMap={activeGrantsMap}
+            nowSec={nowSec}
+            onDownloadBundle={(item) => downloadBundleEntry(item)}
+          />
 
-      <SpotlightCard id="patient-audit" accent="neutral" className="p-6 space-y-4 scroll-mt-20">
-        <div className="flex items-center justify-between border-b border-[#F4F4F5] pb-3">
-          <h2 className="text-sm font-semibold text-[#09090B]">
-            Immutable Access &amp; Consent Audit Log
-          </h2>
-          <Badge variant="neutral">Event Trail</Badge>
+          <SpotlightCard id="patient-audit" accent="neutral" className="p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#F4F4F5] pb-3">
+              <h3 className="text-sm font-semibold text-[#09090B]">
+                Access &amp; Consent Activity Log
+              </h3>
+              <Badge variant="neutral">On-Chain Events</Badge>
+            </div>
+            <AuditTimeline items={auditItems} />
+          </SpotlightCard>
+
+          <CoveredBenefitsSection />
         </div>
-        <AuditTimeline items={auditItems} />
-      </SpotlightCard>
-
-      <CoveredBenefitsSection />
+      </details>
     </div>
   );
 }
