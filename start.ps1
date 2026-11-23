@@ -1,4 +1,4 @@
-﻿param(
+param(
   [int]$Port = 3000,
   [switch]$Dev,
   [switch]$Rebuild,
@@ -24,7 +24,8 @@ if (-not (Test-Path $RuntimeDir)) {
 function Test-QloHealth {
   param([int]$TargetPort)
   try {
-    $res = Invoke-RestMethod -Uri "http://127.0.0.1:$TargetPort/api/health" -Method Get -TimeoutSec 2
+    $uri = "http://127.0.0.1:${TargetPort}/api/health"
+    $res = Invoke-RestMethod -Uri $uri -Method Get -TimeoutSec 2
     return ($null -ne $res -and $res.ok -eq $true)
   } catch {
     return $false
@@ -32,16 +33,16 @@ function Test-QloHealth {
 }
 
 Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host "  Qlo Protocol — Zero-Knowledge Health Claims & Records Launcher" -ForegroundColor Cyan
+Write-Host "  Qlo Protocol -- Zero-Knowledge Health Claims and Records" -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan
 
 # 1. If -Rebuild or -Dev is passed while server is already running, stop existing instance first
 if ($Rebuild -or $Dev) {
   & (Join-Path $RootDir "stop.ps1") -Port $Port | Out-Null
 } elseif (Test-QloHealth -TargetPort $Port) {
-  Write-Host "[qlo:start] Qlo is already running and healthy on http://localhost:$Port" -ForegroundColor Green
+  Write-Host "[qlo:start] Qlo is already running and healthy on http://localhost:${Port}" -ForegroundColor Green
   if ($OpenBrowser) {
-    Start-Process "http://localhost:$Port"
+    Start-Process "http://localhost:${Port}"
   }
   exit 0
 }
@@ -49,11 +50,11 @@ if ($Rebuild -or $Dev) {
 # 2. Free port if occupied by a stale/unhealthy process
 $existingConn = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
 if ($existingConn) {
-  Write-Host "[qlo:start] Port $Port is occupied by stale process; stopping it first..." -ForegroundColor Yellow
+  Write-Host "[qlo:start] Port ${Port} is occupied by stale process; stopping it first..." -ForegroundColor Yellow
   & (Join-Path $RootDir "stop.ps1") -Port $Port | Out-Null
 }
 
-# 3. Verify dependencies & static ZK / OCR / Sample Bill assets
+# 3. Verify dependencies and static ZK / OCR / Sample Bill assets
 if (-not (Test-Path (Join-Path $WebDir "node_modules"))) {
   Write-Host "[qlo:start] Installing workspace dependencies via pnpm..." -ForegroundColor Cyan
   Push-Location $RootDir
@@ -102,7 +103,7 @@ if (-not $Dev) {
 # 6. Spawn Next.js server in background
 $NextBin = Join-Path $WebDir "node_modules\next\dist\bin\next"
 $ModeArg = if ($Dev) { "dev" } else { "start" }
-Write-Host "[qlo:start] Starting Qlo web server ($ModeArg mode) on http://localhost:$Port..." -ForegroundColor Cyan
+Write-Host "[qlo:start] Starting Qlo web server (${ModeArg} mode) on http://localhost:${Port}..." -ForegroundColor Cyan
 
 $webProc = Start-Process -FilePath "node" -ArgumentList "`"$NextBin`" $ModeArg -p $Port" -WorkingDirectory $WebDir -WindowStyle Hidden -RedirectStandardOutput $WebOutLog -RedirectStandardError $WebErrLog -PassThru
 Set-Content -Path $WebPidFile -Value $webProc.Id
@@ -126,22 +127,22 @@ if (-not $ready) {
   exit 1
 }
 
-$health = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/health" -Method Get
+$health = Invoke-RestMethod -Uri "http://127.0.0.1:${Port}/api/health" -Method Get
 Write-Host ""
 Write-Host "  [READY] Qlo Protocol is LIVE!" -ForegroundColor Green
 Write-Host "  ------------------------------------------------------------" -ForegroundColor DarkGray
 Write-Host "  Process ID       : $($webProc.Id) (saved to .qlo-runtime/web.pid)"
 Write-Host "  Network          : $($health.network) (Chain ID $($health.chainId))"
-Write-Host "  Overview         : http://localhost:$Port/"
-Write-Host "  Records Vault    : http://localhost:$Port/patient"
-Write-Host "  Claims Prover    : http://localhost:$Port/hospital"
-Write-Host "  Escrow Treasury  : http://localhost:$Port/insurer"
-Write-Host "  Protocol & ABI   : http://localhost:$Port/story"
-Write-Host "  Sample Bill #1   : http://localhost:$Port/samples/bill-cardiac-er-99285.png"
+Write-Host "  Overview         : http://localhost:${Port}/"
+Write-Host "  Records Vault    : http://localhost:${Port}/patient"
+Write-Host "  Claims Prover    : http://localhost:${Port}/hospital"
+Write-Host "  Escrow Treasury  : http://localhost:${Port}/insurer"
+Write-Host "  Protocol and ABI : http://localhost:${Port}/story"
+Write-Host "  Sample Bill #1   : http://localhost:${Port}/samples/bill-cardiac-er-99285.png"
 Write-Host "  Logs             : .qlo-runtime/web.out.log"
 Write-Host "  Stop Command     : .\stop.ps1   (or: pnpm stop)"
 Write-Host "================================================================" -ForegroundColor Cyan
 
 if ($OpenBrowser) {
-  Start-Process "http://localhost:$Port"
+  Start-Process "http://localhost:${Port}"
 }

@@ -17,7 +17,7 @@ function Stop-ProcessTree {
   if ($TargetPid -gt 0) {
     $proc = Get-Process -Id $TargetPid -ErrorAction SilentlyContinue
     if ($proc) {
-      Write-Host "[qlo:stop] Stopping $Label (PID $TargetPid)..." -ForegroundColor Yellow
+      Write-Host "[qlo:stop] Stopping ${Label} (PID ${TargetPid})..." -ForegroundColor Yellow
       & taskkill /PID $TargetPid /T /F 2>$null | Out-Null
       Stop-Process -Id $TargetPid -Force -ErrorAction SilentlyContinue
     }
@@ -43,7 +43,7 @@ if ($portConns) {
   $owningPids = $portConns | Select-Object -ExpandProperty OwningProcess -Unique
   foreach ($owningPid in $owningPids) {
     if ($owningPid -gt 4) {
-      Stop-ProcessTree -TargetPid $owningPid -Label "Port $Port Listener"
+      Stop-ProcessTree -TargetPid $owningPid -Label "Port ${Port} Listener"
     }
   }
 }
@@ -55,7 +55,7 @@ if ($anvilConns) {
   foreach ($aPid in $anvilPids) {
     $p = Get-Process -Id $aPid -ErrorAction SilentlyContinue
     if ($p -and $p.ProcessName -match "anvil") {
-      Stop-ProcessTree -TargetPid $aPid -Label "Port $AnvilPort Anvil Listener"
+      Stop-ProcessTree -TargetPid $aPid -Label "Port ${AnvilPort} Anvil Listener"
     }
   }
 }
@@ -65,16 +65,16 @@ if ($CleanCache) {
   $vaultCache = Join-Path $env:TEMP "qlo-zero-phi-vault.json"
   if (Test-Path $vaultCache) {
     Remove-Item $vaultCache -Force -ErrorAction SilentlyContinue
-    Write-Host "[qlo:stop] Cleared temporary Zero-PHI relay cache ($vaultCache)." -ForegroundColor DarkGray
+    Write-Host "[qlo:stop] Cleared temporary Zero-PHI relay cache (${vaultCache})." -ForegroundColor DarkGray
   }
 }
 
 Start-Sleep -Milliseconds 400
 $stillListening = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
 if ($stillListening) {
-  Write-Host "[qlo:stop] WARNING: Port $Port still reports a listener." -ForegroundColor Red
+  Write-Host "[qlo:stop] WARNING: Port ${Port} still reports a listener." -ForegroundColor Red
   exit 1
 } else {
-  Write-Host "[qlo:stop] All Qlo services stopped cleanly. Port $Port is free." -ForegroundColor Green
+  Write-Host "[qlo:stop] All Qlo services stopped cleanly. Port ${Port} is free." -ForegroundColor Green
   exit 0
 }
