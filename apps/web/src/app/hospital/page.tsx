@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -598,10 +599,10 @@ export default function HospitalPage() {
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#09090B]">
-            Hospital Claim Prover &amp; Clearinghouse
+            Hospital Claim Prover &amp; Adjudication
           </h1>
           <p className="text-xs sm:text-sm text-[#52525B]">
-            Unwrap patient-granted DEKs, prove all 8 Groth16 predicates off-thread (&lt; 3s), settle ETH, and test policy guardrails.
+            Unwrap authorized record keys, prove all 8 Groth16 predicates in an off-thread Web Worker, settle escrow payouts, and verify fail-closed policy guardrails.
           </p>
         </div>
 
@@ -715,7 +716,7 @@ export default function HospitalPage() {
               className="mt-1 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 text-[#09090B] focus:border-[#0F766E] focus:outline-none"
             >
               {entries.length === 0 ? (
-                <option value="">No encrypted records yet — encrypt on /patient first</option>
+                <option value="">No authorized records available in this session</option>
               ) : (
                 entries.map((item) => (
                   <option key={item.recordCommitmentHex} value={item.recordCommitmentHex}>
@@ -735,6 +736,22 @@ export default function HospitalPage() {
             <KeyRound className="h-4 w-4" />
             Unwrap ECDH DEK &amp; Decrypt Locally
           </TactileButton>
+
+          {entries.length === 0 ? (
+            <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-3.5 space-y-2 text-xs">
+              <div className="font-semibold text-[#09090B]">Start in Patient Vault</div>
+              <p className="text-[#52525B]">
+                Encrypt a sample CMS-1500 claim and issue a provider grant first to populate this verification queue, or import a portable{" "}
+                <code className="font-mono-tabular text-[#09090B]">.qlo.json</code> bundle above.
+              </p>
+              <Link
+                href="/patient"
+                className="inline-flex items-center font-medium text-[#0F766E] hover:underline"
+              >
+                Create &amp; Authorize Sample Record in Patient Vault →
+              </Link>
+            </div>
+          ) : null}
 
           {accessError ? (
             <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] p-3 text-[#B91C1C] flex items-start gap-2">
@@ -847,10 +864,10 @@ export default function HospitalPage() {
           <div className="flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-[#B91C1C]" />
             <h2 className="text-sm font-semibold text-[#09090B]">
-              3. Pre-Submission Policy &amp; Fraud Guardrails (Fail-Closed Checks)
+              3. Automated Policy &amp; Fraud Verification Suite
             </h2>
           </div>
-          <Badge variant="crimson">Adversarial Verification</Badge>
+          <Badge variant="crimson">Fail-Closed Guardrails</Badge>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -891,10 +908,11 @@ export default function HospitalPage() {
         <TransitionPanel activeKey={activeAttack + attackResult.status}>
           <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-4 text-xs space-y-1.5">
             <div className="font-semibold text-[#09090B]">
-              Active Guardrail Probe: <span className="uppercase text-[#B91C1C]">{activeAttack}</span>
+              Selected Verification Case:{" "}
+              <span className="uppercase text-[#B91C1C]">{activeAttack}</span>
             </div>
             <div className="font-mono-tabular text-[#B91C1C] break-all">
-              {attackResult.detail || "Select any policy guardrail above to verify fail-closed proof or contract rejection."}
+              {attackResult.detail || "Select any guardrail case above to confirm fail-closed proof or smart-contract rejection."}
             </div>
           </div>
         </TransitionPanel>

@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   CheckCircle2,
+  Compass,
   Cpu,
   FileLock2,
   Landmark,
@@ -19,6 +20,7 @@ import { Badge } from "@/components/ui/card";
 import { InteractiveAreaChart } from "@/components/ui/interactive-area-chart";
 import { MetricHUD } from "@/components/ui/metric-hud";
 import { NumberTicker } from "@/components/ui/number-ticker";
+import { OnboardingModal } from "@/components/ui/onboarding-guide";
 import { PaymentNotificationBanner } from "@/components/ui/payment-notification-banner";
 import { SmoothAccordion } from "@/components/ui/smooth-accordion";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
@@ -106,14 +108,20 @@ export default function HomePage() {
   const [zkeyInfo, setZkeyInfo] = useState<ZkeyIntegrityResult | null>(null);
   const [localStats, setLocalStats] = useState({ escrowEth: 1.0, claims: 0 });
   const [activeWorkspace, setActiveWorkspace] = useState<"patient" | "hospital" | "insurer">("patient");
+  const [guideOpen, setGuideOpen] = useState(false);
 
   useEffect(() => {
     verifyZkeyIntegrity().then(setZkeyInfo).catch(() => undefined);
-    const mirror = loadLocalChainMirror();
-    setLocalStats({
-      escrowEth: Number(formatWeiToEth(mirror.insurerEscrowWei, 4)),
-      claims: mirror.settledClaims.length,
-    });
+    const syncMirror = () => {
+      const mirror = loadLocalChainMirror();
+      setLocalStats({
+        escrowEth: Number(formatWeiToEth(mirror.insurerEscrowWei, 4)),
+        claims: mirror.settledClaims.length,
+      });
+    };
+    syncMirror();
+    window.addEventListener("storage", syncMirror);
+    return () => window.removeEventListener("storage", syncMirror);
   }, []);
 
   const zeroAddr = "0x0000000000000000000000000000000000000000";
@@ -162,9 +170,9 @@ export default function HomePage() {
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="teal">
               <Sparkles className="h-3 w-3" />
-              Base Sepolia · Browser Groth16
+              Base Sepolia · Client-Side Groth16
             </Badge>
-            <Badge variant="neutral">MIT Open Source · $0 Stack</Badge>
+            <Badge variant="neutral">MIT Licensed · Open Architecture</Badge>
             {zkeyInfo?.verified ? (
               <Badge variant="emerald">
                 <CheckCircle2 className="h-3 w-3" />
@@ -174,28 +182,33 @@ export default function HomePage() {
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-bold tracking-[-0.03em] leading-[1.08] text-[#09090B]">
-            Zero-Knowledge Health Claims That Prove Coverage Without Exposing Clinical Data.
+            Zero-Knowledge Health Claims. Verified Coverage, Zero Exposed PHI.
           </h1>
 
           <p className="text-sm sm:text-base text-[#52525B] max-w-2xl leading-relaxed">
-            Qlo replaces centralized EDI clearinghouses with client-side{" "}
-            <span className="text-[#09090B] font-semibold">AES-256-GCM</span> encrypted medical records,
-            browser-local <span className="text-[#09090B] font-semibold">CMS-1500 &amp; Tesseract OCR</span>,
+            Qlo replaces legacy EDI intermediaries with client-side{" "}
+            <span className="text-[#09090B] font-semibold">AES-256-GCM</span> encrypted clinical records,
+            on-device <span className="text-[#09090B] font-semibold">CMS-1500 OCR</span>,
             and an <span className="text-[#0F766E] font-semibold">8-predicate Groth16 clearinghouse</span> verifying
-            accreditation, covered CPT schedules, and private annual limits on Base Sepolia.
+            facility accreditation, covered CPT schedules, and private annual caps on Base Sepolia.
           </p>
 
-          <div className="flex flex-wrap gap-3 pt-1">
+          <div className="flex flex-wrap items-center gap-3 pt-1">
             <Link href="/patient">
               <TactileButton variant="primary" size="lg">
-                Launch Patient Portal
+                Open Patient Vault
                 <ArrowRight className="h-4 w-4" />
               </TactileButton>
             </Link>
-            <Link href="/story">
-              <TactileButton variant="secondary" size="lg">
-                Security Trust Center
-              </TactileButton>
+            <TactileButton variant="secondary" size="lg" onClick={() => setGuideOpen(true)}>
+              <Compass className="h-4 w-4 text-[#0F766E]" />
+              Guided Walkthrough
+            </TactileButton>
+            <Link
+              href="/story"
+              className="px-2 py-1 text-xs font-medium text-[#52525B] hover:text-[#09090B] transition-colors"
+            >
+              Security Trust Center →
             </Link>
           </div>
         </div>
@@ -219,7 +232,7 @@ export default function HomePage() {
             showTriggerLabel="Show settlement alert"
           />
           <div className="flex items-center justify-between px-1 text-[11px] font-mono-tabular text-[#71717A]">
-            <span>Tap card to flip · Cryptographic proof stub</span>
+            <span>Inspect commitment · Encrypted Policy Pass</span>
             <span className="text-[#0F766E] font-medium">Poseidon BN254</span>
           </div>
         </div>
@@ -277,10 +290,10 @@ export default function HomePage() {
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#F4F4F5] pb-4">
           <div>
             <h2 className="text-base font-semibold text-[#09090B]">
-              One Platform Across Patients, Accredited Providers, and Payers
+              Role-Separated Clearinghouse Workspaces
             </h2>
             <p className="text-xs text-[#52525B]">
-              Dedicated role workspaces enforce cryptographic separation of duties end-to-end.
+              Dedicated portals enforce cryptographic separation of duties across member, provider, and payer workflows.
             </p>
           </div>
 
@@ -357,8 +370,8 @@ export default function HomePage() {
         <div className="lg:col-span-7">
           <InteractiveAreaChart
             className="h-full"
-            title="Clearinghouse Automated Settlement Volume"
-            subtitle="Deterministic synthetic proof-to-payout cadence merged with live session settlements"
+            title="Clearinghouse Settlement Activity"
+            subtitle="Simulated 30-day baseline merged with live verified settlements from this session."
             defaultRange="30D"
             formatValue={(v) => `${v} claims`}
             data={{
@@ -420,19 +433,19 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center justify-between pt-1 text-xs">
-            <span className="text-[#71717A]">Unlisted CPT codes fail proof closed</span>
-            <Link href="/patient" className="font-medium text-[#0F766E] hover:underline">
+            <span className="text-[#71717A]">Unlisted CPT codes fail proof verification.</span>
+            <Link href="/patient" className="font-medium text-[#0F766E] hover:underline shrink-0">
               View all in Portal →
             </Link>
           </div>
         </SpotlightCard>
       </section>
 
-      {/* 6. Three-Party Zero-PHI Dataflow Architecture */}
+      {/* 6. End-to-End Zero-PHI Data Boundary */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-mono-tabular uppercase tracking-[0.16em] text-[#52525B]">
-            Three-Party Zero-PHI Clearinghouse Flow
+            End-to-End Zero-PHI Data Boundary
           </h2>
           <Link href="/story" className="text-xs font-medium text-[#0F766E] hover:underline">
             Read formal protocol specification →
@@ -465,7 +478,7 @@ export default function HomePage() {
               Platform Architecture &amp; Privacy Guarantees
             </h2>
             <p className="text-xs text-[#52525B]">
-              How Qlo enforces HIPAA-grade confidentiality while verifying payer solvency on Base Sepolia.
+              How Qlo enforces strict confidentiality while verifying payer solvency on Base Sepolia.
             </p>
           </div>
           <Link href="/story" className="text-xs font-medium text-[#0F766E] hover:underline">
@@ -482,7 +495,7 @@ export default function HomePage() {
               badge: "0 Bytes PHI",
               content: (
                 <>
-                  No. OCR runs locally in the browser using same-origin Tesseract WASM. Records are sealed with AES-256-GCM before touching IndexedDB or IPFS CIDv1, and ClaimsVault accepts only 8 Groth16 public scalars containing commitments, deterministic nullifiers, and ETH payout bounds.
+                  No. OCR executes inside the browser via same-origin Tesseract WASM. Records are sealed with AES-256-GCM before persisting to IndexedDB or IPFS CIDv1, and ClaimsVault accepts only 8 Groth16 public scalars containing cryptographic commitments, deterministic nullifiers, and ETH payout bounds.
                 </>
               ),
             },
@@ -492,33 +505,42 @@ export default function HomePage() {
               badge: "Private Accounting",
               content: (
                 <>
-                  Each policy&apos;s annual ceiling stays inside a private 6-input Poseidon commitment preimage. During claim settlement, ClaimsVault passes the cumulative on-chain spend as public input priorPolicySpent and the Groth16 circuit proves priorPolicySpent + claimAmount &lt;= annualLimit in zero knowledge.
+                  Each policy&apos;s annual ceiling stays inside a private 6-input Poseidon commitment preimage. During settlement, ClaimsVault supplies the cumulative on-chain spend as public input <code className="font-semibold text-[#09090B]">priorPolicySpent</code>, and the Groth16 circuit proves cumulative outlay remains within the member&apos;s private policy limit.
                 </>
               ),
             },
             {
               id: "faq-revoke",
-              title: "What happens immediately when a patient clicks Revoke Access?",
+              title: "What happens when a member revokes a provider consent grant?",
               badge: "Instant Control",
               content: (
                 <>
-                  HealthRecords clears the hospital&apos;s wrapped ECDH P-256 data key and zeroes the grant expiry on-chain. Any pending or future claim settlement referencing that record immediately reverts inside ClaimsVault.
+                  HealthRecords deletes the hospital&apos;s wrapped ECDH P-256 key and clears the grant timestamp on-chain. Any subsequent decryption or claim settlement referencing that record deterministically reverts inside ClaimsVault.
                 </>
               ),
             },
             {
               id: "faq-oss",
-              title: "Is Qlo free to audit, fork, and deploy with zero paid SaaS dependencies?",
-              badge: "MIT · $0 Stack",
+              title: "Can organizations audit, fork, and deploy Qlo with zero licensing fees?",
+              badge: "MIT License",
               content: (
                 <>
-                  Every Circom circuit, Solidity contract, OCR worker asset, and Next.js clearinghouse workspace is 100% open-source under the MIT license, running natively in standard browsers and settling directly against open Ethereum RPCs.
+                  Every Circom circuit, Solidity smart contract, local OCR asset, and Next.js clearinghouse workspace is open-source under the MIT license—with zero proprietary clearinghouse fees or vendor lock-in.
                 </>
               ),
             },
           ]}
         />
       </section>
+
+      <OnboardingModal
+        open={guideOpen}
+        onOpenChange={setGuideOpen}
+        vaultCount={localStats.claims > 0 ? 1 : 0}
+        hasActiveGrant={false}
+        settledCount={liveClaims}
+        zkeyVerified={Boolean(zkeyInfo?.verified)}
+      />
     </div>
   );
 }

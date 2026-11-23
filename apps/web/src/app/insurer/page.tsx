@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   ArrowUpDown,
@@ -312,10 +313,10 @@ export default function InsurerPage() {
           </span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#09090B]">
-          Insurer Escrow &amp; Payer Treasury
+          Insurer Escrow &amp; Treasury Audit
         </h1>
         <p className="text-xs sm:text-sm text-[#52525B]">
-          Fund native ETH escrow, monitor aggregate policy spend without learning private annual limits, and audit settled calldata for zero PHI.
+          Manage ClaimsVault ETH reserves, track aggregate disbursements without exposing private annual caps, and audit calldata for zero clinical leakage.
         </p>
       </div>
 
@@ -512,10 +513,26 @@ export default function InsurerPage() {
         </div>
 
         {sortedClaims.length === 0 ? (
-          <div className="px-6 py-8 text-center text-xs text-[#71717A]">
-            {settledList.length === 0
-              ? "No claims settled in this session yet. Settle a claim from Provider Clearinghouse (`/hospital`) to populate the ledger."
-              : "No settled claims matched your filter query."}
+          <div className="px-6 py-8 text-center space-y-3">
+            <div className="text-xs text-[#71717A]">
+              {settledList.length === 0
+                ? "No claims settled in this session yet. Authorize a record in Patient Vault, then submit a proof from the Provider Clearinghouse to populate this ledger."
+                : "No settled claims matched your filter query."}
+            </div>
+            {settledList.length === 0 ? (
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Link href="/hospital">
+                  <TactileButton size="sm" variant="primary">
+                    Prove &amp; Settle First Claim
+                  </TactileButton>
+                </Link>
+                <Link href="/patient">
+                  <TactileButton size="sm" variant="secondary">
+                    Open Patient Vault
+                  </TactileButton>
+                </Link>
+              </div>
+            ) : null}
           </div>
         ) : (
           <>
@@ -635,7 +652,7 @@ export default function InsurerPage() {
         <div className="space-y-4">
           <div>
             <h2 className="text-base font-semibold text-[#09090B]">
-              Split-Screen Privacy Inspector: What the Chain Sees vs. Private Clinical Reality
+              On-Chain Calldata &amp; Zero-PHI Privacy Audit
             </h2>
             <p className="text-xs text-[#52525B]">
               Inspect raw Groth16 settlement calldata and verify 0 bytes of clinical PHI exist on Base Sepolia.
@@ -663,7 +680,7 @@ export default function InsurerPage() {
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-[#047857] flex items-center gap-1.5">
                   <Eye className="h-4 w-4" />
-                  PUBLIC ON-CHAIN CALLDATA &amp; EVENTS
+                  Public Ledger Calldata
                 </span>
                 {selectedClaim && IS_CHAIN_DEPLOYED ? (
                   <CopyHash
@@ -682,8 +699,14 @@ export default function InsurerPage() {
                   <div>recordCommit: {selectedClaim.recordCommitmentHex.slice(0, 22)}...</div>
                 </div>
               ) : (
-                <div className="text-xs text-[#52525B]">
-                  Settle a claim on /hospital first to populate live Groth16 calldata here.
+                <div className="text-xs text-[#52525B] space-y-1.5">
+                  <p>No settled transactions available to inspect in this session.</p>
+                  <Link
+                    href="/hospital"
+                    className="inline-flex items-center font-medium text-[#0F766E] hover:underline"
+                  >
+                    Open Provider Clearinghouse →
+                  </Link>
                 </div>
               )}
 
@@ -699,7 +722,7 @@ export default function InsurerPage() {
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-[#B91C1C] flex items-center gap-1.5">
                   <EyeOff className="h-4 w-4 text-[#DC2626]" />
-                  PRIVATE OFF-CHAIN CLINICAL REALITY (NEVER ON CHAIN)
+                  Protected Clinical Data (Off-Chain Only)
                 </span>
                 <Badge variant="crimson">Redacted</Badge>
               </div>

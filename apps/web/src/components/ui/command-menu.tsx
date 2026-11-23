@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
+  Compass,
   Cpu,
   FileLock2,
   Landmark,
@@ -15,11 +16,11 @@ import {
 import { motionTransitions } from "@/lib/motion-tokens";
 
 const COMMANDS = [
-  { label: "Platform Overview", sub: "Landing page, telemetry & live pass demo", href: "/", icon: Activity },
-  { label: "Patient Vault", sub: "CMS-1500 OCR, AES-256-GCM & ECDH consent grants", href: "/patient", icon: FileLock2 },
-  { label: "Provider Clearinghouse", sub: "8-predicate Groth16 prover & guardrail checks", href: "/hospital", icon: Cpu },
-  { label: "Payer Treasury & Ledger", sub: "Escrow, settled claims ledger & Zero-PHI Inspector", href: "/insurer", icon: Landmark },
-  { label: "Security Trust Center", sub: ".zkey SHA-256 verifier, contracts, STRIDE & comparisons", href: "/story", icon: ShieldCheck },
+  { label: "Platform Overview", sub: "Clearinghouse overview, throughput metrics, and credential preview", href: "/", icon: Activity },
+  { label: "Patient Vault", sub: "Local CMS-1500 OCR, AES-256-GCM encryption, and consent controls", href: "/patient", icon: FileLock2 },
+  { label: "Provider Clearinghouse", sub: "8-predicate Groth16 proving, automated settlement, and verification guardrails", href: "/hospital", icon: Cpu },
+  { label: "Payer Treasury & Ledger", sub: "Escrow reserves, settled claims ledger, and calldata privacy audit", href: "/insurer", icon: Landmark },
+  { label: "Security Trust Center", sub: "Proving key SHA-256 verification, contract registry, and security architecture", href: "/story", icon: ShieldCheck },
 ];
 
 /**
@@ -28,9 +29,11 @@ const COMMANDS = [
 export function CommandMenu({
   open,
   onOpenChange,
+  onOpenOnboarding,
 }: {
   open: boolean;
   onOpenChange: (next: boolean) => void;
+  onOpenOnboarding?: () => void;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -96,6 +99,30 @@ export function CommandMenu({
             </div>
 
             <div className="p-2 space-y-1 max-h-80 overflow-y-auto">
+              {onOpenOnboarding ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenChange(false);
+                    onOpenOnboarding();
+                    setQuery("");
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl border border-[#99F6E4]/60 bg-[#F0FDFA]/50 px-3 py-2.5 text-left hover:bg-[#F0FDFA] transition-colors cursor-pointer"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#99F6E4] bg-white text-[#0F766E]">
+                    <Compass className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold text-[#09090B]">
+                      Guided Onboarding &amp; Role Selector
+                    </div>
+                    <div className="text-[11px] text-[#52525B] truncate">
+                      Pick a role workflow, track milestones, or reset sandbox data
+                    </div>
+                  </div>
+                  <span className="font-mono-tabular text-[10px] text-[#0F766E]">Guide</span>
+                </button>
+              ) : null}
               {filtered.map((item) => {
                 const Icon = item.icon;
                 return (

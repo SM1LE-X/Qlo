@@ -79,9 +79,9 @@ export function AnimatedZkFlow() {
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-2.5 text-xs">
         <div className="flex items-center gap-2 text-[#B91C1C] font-medium">
           <ShieldAlert className="h-4 w-4 text-[#DC2626] shrink-0" />
-          <span>ZERO-PHI BOUNDARY:</span>
+          <span>Zero-PHI Boundary:</span>
           <span className="font-mono-tabular text-[#09090B]">
-            ICD-10, CPT codes, Rx, clinical notes, and annual limits NEVER cross onto Base Sepolia calldata.
+            ICD-10 diagnoses, CPT codes, prescriptions, clinical notes, and private policy limits remain off-chain.
           </span>
         </div>
         <span className="font-mono-tabular text-[11px] text-[#047857] border border-[#A7F3D0] rounded-full px-2.5 py-0.5 bg-[#ECFDF5]">

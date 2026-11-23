@@ -475,16 +475,16 @@ export default function PatientPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Badge variant="teal">Patient Sovereignty Portal</Badge>
+            <Badge variant="teal">Member Portal</Badge>
             <span className="text-xs font-mono-tabular text-[#71717A]">
               IndexedDB · CIDv1 · ECDH P-256
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#09090B]">
-            Patient Encrypted Record Vault
+            Patient Record Vault
           </h1>
           <p className="text-xs sm:text-sm text-[#52525B]">
-            Parse medical claims locally with Tesseract WASM OCR, seal clinical payloads via AES-256-GCM, and issue time-bounded provider grants.
+            Extract CMS-1500 fields locally via WASM OCR, seal clinical payloads with AES-256-GCM, and issue revocable provider grants.
           </p>
         </div>
 
@@ -568,7 +568,7 @@ export default function PatientPage() {
 
           <div className="space-y-1">
             <label htmlFor="preset-select" className="text-xs font-medium text-[#52525B]">
-              Clinical Claim Templates
+              Sample Clinical Cases
             </label>
             <select
               id="preset-select"
@@ -774,7 +774,7 @@ export default function PatientPage() {
                 <CopyHash label="IPFS CIDv1" value={cid} />
                 <CopyHash label="248-bit Commit" value={encrypted.recordCommitmentHex} />
                 <div className="text-[11px] font-mono-tabular text-[#047857]">
-                  Ciphertext persisted in IndexedDB (`qlo-vault-v1`)
+                  Ciphertext persisted in IndexedDB (<code className="font-semibold">qlo-vault-v1</code>)
                 </div>
               </div>
             ) : null}
@@ -913,15 +913,20 @@ export default function PatientPage() {
           <div>
             <h2 className="text-sm font-semibold text-[#09090B]">My Encrypted Records Vault</h2>
             <p className="text-xs text-[#52525B]">
-              Local IndexedDB (`qlo-vault-v1`) ciphertext bundles and portable `.qlo.json` exports.
+              Local IndexedDB (<code className="font-mono-tabular text-[#09090B]">qlo-vault-v1</code>) ciphertext bundles and portable{" "}
+              <code className="font-mono-tabular text-[#09090B]">.qlo.json</code> exports.
             </p>
           </div>
           <Badge variant="neutral">{vaultItems.length} records stored</Badge>
         </div>
 
         {vaultItems.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[#D4D4D8] bg-[#FAFAFA] py-6 text-center text-xs text-[#71717A]">
-            No encrypted clinical records yet. Encrypt a claim above to populate your vault.
+          <div className="rounded-xl border border-dashed border-[#D4D4D8] bg-[#FAFAFA] px-4 py-6 text-center text-xs text-[#52525B] space-y-1">
+            <div className="font-semibold text-[#09090B]">No encrypted records stored locally</div>
+            <p className="text-[#71717A]">
+              Run local OCR or customize a clinical claim above, then select Encrypt Locally (AES-256-GCM) to populate your vault and generate a portable{" "}
+              <code className="font-mono-tabular text-[#09090B]">.qlo.json</code> bundle.
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">

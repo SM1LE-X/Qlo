@@ -10,6 +10,7 @@ import {
   Bell,
   CheckCircle2,
   ChevronRight,
+  Compass,
   Cpu,
   FileLock2,
   Landmark,
@@ -30,6 +31,11 @@ import { verifyZkeyIntegrity } from "@/lib/zkeyIntegrity";
 import { Navbar } from "./navbar";
 import { Badge } from "./ui/card";
 import { CommandMenu } from "./ui/command-menu";
+import {
+  ONBOARDING_DISMISSED_KEY,
+  OnboardingChecklistRail,
+  OnboardingModal,
+} from "./ui/onboarding-guide";
 import { TactileButton } from "./ui/tactile-button";
 
 const WORKSPACE_META: Record<string, { title: string; section: string }> = {
@@ -57,6 +63,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
 
   const [zkeyStatus, setZkeyStatus] = useState<"checking" | "verified" | "mismatch">("checking");
   const [zkeySha, setZkeySha] = useState<string>("");
@@ -110,10 +117,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#09090B] text-white font-mono-tabular font-bold text-xs">
                     Q
                   </div>
-                  <span className="text-sm font-bold text-[#09090B]">Qlo Health Network</span>
+                  <span className="text-sm font-bold text-[#09090B]">Qlo Clearinghouse</span>
                 </div>
                 <p className="text-[#52525B] leading-relaxed">
-                  Zero-knowledge medical claim adjudication and patient-owned encrypted records on Base Sepolia. Zero plaintext PHI leaves client devices.
+                  Privacy-preserving medical claim adjudication and patient-controlled encrypted records. Clinical plaintext remains strictly client-side.
                 </p>
               </div>
 
@@ -153,7 +160,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   </li>
                   <li>
                     <Link href="/story" className="hover:text-[#0F766E] transition-colors">
-                      STRIDE &amp; Prior Art Analysis
+                      Security Model &amp; Specifications
                     </Link>
                   </li>
                 </ul>
@@ -164,7 +171,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <div className="font-mono-tabular text-[#52525B] space-y-1">
                   <div>Chain: Base Sepolia ({DEPLOYMENT.chainId})</div>
                   <div>zkey SHA-256: {DEPLOYMENT.zkeySha256.slice(0, 12)}...</div>
-                  <div className="text-[#047857]">MIT Open Source · $0 Stack</div>
+                  <div className="text-[#047857]">MIT Licensed · Open Specification</div>
                 </div>
               </div>
             </div>
@@ -283,6 +290,21 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.localStorage.removeItem(ONBOARDING_DISMISSED_KEY);
+                window.dispatchEvent(new Event("storage"));
+              }
+              setMobileNavOpen(false);
+              setOnboardingOpen(true);
+            }}
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-[#52525B] hover:bg-white/70 hover:text-[#09090B] transition-colors cursor-pointer"
+          >
+            <Compass className="h-4 w-4 text-[#0F766E]" />
+            Onboarding Guide
+          </button>
         </div>
       </div>
 
@@ -295,7 +317,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 IS_CHAIN_DEPLOYED ? "bg-[#10B981]" : "bg-[#0F766E]"
               }`}
             />
-            {IS_CHAIN_DEPLOYED ? "Base Sepolia Live" : "Local ZK Sandbox"}
+            {IS_CHAIN_DEPLOYED ? "Base Sepolia Live" : "Sandbox Mode"}
           </span>
           <span className="font-mono-tabular text-[10px] text-[#71717A]">84532</span>
         </div>
@@ -404,6 +426,16 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="relative flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setOnboardingOpen(true)}
+                aria-label="Open onboarding guide"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E4E4E7] bg-white px-2.5 text-xs font-medium text-[#52525B] hover:bg-[#F4F4F5] hover:text-[#09090B] transition-colors cursor-pointer"
+              >
+                <Compass className="h-3.5 w-3.5 text-[#0F766E]" />
+                <span className="hidden sm:inline">Setup Guide</span>
+              </button>
+
               {zkeyStatus === "verified" ? (
                 <Badge variant="emerald" className="hidden sm:inline-flex">
                   <CheckCircle2 className="h-3 w-3" />
@@ -456,11 +488,31 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-7 sm:px-6 lg:px-8">
+          <OnboardingChecklistRail
+            pathname={pathname}
+            vaultCount={vaultCount}
+            hasActiveGrant={activeGrantsCount > 0}
+            settledCount={settledCount}
+            zkeyVerified={zkeyStatus === "verified"}
+            onOpenGuide={() => setOnboardingOpen(true)}
+          />
           {children}
         </main>
       </div>
 
-      <CommandMenu open={cmdOpen} onOpenChange={setCmdOpen} />
+      <CommandMenu
+        open={cmdOpen}
+        onOpenChange={setCmdOpen}
+        onOpenOnboarding={() => setOnboardingOpen(true)}
+      />
+      <OnboardingModal
+        open={onboardingOpen}
+        onOpenChange={setOnboardingOpen}
+        vaultCount={vaultCount}
+        hasActiveGrant={activeGrantsCount > 0}
+        settledCount={settledCount}
+        zkeyVerified={zkeyStatus === "verified"}
+      />
     </div>
   );
 }

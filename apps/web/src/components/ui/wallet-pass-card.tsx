@@ -84,7 +84,7 @@ export function WalletPassCard({
                 </div>
                 <div>
                   <div className="text-[10px] font-mono-tabular uppercase tracking-[0.18em] text-white/75">
-                    Qlo Sovereignty Pass
+                    Encrypted Policy Pass
                   </div>
                   <div className="text-sm font-semibold text-white">
                     Policy #{policyId}
@@ -155,7 +155,7 @@ export function WalletPassCard({
               </span>
               <span className="inline-flex items-center gap-1 text-[#71717A]">
                 <RotateCw className="h-3 w-3" />
-                Tap to flip
+                Inspect commitment
               </span>
             </div>
           </div>
@@ -169,7 +169,7 @@ export function WalletPassCard({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#09090B]">
               <QrCode className="h-4 w-4 text-[#0F766E]" />
-              Commitment Proof Stub
+              Cryptographic Commitment
             </div>
             <span className="rounded-full border border-[#A7F3D0] bg-[#ECFDF5] px-2.5 py-0.5 text-[10px] font-mono-tabular font-semibold text-[#047857]">
               0 PHI BYTES

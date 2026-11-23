@@ -157,3 +157,15 @@ export async function importAndVerifyQloBundle(rawJson: string): Promise<StoredV
   await saveEncryptedRecordToVault(entry);
   return entry;
 }
+
+export async function clearVaultEntries(): Promise<void> {
+  if (typeof window === "undefined") return;
+  const db = await openVaultDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(VAULT_STORE, "readwrite");
+    tx.objectStore(VAULT_STORE).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}

@@ -23,8 +23,8 @@ const HUD_METRICS: HudMetric[] = [
     id: "proving",
     label: "Groth16 Prover",
     headline: "~408 ms",
-    sublabel: "Client-side BN254 witness + pairing verification (vs. ~120,000 ms AVS zkVM)",
-    deltaLabel: "294x faster than AVS",
+    sublabel: "Client-side BN254 witness generation and local pairing verification inside a browser Web Worker.",
+    deltaLabel: "Sub-Second Browser Proving",
     labels: ["Witness", "Poseidon Hashes", "Merkle Depth-6", "BN254 MSM", "Verify Key", "Ready"],
     series: [12, 85, 165, 290, 380, 408],
     unit: "ms",
@@ -33,8 +33,8 @@ const HUD_METRICS: HudMetric[] = [
     id: "settlement",
     label: "Claim Settlement",
     headline: "< 3.0 s",
-    sublabel: "Base Sepolia instant ETH transfer (vs. 14–30 day centralized EDI 837 clearinghouse)",
-    deltaLabel: "0 clearinghouse intermediaries",
+    sublabel: "Direct settlement against ClaimsVault escrow compared with 14–30 day centralized EDI clearing cycles.",
+    deltaLabel: "Direct Escrow Settlement",
     labels: ["Intake", "AES-GCM", "Grant", "Prove", "Submit", "Settled"],
     series: [0.2, 0.35, 0.9, 1.4, 2.2, 2.7],
     unit: "s",
@@ -43,7 +43,7 @@ const HUD_METRICS: HudMetric[] = [
     id: "constraints",
     label: "Circuit Density",
     headline: "4,349 R1CS",
-    sublabel: "Compiled --O2 within 8,192 capacity EF PSE Perpetual Powers of Tau (ppot_0080_13)",
+    sublabel: "Compiled --O2 within the 8,192 capacity EF PSE Perpetual Powers of Tau ceremony (ppot_0080_13).",
     deltaLabel: "53.1% ptau_13 utilization",
     labels: ["Hospital", "Policy", "Clock", "CPT Tree", "Annual Cap", "Nullifier"],
     series: [720, 1490, 2110, 2980, 3760, 4349],
@@ -103,7 +103,7 @@ export function MetricHUD() {
               Protocol Telemetry &amp; Clearinghouse Benchmark
             </h2>
             <p className="text-xs text-[#52525B]">
-              Zero-knowledge client execution profile vs. centralized EDI clearinghouses (192.7M records exposed in Change Healthcare).
+              Client-side BN254 proving telemetry compared against legacy batch EDI 837 adjudication cycles.
             </p>
           </div>
         </div>

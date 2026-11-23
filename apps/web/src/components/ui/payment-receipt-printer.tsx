@@ -38,7 +38,7 @@ export function PaymentReceiptPrinter({
           </div>
           <div>
             <div className="text-[10px] font-mono-tabular uppercase tracking-wider font-semibold text-[#047857]">
-              Settlement Receipt Printed
+              Settlement Confirmation
             </div>
             <div className="text-xs font-semibold text-[#09090B]">
               ClaimsVault Escrow Payout
@@ -64,7 +64,7 @@ export function PaymentReceiptPrinter({
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#F4F4F5]">
         <CopyHash label="Settled Tx" value={txHash} explorerUrl={explorerUrl} />
         <span className="text-[10px] font-mono-tabular uppercase tracking-widest text-[#047857] font-medium">
-          ||| 0 PHI BYTES VERIFIED |||
+          0 PHI Bytes On-Chain
         </span>
       </div>
 

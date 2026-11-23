@@ -69,10 +69,10 @@ export function AnimatedFileUpload({
           </div>
           <div className="space-y-0.5">
             <div className="text-xs font-semibold text-[#09090B]">
-              Drop CMS-1500 medical bill (PNG / JSON / TXT)
+              Import CMS-1500 Claim Document (PNG, JSON, or TXT)
             </div>
             <div className="text-[11px] text-[#52525B]">
-              Same-origin Tesseract WASM OCR runs locally in your browser — 0 bytes sent externally.
+              Browser-local Tesseract WASM extracts claim fields on-device with zero external network transmission.
             </div>
           </div>
         </div>

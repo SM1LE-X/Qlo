@@ -23,9 +23,9 @@ export function OrbitalProver({
   const isFailed = stage === "failed";
 
   const statusText = {
-    idle: "4,349 R1CS Constraints Standby",
+    idle: "Ready — 4,349 R1CS Constraints Loaded",
     building_witness: "Constructing 20-signal Poseidon Witness...",
-    loading_artifacts: "Streaming /zk/ClaimValidity.zkey...",
+    loading_artifacts: "Loading proving key artifacts...",
     computing_witness: "Generating BN254 Groth16 Proof...",
     verifying_locally: "Verifying Pairing Before Broadcast...",
     done: `Groth16 Proof Verified Locally (${elapsedMs ?? 0}ms)`,
@@ -100,7 +100,7 @@ export function OrbitalProver({
 
       <div className="min-w-0 flex-1 space-y-0.5">
         <div className="text-[10px] font-mono-tabular uppercase tracking-[0.16em] text-[#71717A]">
-          Web Worker SNARK Core · PPOT 13
+          Client-Side Groth16 Prover · BN254
         </div>
         <div
           className={cn(

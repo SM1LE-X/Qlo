@@ -75,13 +75,12 @@ export default function StoryPage() {
   return (
     <div className="space-y-8">
       <section className="space-y-2">
-        <Badge variant="teal">Security Trust Center · Cryptography &amp; Threat Model</Badge>
+        <Badge variant="teal">Trust Center · Cryptographic Specification</Badge>
         <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-[#09090B]">
-          How Qlo Enforces Privacy &amp; Policy Coverage End-to-End
+          Cryptographic Architecture &amp; Security Controls
         </h1>
         <p className="text-sm text-[#52525B] max-w-3xl leading-relaxed">
-          Every assumption was red-teamed before implementation: arbitrary-nonce nullifiers were eliminated,
-          256-bit hashes were safely truncated to 248 bits for BN254, and cumulative annual limits are enforced privately.
+          Every circuit constraint, key-management boundary, and contract invariant is structured for fail-closed verification—replacing ad-hoc nonces with deterministic nullifiers, truncating SHA-256 digests safely into BN254 field elements, and enforcing private annual policy caps.
         </p>
       </section>
 
@@ -90,10 +89,10 @@ export default function StoryPage() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F4F4F5] pb-3">
           <div>
             <h2 className="text-sm font-semibold text-[#09090B]">
-              Live Browser Artifact Integrity Check (`/zk/ClaimValidity.zkey`)
+              Live Proving Key Integrity Verification (<code className="font-mono-tabular text-[#0F766E]">/zk/ClaimValidity.zkey</code>)
             </h2>
             <p className="text-xs text-[#52525B]">
-              Re-hashes the live Groth16 proving key via WebCrypto SHA-256 and matches it against the pinned ceremony manifest.
+              Computes the SHA-256 digest of the active Groth16 proving key via WebCrypto and compares it against the pinned ceremony manifest.
             </p>
           </div>
           <TactileButton size="sm" variant="secondary" onClick={runIntegrityCheck} disabled={verifying}>
@@ -198,7 +197,9 @@ export default function StoryPage() {
                 <th className="py-2.5 pr-4 font-medium">Index</th>
                 <th className="py-2.5 pr-4 font-medium">Signal Name</th>
                 <th className="py-2.5 pr-4 font-medium">Domain</th>
-                <th className="py-2.5 font-medium">On-Chain Invariant (`ClaimsVault.sol`)</th>
+                <th className="py-2.5 font-medium">
+                  On-Chain Invariant (<code className="font-mono-tabular text-[#09090B]">ClaimsVault.sol</code>)
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F4F4F5]">

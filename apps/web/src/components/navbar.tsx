@@ -8,6 +8,7 @@ import {
   Activity,
   AlertTriangle,
   CheckCircle2,
+  Compass,
   Cpu,
   FileLock2,
   Landmark,
@@ -18,17 +19,20 @@ import {
 import { useAccount, useChainId, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
 import { IS_CHAIN_DEPLOYED } from "@/lib/contracts";
+import { loadLocalChainMirror } from "@/lib/localState";
 import { motionTransitions } from "@/lib/motion-tokens";
+import { listVaultEntries } from "@/lib/storage";
 import { cn, shortHex } from "@/lib/utils";
 import { verifyZkeyIntegrity } from "@/lib/zkeyIntegrity";
 import { Badge } from "./ui/card";
 import { CommandMenu } from "./ui/command-menu";
+import { OnboardingModal } from "./ui/onboarding-guide";
 import { TactileButton } from "./ui/tactile-button";
 
 const NAV_LINKS = [
   { href: "/", label: "Overview", icon: Activity },
   { href: "/patient", label: "Patient Vault", icon: FileLock2 },
-  { href: "/hospital", label: "Provider Billing", icon: Cpu },
+  { href: "/hospital", label: "Clearinghouse", icon: Cpu },
   { href: "/insurer", label: "Payer Treasury", icon: Landmark },
   { href: "/story", label: "Trust Center", icon: ShieldCheck },
 ];
@@ -47,6 +51,12 @@ export function Navbar() {
   const [zkeyStatus, setZkeyStatus] = useState<"checking" | "verified" | "mismatch">("checking");
   const [zkeySha, setZkeySha] = useState<string>("");
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [onboardingStats, setOnboardingStats] = useState({
+    vaultCount: 0,
+    hasActiveGrant: false,
+    settledCount: 0,
+  });
 
   useEffect(() => {
     let active = true;
@@ -59,8 +69,35 @@ export function Navbar() {
       .catch(() => {
         if (active) setZkeyStatus("mismatch");
       });
+
+    const syncOnboarding = () => {
+      const mirror = loadLocalChainMirror();
+      const now = Math.floor(Date.now() / 1000);
+      const hasActiveGrant = Object.values(mirror.grants).some((g) => g.expiresAt > now);
+      listVaultEntries()
+        .then((items) => {
+          if (!active) return;
+          setOnboardingStats({
+            vaultCount: items.length,
+            hasActiveGrant,
+            settledCount: mirror.settledClaims.length,
+          });
+        })
+        .catch(() => {
+          if (!active) return;
+          setOnboardingStats({
+            vaultCount: 0,
+            hasActiveGrant,
+            settledCount: mirror.settledClaims.length,
+          });
+        });
+    };
+
+    syncOnboarding();
+    window.addEventListener("storage", syncOnboarding);
     return () => {
       active = false;
+      window.removeEventListener("storage", syncOnboarding);
     };
   }, []);
 
@@ -77,7 +114,9 @@ export function Navbar() {
               </div>
               <div className="leading-tight">
                 <div className="text-sm font-bold tracking-tight text-[#09090B]">Qlo</div>
-                <div className="text-[10px] font-medium text-[#71717A]">Health Claims OS</div>
+                <div className="text-[10px] font-medium text-[#71717A] whitespace-nowrap">
+                  Zero-Knowledge Clearinghouse
+                </div>
               </div>
             </Link>
 
@@ -115,6 +154,16 @@ export function Navbar() {
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
+              onClick={() => setOnboardingOpen(true)}
+              aria-label="Open onboarding guide"
+              className="hidden sm:inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#E4E4E7] bg-white px-2.5 py-1 text-[11px] font-medium text-[#52525B] hover:border-[#D4D4D8] hover:text-[#09090B] transition-colors cursor-pointer"
+            >
+              <Compass className="h-3.5 w-3.5 text-[#0F766E]" />
+              <span>Guide</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setCmdOpen(true)}
               aria-label="Open command menu"
               className="hidden lg:inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#E4E4E7] bg-[#FAFAFA] px-2.5 py-1 text-[11px] font-mono-tabular text-[#52525B] hover:border-[#D4D4D8] hover:text-[#09090B] transition-colors cursor-pointer"
@@ -144,7 +193,7 @@ export function Navbar() {
               </Badge>
             ) : (
               <Badge variant="neutral" className="hidden sm:inline-flex whitespace-nowrap">
-                Local Sandbox
+                Sandbox Mode
               </Badge>
             )}
 
@@ -179,7 +228,19 @@ export function Navbar() {
         </div>
       </header>
 
-      <CommandMenu open={cmdOpen} onOpenChange={setCmdOpen} />
+      <CommandMenu
+        open={cmdOpen}
+        onOpenChange={setCmdOpen}
+        onOpenOnboarding={() => setOnboardingOpen(true)}
+      />
+      <OnboardingModal
+        open={onboardingOpen}
+        onOpenChange={setOnboardingOpen}
+        vaultCount={onboardingStats.vaultCount}
+        hasActiveGrant={onboardingStats.hasActiveGrant}
+        settledCount={onboardingStats.settledCount}
+        zkeyVerified={zkeyStatus === "verified"}
+      />
     </>
   );
 }
