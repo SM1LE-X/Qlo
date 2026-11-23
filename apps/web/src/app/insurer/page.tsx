@@ -1,23 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import {
-  ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  Eye,
-  EyeOff,
-  Landmark,
-  RefreshCw,
-  Search,
-  ShieldCheck,
-} from "lucide-react";
+import { Landmark } from "lucide-react";
 import { toast } from "sonner";
 import type { Abi } from "viem";
 import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
-import { BrowserMockupCard } from "@/components/ui/browser-mockup-card";
+import { CalldataAuditPanel, scanHexForPhi } from "@/components/insurer/calldata-audit-panel";
+import { SettledClaimsTable } from "@/components/insurer/settled-claims-table";
 import { Badge } from "@/components/ui/card";
 import { CopyHash } from "@/components/ui/copy-hash";
 import { DonutChart } from "@/components/ui/donut-chart";
@@ -29,8 +18,7 @@ import { TactileButton } from "@/components/ui/tactile-button";
 import canonicalFixtures from "@/lib/canonicalFixtures.json";
 import { getProviderDisplayName } from "@/lib/clinicalCatalog";
 import { fetchOnChainVaultSnapshot, fetchSettledClaimsEvents } from "@/lib/chainEvents";
-import { CONTRACTS, DEPLOYMENT, IS_CHAIN_DEPLOYED, explorerTxUrl } from "@/lib/contracts";
-import { generateX12835Era } from "@/lib/healthcareStandards";
+import { CONTRACTS, DEPLOYMENT, IS_CHAIN_DEPLOYED } from "@/lib/contracts";
 import { loadLocalChainMirror, saveLocalChainMirror, type LocalSettledClaim } from "@/lib/localState";
 import { fetchRelayState, postRelayAction } from "@/lib/relayClient";
 import {
@@ -40,31 +28,9 @@ import {
   validatePositiveEthInput,
 } from "@/lib/txHelpers";
 import { useWalletRoles } from "@/lib/useWalletRoles";
-import { formatWeiToEth, shortHex } from "@/lib/utils";
+import { formatWeiToEth } from "@/lib/utils";
 
-const PHI_CANARIES = ["I21.0", "I25.10", "99285", "99214", "Aspirin", "Ticagrelor", "SYNTH-CASE"];
 const LEDGER_PAGE_SIZE = 5;
-
-function scanHexForPhi(hexStr: string): string[] {
-  const clean = hexStr.startsWith("0x") ? hexStr.slice(2) : hexStr;
-  let ascii = "";
-  for (let i = 0; i < clean.length; i += 2) {
-    const code = parseInt(clean.slice(i, i + 2), 16);
-    if (code >= 32 && code <= 126) ascii += String.fromCharCode(code);
-  }
-  const lowerHex = clean.toLowerCase();
-  const hits: string[] = [];
-  for (const term of PHI_CANARIES) {
-    const termHex = Array.from(new TextEncoder().encode(term))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")
-      .toLowerCase();
-    if (ascii.includes(term) || lowerHex.includes(termHex)) {
-      hits.push(term);
-    }
-  }
-  return hits;
-}
 
 export default function InsurerPage() {
   const { address } = useAccount();
@@ -555,336 +521,33 @@ export default function InsurerPage() {
       </div>
 
       {/* OpenSourceUI Light Settled Claims Ledger Table */}
-      <SpotlightCard id="insurer-ledger" accent="neutral" className="overflow-hidden scroll-mt-20">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#F4F4F5] px-6 py-4">
-          <div>
-            <h2 className="text-sm font-semibold text-[#09090B]">Settled Claims Ledger</h2>
-            <p className="text-xs text-[#52525B]">
-              Verified zero-knowledge disbursements settled from ClaimsVault treasury.
-            </p>
-          </div>
+      <SettledClaimsTable
+        totalClaimsCount={settledList.length}
+        sortedClaimsCount={sortedClaims.length}
+        ledgerSlice={ledgerSlice}
+        filterText={filterText}
+        onChangeFilter={(text) => {
+          setFilterText(text);
+          setLedgerPage(0);
+        }}
+        onRefresh={() => refreshStats()}
+        onToggleSort={toggleSort}
+        onInspectClaim={inspectClaimRow}
+        onChainHospitalRoot={onChainHospitalRoot}
+        safePage={safePage}
+        totalPages={totalPages}
+        onChangePage={setLedgerPage}
+      />
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            <TactileButton
-              size="sm"
-              variant="secondary"
-              onClick={() => refreshStats()}
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Sync Ledger
-            </TactileButton>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#71717A]" />
-              <input
-                id="ledger-filter-input"
-                type="search"
-                value={filterText}
-                onChange={(e) => {
-                  setFilterText(e.target.value);
-                  setLedgerPage(0);
-                }}
-                placeholder="Filter hospital or nullifier..."
-                aria-label="Filter settled claims by hospital or nullifier"
-                className="w-52 rounded-lg border border-[#E4E4E7] bg-white pl-8 pr-2.5 py-1.5 text-xs text-[#09090B] placeholder-[#A1A1AA] focus:border-[#0F766E] focus:outline-none"
-              />
-            </div>
-            <Badge variant="neutral">
-              {sortedClaims.length} / {settledList.length} transactions
-            </Badge>
-          </div>
-        </div>
-
-        {sortedClaims.length === 0 ? (
-          <div className="px-6 py-8 text-center space-y-3">
-            <div className="text-xs text-[#71717A]">
-              {settledList.length === 0
-                ? "No claims settled in this session yet. Authorize a record in Patient Vault, then submit a proof from the Provider Clearinghouse to populate this ledger."
-                : "No settled claims matched your filter query."}
-            </div>
-            {settledList.length === 0 ? (
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <Link href="/hospital">
-                  <TactileButton size="sm" variant="primary">
-                    Prove &amp; Settle First Claim
-                  </TactileButton>
-                </Link>
-                <Link href="/patient">
-                  <TactileButton size="sm" variant="secondary">
-                    Open Patient Vault
-                  </TactileButton>
-                </Link>
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-xs">
-                <thead>
-                  <tr className="border-b border-[#E4E4E7] bg-[#FAFAFA] text-[#71717A]">
-                    <th className="px-6 py-2.5 font-medium">
-                      <button
-                        type="button"
-                        onClick={() => toggleSort("hospital")}
-                        className="inline-flex items-center gap-1 font-medium text-[#52525B] hover:text-[#09090B] cursor-pointer"
-                      >
-                        Hospital Provider
-                        <ArrowUpDown className="h-3 w-3" />
-                      </button>
-                    </th>
-                    <th className="px-4 py-2.5 font-medium">Public Inputs</th>
-                    <th className="px-4 py-2.5 font-medium">Privacy Audit</th>
-                    <th className="px-4 py-2.5 text-right font-medium">
-                      <button
-                        type="button"
-                        onClick={() => toggleSort("amount")}
-                        className="inline-flex items-center justify-end gap-1 font-medium text-[#52525B] hover:text-[#09090B] cursor-pointer"
-                      >
-                        Payout
-                        <ArrowUpDown className="h-3 w-3" />
-                      </button>
-                    </th>
-                    <th className="px-6 py-2.5 text-right font-medium">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#F4F4F5]">
-                  {ledgerSlice.map((row) => (
-                    <tr key={row.txHash} className="hover:bg-[#FAFAFA] transition-colors">
-                      <td className="px-6 py-3">
-                        <div className="font-semibold text-[#09090B]">
-                          {getProviderDisplayName(row.hospital)}
-                        </div>
-                        <div className="font-mono-tabular text-[11px] text-[#71717A]">
-                          {shortHex(row.hospital, 8, 6)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 font-mono-tabular text-[11px] text-[#52525B] space-y-0.5">
-                        <div>
-                          claimNullifier: {row.nullifier.slice(0, 12)}...
-                        </div>
-                        <div className="text-[#71717A]">
-                          policyCommit: {shortHex(row.policyCommitment || canonicalFixtures.activePolicy.commitment, 10, 4)}
-                        </div>
-                        <div className="text-[#71717A]">
-                          hospitalRoot: {(row.pubSignals?.[0] ?? (onChainHospitalRoot?.toString() || canonicalFixtures.hospitalRoot)).slice(0, 12)}...
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge variant="emerald">0 PHI Verified</Badge>
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono-tabular font-semibold text-[#047857]">
-                        +{formatWeiToEth(row.amountWei, 4)} ETH
-                      </td>
-                      <td className="px-6 py-3 text-right">
-                        <div className="inline-flex items-center justify-end gap-1.5">
-                          <TactileButton
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => {
-                              const eraText = generateX12835Era(
-                                row,
-                                getProviderDisplayName(row.hospital)
-                              );
-                              const blob = new Blob([eraText], { type: "text/plain" });
-                              const url = URL.createObjectURL(blob);
-                              const a = document.createElement("a");
-                              a.href = url;
-                              a.download = `qlo-835-era-${row.nullifier.slice(0, 10)}.edi`;
-                              a.click();
-                              URL.revokeObjectURL(url);
-                            }}
-                          >
-                            <Download className="h-3 w-3" />
-                            835 ERA
-                          </TactileButton>
-                          <TactileButton
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => inspectClaimRow(row)}
-                          >
-                            Inspect
-                          </TactileButton>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {totalPages > 1 ? (
-              <div className="flex items-center justify-between border-t border-[#F4F4F5] px-6 py-2.5 text-xs text-[#71717A]">
-                <span>
-                  Page {safePage + 1} of {totalPages}
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    aria-label="Previous ledger page"
-                    disabled={safePage === 0}
-                    onClick={() => setLedgerPage((p) => Math.max(0, p - 1))}
-                    className="rounded-lg border border-[#E4E4E7] p-1 hover:bg-[#F4F4F5] disabled:opacity-40 cursor-pointer"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Next ledger page"
-                    disabled={safePage >= totalPages - 1}
-                    onClick={() => setLedgerPage((p) => Math.min(totalPages - 1, p + 1))}
-                    className="rounded-lg border border-[#E4E4E7] p-1 hover:bg-[#F4F4F5] disabled:opacity-40 cursor-pointer"
-                  >
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </>
-        )}
-      </SpotlightCard>
-
-      {/* OpenSourceUI Light macOS BrowserMockupCard framing the Split-Screen Inspector */}
-      <div id="insurer-audit" className="scroll-mt-20">
-      <BrowserMockupCard
-        url={
-          selectedClaim && IS_CHAIN_DEPLOYED
-            ? explorerTxUrl(selectedClaim.txHash)
-            : "base-sepolia://claimsvault/submitClaim#zero-phi-audit"
-        }
-        rightSlot={
-          phiHits !== null ? (
-            <Badge variant={phiHits.length === 0 ? "emerald" : "crimson"}>
-              <ShieldCheck className="h-3.5 w-3.5" />
-              {phiHits.length === 0 ? "0 PHI BYTES DETECTED IN CALLDATA" : `LEAK: ${phiHits.join(", ")}`}
-            </Badge>
-          ) : (
-            <Badge variant="neutral">Awaiting Settlement Scan</Badge>
-          )
-        }
-      >
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-base font-semibold text-[#09090B]">
-              On-Chain Calldata &amp; Zero-PHI Privacy Audit
-            </h2>
-            <p className="text-xs text-[#52525B]">
-              Inspect raw Groth16 settlement calldata and verify 0 bytes of clinical PHI exist on Base Sepolia.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              id="tx-hash-input"
-              aria-label="Settled transaction hash"
-              value={txHashInput}
-              onChange={(e) => setTxHashInput(e.target.value)}
-              placeholder="Paste Base Sepolia settled txHash (0x...) or inspect latest claim below"
-              className="flex-1 min-w-[240px] rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] px-3 py-2 text-xs font-mono-tabular text-[#09090B] focus:border-[#0F766E] focus:outline-none"
-            />
-            <TactileButton size="sm" variant="primary" onClick={handleInspectTx}>
-              <Search className="h-3.5 w-3.5" />
-              Scan Calldata for PHI
-            </TactileButton>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Left Pane: Public Chain */}
-            <div className="rounded-xl border border-[#A7F3D0] bg-[#ECFDF5]/40 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[#047857] flex items-center gap-1.5">
-                  <Eye className="h-4 w-4" />
-                  Public Ledger Calldata
-                </span>
-                {selectedClaim && IS_CHAIN_DEPLOYED ? (
-                  <CopyHash
-                    label="Tx"
-                    value={selectedClaim.txHash}
-                    explorerUrl={explorerTxUrl(selectedClaim.txHash)}
-                  />
-                ) : null}
-              </div>
-
-              {selectedClaim ? (
-                <div className="space-y-1.5 text-xs font-mono-tabular text-[#09090B]">
-                  <div>hospital: {selectedClaim.hospital}</div>
-                  <div>claimAmount: {formatWeiToEth(selectedClaim.amountWei)} ETH</div>
-                  <div>policyCommitment: {selectedClaim.policyCommitment.slice(0, 22)}...</div>
-                  <div>claimNullifier: {selectedClaim.nullifier.slice(0, 22)}...</div>
-                  <div>
-                    approvedHospitalRoot:{" "}
-                    {(
-                      selectedClaim.pubSignals?.[0] ??
-                      onChainHospitalRoot?.toString() ??
-                      canonicalFixtures.hospitalRoot
-                    ).slice(0, 22)}
-                    ...
-                  </div>
-                  <div>recordCommitment: {selectedClaim.recordCommitmentHex.slice(0, 22)}...</div>
-                </div>
-              ) : (
-                <div className="text-xs text-[#52525B] space-y-1.5">
-                  <p>No settled transactions available to inspect in this session.</p>
-                  <Link
-                    href="/hospital"
-                    className="inline-flex items-center font-medium text-[#0F766E] hover:underline"
-                  >
-                    Open Provider Clearinghouse →
-                  </Link>
-                </div>
-              )}
-
-              {inspectedCalldata ? (
-                <div className="rounded-lg border border-[#27272A] bg-[#111113] p-3 font-mono-tabular text-[11px] text-[#E4E4E7] break-all max-h-40 overflow-y-auto">
-                  {inspectedCalldata}
-                </div>
-              ) : null}
-            </div>
-
-            {/* Right Pane: Private Clinical Reality */}
-            <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2]/55 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[#B91C1C] flex items-center gap-1.5">
-                  <EyeOff className="h-4 w-4 text-[#DC2626]" />
-                  Protected Clinical Data (Off-Chain Only)
-                </span>
-                <Badge variant="crimson">Redacted</Badge>
-              </div>
-
-              <div className="space-y-1.5 text-xs font-mono-tabular">
-                <div className="flex justify-between border-b border-[#FECACA]/60 py-1.5">
-                  <span className="text-[#52525B]">Box 21 ICD-10 Diagnosis</span>
-                  <span className="blur-[4px] hover:blur-none transition-all text-[#B91C1C] font-semibold">
-                    I21.0 / I25.10
-                  </span>
-                </div>
-                <div className="flex justify-between border-b border-[#FECACA]/60 py-1.5">
-                  <span className="text-[#52525B]">Box 24D CPT Procedure</span>
-                  <span className="blur-[4px] hover:blur-none transition-all text-[#B91C1C] font-semibold">
-                    99285 / 99214
-                  </span>
-                </div>
-                <div className="flex justify-between border-b border-[#FECACA]/60 py-1.5">
-                  <span className="text-[#52525B]">Prescription / Rx</span>
-                  <span className="blur-[4px] hover:blur-none transition-all text-[#B91C1C] font-semibold">
-                    Aspirin 325mg + Ticagrelor
-                  </span>
-                </div>
-                <div className="flex justify-between border-b border-[#FECACA]/60 py-1.5">
-                  <span className="text-[#52525B]">Private Annual Policy Limit</span>
-                  <span className="blur-[4px] hover:blur-none transition-all text-[#B91C1C] font-semibold">
-                    0.0300 ETH
-                  </span>
-                </div>
-                <div className="flex justify-between py-1.5">
-                  <span className="text-[#52525B]">AES-256-GCM Plaintext DEK</span>
-                  <span className="text-[#B91C1C] font-semibold">Unreachable by Insurer</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </BrowserMockupCard>
-      </div>
+      <CalldataAuditPanel
+        selectedClaim={selectedClaim}
+        phiHits={phiHits}
+        txHashInput={txHashInput}
+        onChangeTxHashInput={setTxHashInput}
+        onInspectTx={handleInspectTx}
+        inspectedCalldata={inspectedCalldata}
+        onChainHospitalRoot={onChainHospitalRoot}
+      />
     </div>
   );
 }

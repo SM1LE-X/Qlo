@@ -1,41 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import {
-  AlertOctagon,
-  CheckCircle2,
-  Cpu,
-  Download,
-  FileCode2,
-  KeyRound,
-  Landmark,
-  RefreshCw,
-  ShieldAlert,
-  Upload,
-} from "lucide-react";
 import { toast } from "sonner";
 import type { Abi } from "viem";
 import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
-import { Badge } from "@/components/ui/card";
-import { DecryptedText } from "@/components/ui/decrypted-text";
-import { NumberTicker } from "@/components/ui/number-ticker";
-import { OrbitalProver } from "@/components/ui/orbital-prover";
-import { PaymentNotificationBanner } from "@/components/ui/payment-notification-banner";
-import { PaymentReceiptPrinter } from "@/components/ui/payment-receipt-printer";
-import { SpotlightCard } from "@/components/ui/spotlight-card";
-import { StatCard } from "@/components/ui/stat-card";
-import { Stepper } from "@/components/ui/stepper";
-import { TactileButton } from "@/components/ui/tactile-button";
-import { BorderBeam, Terminal } from "@/components/ui/terminal";
-import { TransitionPanel } from "@/components/ui/transition-panel";
+import { FraudGuardrailsCard } from "@/components/hospital/fraud-guardrails-card";
+import { HospitalOverviewHeader } from "@/components/hospital/hospital-overview-header";
+import { HospitalProverCard } from "@/components/hospital/hospital-prover-card";
+import { HospitalRecordQueueCard } from "@/components/hospital/hospital-record-queue-card";
+import { StandardsStagingCard } from "@/components/hospital/standards-staging-card";
 import canonicalFixtures from "@/lib/canonicalFixtures.json";
-import {
-  ACCREDITED_PROVIDERS,
-  getCptLabel,
-  getProviderDisplayName,
-} from "@/lib/clinicalCatalog";
 import { CONTRACTS, IS_CHAIN_DEPLOYED, explorerTxUrl } from "@/lib/contracts";
 import {
   decryptClinicalPayload,
@@ -43,13 +17,11 @@ import {
   unwrapDekForHospital,
 } from "@/lib/crypto";
 import {
-  cms1500ToFhirClaim,
-  cms1500ToX12837P,
-  generateX12835Era,
-} from "@/lib/healthcareStandards";
+  executeHospitalGuardrailCheck,
+  type AttackId,
+} from "@/lib/hospitalGuardrails";
 import { validateCms1500Completeness, type Cms1500Claim } from "@/lib/intake";
 import { loadLocalChainMirror, saveLocalChainMirror } from "@/lib/localState";
-import { motionTransitions } from "@/lib/motion-tokens";
 import {
   buildCircuitInputFromClaim,
   generateClaimProof,
@@ -74,19 +46,6 @@ import {
 } from "@/lib/txHelpers";
 import { useWalletRoles } from "@/lib/useWalletRoles";
 import { formatWeiToEth, parseEthToWei } from "@/lib/utils";
-
-const PREDICATE_LABELS = [
-  "1. Hospital Merkle Membership (Poseidon(address, licenseId))",
-  "2. Policy Commitment Preimage (Poseidon(6))",
-  "3. Policy Unexpired vs. Live Clock (Num2Bits(64) + LessThan)",
-  "4. Procedure Code in Covered CPT Tree (MerkleProof(6))",
-  "5. Positive Claim Amount (IsZero == 0)",
-  "6. Cumulative Annual Cap (priorSpent + claim <= annualLimit)",
-  "7. Deterministic Non-Replayable Nullifier (Poseidon(3))",
-  "8. Anti-Front-Run Sender Binding (hospitalAddress == msg.sender)",
-];
-
-type AttackId = "replay" | "cpt" | "expired" | "cap" | "revoked";
 
 export default function HospitalPage() {
   const { address } = useAccount();
@@ -737,170 +696,15 @@ export default function HospitalPage() {
   const runAttackScenario = async (kind: AttackId) => {
     setActiveAttack(kind);
     setAttackResult({ status: "idle", detail: "Running live cryptographic policy check..." });
-
-    const dummyRecordCommit = BigInt(
-      selectedEntry?.recordCommitmentHex ??
-        "0x00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
-    );
-
     try {
-      if (kind === "replay") {
-        if (!proverOutput) {
-          throw new Error(
-            "ClaimsVault.NullifierAlreadyUsed() — settle a claim first or submit duplicate nullifier; contract reverts on-chain."
-          );
-        }
-        const mirror = loadLocalChainMirror();
-        if (IS_CHAIN_DEPLOYED && publicClient) {
-          const used = (await publicClient.readContract({
-            address: CONTRACTS.ClaimsVault.address,
-            abi: CONTRACTS.ClaimsVault.abi,
-            functionName: "nullifierUsed",
-            args: [proverOutput.solidity.pubSignals[2]],
-          })) as boolean;
-          if (!used) {
-            throw new Error(
-              "Settle the generated proof on Base Sepolia once first, then click Replay to observe ClaimsVault.NullifierAlreadyUsed()."
-            );
-          }
-          await publicClient.simulateContract({
-            account: hospitalAddr as `0x${string}`,
-            address: CONTRACTS.ClaimsVault.address,
-            abi: CONTRACTS.ClaimsVault.abi as Abi,
-            functionName: "submitClaim",
-            args: [
-              proverOutput.solidity.pA,
-              proverOutput.solidity.pB,
-              proverOutput.solidity.pC,
-              proverOutput.solidity.pubSignals,
-            ],
-          });
-        } else if (mirror.nullifierUsed[proverOutput.publicSignals[2]]) {
-          throw new Error(
-            "ClaimsVault.NullifierAlreadyUsed() — identical deterministic nullifier rejected on settlement!"
-          );
-        } else {
-          throw new Error(
-            "Settle the generated proof once first, then click Replay to observe NullifierAlreadyUsed()."
-          );
-        }
-      }
-
-      if (kind === "cpt") {
-        const badInput = await buildCircuitInputFromClaim({
-          claim: {
-            ...(decryptedClaim ?? {
-              caseLabel: "Uncovered CPT Check",
-              insuredPolicyId: "2026001",
-              patientAlias: "SYNTH-ATTACK",
-              icd10Code: "Z41.1",
-              serviceDate: "2026-11-22",
-              cptCode: "15777",
-              claimAmountEth: "0.01",
-              renderingNpi: "1234567890",
-              prescription: "None",
-              clinicalNotes: "",
-            }),
-            cptCode: "15777",
-          },
-          recordCommitment: dummyRecordCommit,
-          hospitalAddress: hospitalAddr,
-          priorPolicySpentWei: 0n,
-        });
-        await generateClaimProof(badInput);
-      }
-
-      if (kind === "expired") {
-        const badInput = await buildCircuitInputFromClaim({
-          claim: {
-            ...(decryptedClaim ?? {
-              caseLabel: "Expired Policy Check",
-              insuredPolicyId: "2025099",
-              patientAlias: "SYNTH-ATTACK",
-              icd10Code: "J18.9",
-              serviceDate: "2026-11-22",
-              cptCode: "99284",
-              claimAmountEth: "0.008",
-              renderingNpi: "1234567890",
-              prescription: "None",
-              clinicalNotes: "",
-              useExpiredPolicy: true,
-            }),
-            useExpiredPolicy: true,
-          },
-          recordCommitment: dummyRecordCommit,
-          hospitalAddress: hospitalAddr,
-          priorPolicySpentWei: 0n,
-        });
-        await generateClaimProof(badInput);
-      }
-
-      if (kind === "cap") {
-        const badInput = await buildCircuitInputFromClaim({
-          claim: {
-            ...(decryptedClaim ?? {
-              caseLabel: "Over Cap Check",
-              insuredPolicyId: "2026001",
-              patientAlias: "SYNTH-ATTACK",
-              icd10Code: "I21.0",
-              serviceDate: "2026-11-22",
-              cptCode: "99285",
-              claimAmountEth: "0.04",
-              renderingNpi: "1234567890",
-              prescription: "None",
-              clinicalNotes: "",
-            }),
-            claimAmountEth: "0.04",
-          },
-          recordCommitment: dummyRecordCommit,
-          hospitalAddress: hospitalAddr,
-          priorPolicySpentWei: parseEthToWei("0.01"),
-        });
-        await generateClaimProof(badInput);
-      }
-
-      if (kind === "revoked") {
-        if (IS_CHAIN_DEPLOYED && publicClient && selectedEntry) {
-          const recId = (await publicClient.readContract({
-            address: CONTRACTS.HealthRecords.address,
-            abi: CONTRACTS.HealthRecords.abi,
-            functionName: "commitmentToRecordId",
-            args: [selectedEntry.recordCommitmentHex],
-          })) as bigint;
-          if (recId === 0n) {
-            throw new Error(
-              "Register the encrypted record on Base Sepolia first before probing post-revoke access."
-            );
-          }
-          const active = (await publicClient.readContract({
-            address: CONTRACTS.HealthRecords.address,
-            abi: CONTRACTS.HealthRecords.abi,
-            functionName: "hasActiveAccess",
-            args: [recId, hospitalAddr as `0x${string}`],
-          })) as boolean;
-          if (!active) {
-            throw new Error(
-              "ClaimsVault.PatientAccessNotActive() — Base Sepolia HealthRecords.hasActiveAccess() returned false (wrapped DEK wiped on-chain)!"
-            );
-          }
-          throw new Error(
-            "Grant is currently active on Base Sepolia. Click 'Revoke Immediately' on /patient first, then re-test."
-          );
-        }
-
-        const remote = await fetchRelayState();
-        const mirror = remote ?? loadLocalChainMirror();
-        const recId = selectedEntry?.recordId || "1";
-        const grant = mirror.grants[`${recId}:${hospitalAddr.toLowerCase()}`];
-        if (!grant || grant.expiresAt <= Math.floor(Date.now() / 1000)) {
-          throw new Error(
-            "ClaimsVault.PatientAccessNotActive() — patient revocation cleared wrapped DEK & halted settlement!"
-          );
-        }
-        throw new Error(
-          "Grant is currently active. Click 'Revoke Immediately' on /patient first, then re-test."
-        );
-      }
+      await executeHospitalGuardrailCheck({
+        kind,
+        hospitalAddr,
+        selectedEntry,
+        decryptedClaim,
+        proverOutput,
+        publicClient,
+      });
     } catch (err) {
       const msg = decodeContractError(err);
       setAttackResult({ status: "blocked", detail: msg });
@@ -912,606 +716,83 @@ export default function HospitalPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="teal">Hospital Claims Portal</Badge>
-            <Badge
-              variant={
-                (IS_CHAIN_DEPLOYED ? roles.isApprovedHospital : Boolean(matchedProvider))
-                  ? "emerald"
-                  : "amber"
-              }
-            >
-              {(IS_CHAIN_DEPLOYED ? roles.isApprovedHospital : Boolean(matchedProvider))
-                ? "Approved Hospital · In Poseidon hospitalRoot"
-                : IS_CHAIN_DEPLOYED
-                ? "Wallet Not Accredited in hospitalRoot"
-                : "Select Accredited Facility Below"}
-            </Badge>
-            <span className="text-xs font-mono-tabular text-[#71717A]">
-              Groth16 WASM · Instant ETH Settlement
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#09090B]">
-            Hospital Claim Prover &amp; Adjudication
-          </h1>
-          <p className="text-xs sm:text-sm text-[#52525B]">
-            Unwrap authorized record keys, prove all 8 Groth16 predicates in an off-thread Web Worker, settle escrow payouts, and verify fail-closed policy guardrails.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <TactileButton
-            size="sm"
-            variant="secondary"
-            onClick={() => refreshHospitalInbox(hospitalAddr, false)}
-            disabled={refreshingInbox}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 text-[#0F766E] ${refreshingInbox ? "animate-spin" : ""}`} />
-            Refresh Inbox
-          </TactileButton>
-          <TactileButton
-            size="sm"
-            variant="secondary"
-            onClick={handleRegisterHospitalPubKey}
-            disabled={txBusy || (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))}
-          >
-            <KeyRound className="h-3.5 w-3.5 text-[#0F766E]" />
-            Sync Hospital ECDH Key
-          </TactileButton>
-          <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[#E4E4E7] bg-white px-3 text-xs font-medium text-[#09090B] hover:bg-[#F4F4F5] transition-colors">
-            <Upload className="h-3.5 w-3.5" />
-            Import .qlo.json
-            <input
-              id="qlo-bundle-upload"
-              aria-label="Import encrypted .qlo.json bundle"
-              type="file"
-              accept=".json"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImportBundle(file);
-              }}
-            />
-          </label>
-        </div>
-      </div>
-
-      {/* Clearinghouse Settlement Stepper */}
-      <Stepper
-        current={settledTx ? 3 : proverOutput ? 2 : decryptedClaim ? 1 : 0}
-        steps={[
-          { title: "Unwrap Record", description: "Verify patient grant & DEK" },
-          { title: "Prove 8 Predicates", description: "4,349 R1CS in Web Worker" },
-          { title: "Settle Escrow ETH", description: "Instant ClaimsVault payout" },
-        ]}
+      <HospitalOverviewHeader
+        isChainDeployed={IS_CHAIN_DEPLOYED}
+        isApprovedHospital={roles.isApprovedHospital}
+        matchedProviderPresent={Boolean(matchedProvider)}
+        isConnected={roles.isConnected}
+        wrongChain={roles.wrongChain}
+        refreshingInbox={refreshingInbox}
+        txBusy={txBusy}
+        settledTx={settledTx}
+        hasProverOutput={Boolean(proverOutput)}
+        hasDecryptedClaim={Boolean(decryptedClaim)}
+        providerRevenueEth={providerRevenueEth}
+        settledClaimsCount={settledClaimsCount}
+        lastProofElapsedMs={proverOutput?.elapsedMs}
+        onRefreshInbox={() => refreshHospitalInbox(hospitalAddr, false)}
+        onRegisterHospitalPubKey={handleRegisterHospitalPubKey}
+        onImportBundle={handleImportBundle}
       />
 
-      {/* Provider Revenue KPI Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Settled Revenue"
-          valueText={<NumberTicker value={providerRevenueEth} decimals={4} suffix=" ETH" />}
-          sublabel="Direct escrow payout"
-          deltaText="Instant Finality"
-          deltaTone="emerald"
-          trend={[0.01, 0.015, 0.02, 0.025, 0.03, Math.max(0.01, providerRevenueEth)]}
-          accentColor="#047857"
-        />
-        <StatCard
-          label="Approved Claims"
-          valueText={<NumberTicker value={settledClaimsCount} />}
-          sublabel="Touchless auto-adjudicated"
-          deltaText="0 Denials"
-          deltaTone="teal"
-          trend={[1, 2, 2, 3, 4, Math.max(1, settledClaimsCount)]}
-          accentColor="#0F766E"
-        />
-        <StatCard
-          label="Last Proof Latency"
-          valueText={proverOutput ? `${proverOutput.elapsedMs} ms` : "< 500 ms"}
-          sublabel="Groth16 BN254 Web Worker"
-          deltaText="Client-Side"
-          deltaTone="neutral"
-          trend={[490, 440, 415, 395, 380, proverOutput?.elapsedMs ?? 365]}
-          accentColor="#0F4C81"
-        />
-        <StatCard
-          label="Accreditation"
-          valueText="Merkle Verified"
-          sublabel="Poseidon(addr, NPI) root"
-          deltaText="Active Leaf"
-          deltaTone="emerald"
-          trend={[1, 1, 1, 1, 1, 1]}
-          accentColor="#047857"
-        />
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Authorized Records Queue */}
-        <SpotlightCard
-          id="hospital-queue"
-          accent="neutral"
-          className="lg:col-span-5 p-6 space-y-4 text-xs scroll-mt-20"
-        >
-          <div className="border-b border-[#F4F4F5] pb-3">
-            <h2 className="text-sm font-semibold text-[#09090B]">
-              1. Fetch &amp; Unwrap Patient Record
-            </h2>
-          </div>
+        <HospitalRecordQueueCard
+          hospitalAddr={hospitalAddr}
+          onChangeHospitalAddr={setHospitalAddr}
+          entries={entries}
+          selectedEntry={selectedEntry}
+          onSelectEntry={(found) => {
+            setSelectedEntry(found);
+            setDecryptedClaim(null);
+            setAccessError("");
+          }}
+          onUnwrapAndDecrypt={handleUnwrapAndDecrypt}
+          txBusy={txBusy}
+          accessStatus={accessStatus}
+          accessExpiresAt={accessExpiresAt}
+          matchedProvider={matchedProvider}
+          isChainDeployed={IS_CHAIN_DEPLOYED}
+          isApprovedHospitalRole={roles.isApprovedHospital}
+          onChainKeyRegistered={onChainKeyRegistered}
+          decryptedClaim={decryptedClaim}
+          onMatchFacilityNpi={(npi) =>
+            setDecryptedClaim((prev) => (prev ? { ...prev, renderingNpi: npi } : prev))
+          }
+          completenessValid={Boolean(completeness?.valid)}
+          accessError={accessError}
+          onLogAccessAudit={handleLogAccessAudit}
+        />
 
-          <div className="space-y-1.5">
-            <div className="text-[11px] font-medium text-[#52525B]">Facility Identity</div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {ACCREDITED_PROVIDERS.map((prov) => {
-                const selected = prov.address.toLowerCase() === hospitalAddr.toLowerCase();
-                return (
-                  <button
-                    key={prov.address}
-                    type="button"
-                    onClick={() => setHospitalAddr(prov.address)}
-                    className={`rounded-xl border px-3 py-2 text-left transition-colors cursor-pointer ${
-                      selected
-                        ? "border-[#0F4C81] bg-[#F0F9FF]/70"
-                        : "border-[#E4E4E7] bg-[#FAFAFA] hover:border-[#D4D4D8] hover:bg-white"
-                    }`}
-                  >
-                    <div className="truncate text-[11px] font-semibold text-[#09090B]">
-                      {prov.name}
-                    </div>
-                    <div className="font-mono-tabular text-[10px] text-[#52525B]">
-                      NPI {prov.licenseId}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="hosp-wallet" className="text-[#52525B] font-medium">
-              Proving Hospital Address
-            </label>
-            <input
-              id="hosp-wallet"
-              value={hospitalAddr}
-              onChange={(e) => setHospitalAddr(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 font-mono-tabular text-[#09090B] focus:border-[#0F766E] focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="vault-select" className="text-[#52525B] font-medium">
-              Authorized Patient Records
-            </label>
-            <select
-              id="vault-select"
-              value={selectedEntry?.recordCommitmentHex ?? ""}
-              onChange={(e) => {
-                const found = entries.find((x) => x.recordCommitmentHex === e.target.value);
-                setSelectedEntry(found ?? null);
-                setDecryptedClaim(null);
-                setAccessError("");
-              }}
-              className="mt-1 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 text-[#09090B] focus:border-[#0F766E] focus:outline-none"
-            >
-              {entries.length === 0 ? (
-                <option value="">No authorized records available in this session</option>
-              ) : (
-                entries.map((item) => (
-                  <option key={item.recordCommitmentHex} value={item.recordCommitmentHex}>
-                    {item.summaryHint || item.cid.slice(0, 24)} ({item.cid.slice(0, 12)}...)
-                  </option>
-                ))
-              )}
-            </select>
-          </div>
-
-          <TactileButton
-            variant="emerald"
-            className="w-full"
-            onClick={handleUnwrapAndDecrypt}
-            disabled={!selectedEntry || txBusy}
-          >
-            <KeyRound className="h-4 w-4" />
-            Unwrap ECDH DEK &amp; Decrypt Locally
-          </TactileButton>
-
-          {selectedEntry ? (
-            <div
-              className={`rounded-xl border px-3 py-2.5 flex items-center justify-between gap-2 ${
-                accessStatus === "granted"
-                  ? "border-[#A7F3D0] bg-[#ECFDF5]/70 text-[#047857]"
-                  : accessStatus === "missing"
-                  ? "border-[#FECACA] bg-[#FEF2F2]/80 text-[#B91C1C]"
-                  : "border-[#E4E4E7] bg-[#FAFAFA] text-[#52525B]"
-              }`}
-            >
-              <span className="font-semibold">
-                {accessStatus === "granted"
-                  ? "Patient Access: Granted (Active)"
-                  : accessStatus === "missing"
-                  ? "Patient Access: Not Granted / Revoked"
-                  : "Checking patient access permission..."}
-              </span>
-              {accessStatus === "granted" && accessExpiresAt > 0 ? (
-                <span className="font-mono-tabular text-[10px]">
-                  Until {new Date(accessExpiresAt * 1000).toLocaleTimeString()}
-                </span>
-              ) : null}
-            </div>
-          ) : null}
-
-          {!matchedProvider ? (
-            <div className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2.5 text-[#92400E] space-y-1">
-              <div className="font-semibold">Hospital Accreditation Notice</div>
-              <p className="text-[11px] leading-relaxed">
-                Address {hospitalAddr.slice(0, 10)}... is not present in the Poseidon hospital Merkle root. Select an accredited facility above or deploy with EXTRA_HOSPITAL_ADDRESS set to your MetaMask address.
-              </p>
-            </div>
-          ) : null}
-
-          {IS_CHAIN_DEPLOYED && roles.isApprovedHospital && !onChainKeyRegistered ? (
-            <div className="rounded-xl border border-[#BAE6FD] bg-[#F0F9FF] px-3 py-2 text-[#0F4C81] text-[11px]">
-              Tip: Click <span className="font-semibold">Sync Hospital ECDH Key</span> above to anchor this facility&apos;s P-256 public key on-chain in <code className="font-mono-tabular">HospitalRegistry</code>.
-            </div>
-          ) : null}
-
-          {matchedProvider &&
-          decryptedClaim &&
-          decryptedClaim.renderingNpi.trim() !== matchedProvider.licenseId ? (
-            <div className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] p-3 flex items-center justify-between gap-2 text-[#92400E]">
-              <div className="text-[11px]">
-                Claim NPI ({decryptedClaim.renderingNpi}) differs from selected facility NPI ({matchedProvider.licenseId}).
-              </div>
-              <TactileButton
-                size="sm"
-                variant="amber"
-                onClick={() =>
-                  setDecryptedClaim((prev) =>
-                    prev ? { ...prev, renderingNpi: matchedProvider.licenseId } : prev
-                  )
-                }
-              >
-                Match Facility NPI
-              </TactileButton>
-            </div>
-          ) : null}
-
-          {entries.length === 0 ? (
-            <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-3.5 space-y-2 text-xs">
-              <div className="font-semibold text-[#09090B]">Start in Patient Vault</div>
-              <p className="text-[#52525B]">
-                Encrypt a sample CMS-1500 claim and issue a provider grant first to populate this verification queue, or import a portable{" "}
-                <code className="font-mono-tabular text-[#09090B]">.qlo.json</code> bundle above.
-              </p>
-              <Link
-                href="/patient"
-                className="inline-flex items-center font-medium text-[#0F766E] hover:underline"
-              >
-                Create &amp; Authorize Sample Record in Patient Vault →
-              </Link>
-            </div>
-          ) : null}
-
-          {accessError ? (
-            <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] p-3 text-[#B91C1C] flex items-start gap-2">
-              <AlertOctagon className="h-4 w-4 text-[#DC2626] shrink-0 mt-0.5" />
-              <span>{accessError}</span>
-            </div>
-          ) : null}
-
-          {decryptedClaim ? (
-            <div className="rounded-xl border border-[#A7F3D0] bg-[#ECFDF5]/60 p-3.5 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-[#047857]">Decrypted CMS-1500 Claim</span>
-                {completeness?.valid ? <Badge variant="emerald">Form Complete</Badge> : null}
-              </div>
-              <DecryptedText
-                text={`ICD ${decryptedClaim.icd10Code} | CPT ${decryptedClaim.cptCode} | ${decryptedClaim.claimAmountEth} ETH`}
-                encrypted={false}
-              />
-              <div className="text-[#52525B]">Rx: {decryptedClaim.prescription}</div>
-              <TactileButton size="sm" variant="secondary" onClick={handleLogAccessAudit}>
-                Log Access Audit On-Chain
-              </TactileButton>
-            </div>
-          ) : null}
-        </SpotlightCard>
-
-        {/* Right: Orbital Prover + Predicates + Receipt + Dark Contrast Terminal */}
-        <SpotlightCard
-          id="hospital-prover"
-          accent="emerald"
-          className="lg:col-span-7 relative p-6 space-y-4 scroll-mt-20"
-        >
-          <BorderBeam
-            active={proveStage !== "idle"}
-            color={proveStage === "failed" ? "crimson" : proveStage === "done" ? "emerald" : "amber"}
-          />
-
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F4F4F5] pb-3">
-            <div>
-              <h2 className="text-sm font-semibold text-[#09090B]">
-                2. 8-Predicate Groth16 Web Worker Prover
-              </h2>
-              <p className="text-xs text-[#52525B]">
-                Runs zero-knowledge proof generation off the UI thread.
-              </p>
-            </div>
-            {proverOutput ? (
-              <Badge variant="emerald">Proved &amp; Verified in {proverOutput.elapsedMs}ms</Badge>
-            ) : null}
-          </div>
-
-          <OrbitalProver stage={proveStage} elapsedMs={proverOutput?.elapsedMs} />
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {PREDICATE_LABELS.map((label) => (
-              <div
-                key={label}
-                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] transition-colors ${
-                  proveStage === "done"
-                    ? "border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]"
-                    : proveStage === "failed"
-                    ? "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]"
-                    : "border-[#E4E4E7] bg-[#FAFAFA] text-[#52525B]"
-                }`}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                <span>{label}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <TactileButton
-              variant="primary"
-              onClick={handleProve}
-              disabled={!decryptedClaim || proveStage === "computing_witness"}
-            >
-              <Cpu className="h-4 w-4" />
-              {proveStage === "computing_witness" ? "Proving in WASM..." : "Generate Groth16 Proof"}
-            </TactileButton>
-
-            <TactileButton
-              variant="emerald"
-              onClick={handleSettle}
-              disabled={
-                !proverOutput ||
-                txBusy ||
-                (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain || !roles.isApprovedHospital))
-              }
-            >
-              <Landmark className="h-4 w-4" />
-              Submit &amp; Auto-Settle ETH
-            </TactileButton>
-          </div>
-
-          {settledTx && proverOutput ? (
-            <div className="space-y-3">
-              <PaymentNotificationBanner
-                appName="ClaimsVault Instant Payout"
-                amount={`${settledAmountEth} ETH`}
-                from={`Payer Escrow → ${getProviderDisplayName(hospitalAddr)}`}
-                time="Settled via Groth16"
-                showTriggerLabel="Show payout alert"
-              />
-              <PaymentReceiptPrinter
-                txHash={settledTx}
-                explorerUrl={IS_CHAIN_DEPLOYED ? explorerTxUrl(settledTx) : undefined}
-                amountEth={settledAmountEth}
-                hospitalAddress={hospitalAddr}
-                nullifier={proverOutput.publicSignals[2]}
-              />
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#A7F3D0] bg-[#ECFDF5]/50 px-4 py-2.5 text-xs">
-                <span className="text-[#047857] font-medium">
-                  Zero-PHI Electronic Remittance Advice ready for practice ledger reconciliation
-                </span>
-                <TactileButton
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    const eraText = generateX12835Era(
-                      {
-                        txHash: settledTx,
-                        nullifier: proverOutput.publicSignals[2],
-                        policyCommitment: proverOutput.publicSignals[1],
-                        recordCommitmentHex: selectedEntry?.recordCommitmentHex ?? "0x0",
-                        hospital: hospitalAddr,
-                        amountWei: proverOutput.solidity.pubSignals[3].toString(),
-                        settledAt: Math.floor(Date.now() / 1000),
-                        rawCalldataHex: proverOutput.solidity.rawCalldataHex,
-                        pubSignals: proverOutput.publicSignals,
-                      },
-                      getProviderDisplayName(hospitalAddr)
-                    );
-                    const blob = new Blob([eraText], { type: "text/plain" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `qlo-835-era-${proverOutput.publicSignals[2].slice(0, 10)}.edi`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  Download X12 835 ERA
-                </TactileButton>
-              </div>
-            </div>
-          ) : null}
-
-          <Terminal lines={terminalLines} />
-        </SpotlightCard>
+        <HospitalProverCard
+          proveStage={proveStage}
+          proverOutput={proverOutput}
+          decryptedClaim={decryptedClaim}
+          txBusy={txBusy}
+          chainSettleBlocked={
+            IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain || !roles.isApprovedHospital)
+          }
+          onProve={handleProve}
+          onSettle={handleSettle}
+          settledTx={settledTx}
+          settledAmountEth={settledAmountEth}
+          hospitalAddr={hospitalAddr}
+          selectedRecordCommitmentHex={selectedEntry?.recordCommitmentHex}
+          terminalLines={terminalLines}
+        />
       </div>
 
-      {/* Healthcare Standards Interoperability (HL7 FHIR R4 & ANSI X12 837P) */}
-      <SpotlightCard id="hospital-standards" accent="neutral" className="p-6 space-y-4 scroll-mt-20">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#F4F4F5] pb-3">
-          <div className="flex items-center gap-2">
-            <FileCode2 className="h-4 w-4 text-[#0F4C81]" />
-            <div>
-              <h2 className="text-sm font-semibold text-[#09090B]">
-                Healthcare Standards Interoperability (Off-Chain Clearinghouse Staging)
-              </h2>
-              <p className="text-xs text-[#52525B]">
-                Inspect and export standard HL7 FHIR R4 Claim JSON or ANSI X12 837P (005010X222A1) generated locally after DEK unwrap—never exposed on-chain.
-              </p>
-            </div>
-          </div>
+      <StandardsStagingCard
+        standardsTab={standardsTab}
+        onChangeTab={setStandardsTab}
+        decryptedClaim={decryptedClaim}
+        hospitalAddr={hospitalAddr}
+      />
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-1">
-              {(
-                [
-                  ["fhir", "HL7 FHIR R4"],
-                  ["x12", "ANSI X12 837P"],
-                ] as const
-              ).map(([id, label]) => {
-                const active = standardsTab === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setStandardsTab(id)}
-                    className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                      active
-                        ? "bg-white text-[#09090B] shadow-2xs"
-                        : "text-[#71717A] hover:text-[#09090B]"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {decryptedClaim ? (
-              <TactileButton
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  const content =
-                    standardsTab === "fhir"
-                      ? JSON.stringify(
-                          cms1500ToFhirClaim(
-                            decryptedClaim,
-                            getProviderDisplayName(hospitalAddr)
-                          ),
-                          null,
-                          2
-                        )
-                      : cms1500ToX12837P(
-                          decryptedClaim,
-                          getProviderDisplayName(hospitalAddr),
-                          hospitalAddr
-                        );
-                  const blob = new Blob([content], {
-                    type: standardsTab === "fhir" ? "application/json" : "text/plain",
-                  });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download =
-                    standardsTab === "fhir"
-                      ? `qlo-fhir-claim-${decryptedClaim.cptCode}.json`
-                      : `qlo-x12-837p-${decryptedClaim.cptCode}.edi`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
-              >
-                <Download className="h-3.5 w-3.5" />
-                Export {standardsTab === "fhir" ? "FHIR Claim" : "X12 837P"}
-              </TactileButton>
-            ) : null}
-          </div>
-        </div>
-
-        {decryptedClaim ? (
-          <pre className="max-h-64 overflow-y-auto rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-4 font-mono-tabular text-[11px] leading-relaxed text-[#09090B]">
-            {standardsTab === "fhir"
-              ? JSON.stringify(
-                  cms1500ToFhirClaim(
-                    decryptedClaim,
-                    getProviderDisplayName(hospitalAddr)
-                  ),
-                  null,
-                  2
-                )
-              : cms1500ToX12837P(
-                  decryptedClaim,
-                  getProviderDisplayName(hospitalAddr),
-                  hospitalAddr
-                )}
-          </pre>
-        ) : (
-          <div className="rounded-xl border border-dashed border-[#D4D4D8] bg-[#FAFAFA] py-6 text-center text-xs text-[#71717A]">
-            Unwrap and decrypt an authorized patient record above to stage standard HL7 FHIR R4 or ANSI X12 837P claim artifacts locally.
-          </div>
-        )}
-      </SpotlightCard>
-
-      {/* Policy & Fraud Guardrail Verifier */}
-      <SpotlightCard id="hospital-guardrails" accent="crimson" className="p-6 space-y-4 scroll-mt-20">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F4F4F5] pb-3">
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="h-4 w-4 text-[#B91C1C]" />
-            <h2 className="text-sm font-semibold text-[#09090B]">
-              3. Automated Policy &amp; Fraud Verification Suite
-            </h2>
-          </div>
-          <Badge variant="crimson">Fail-Closed Guardrails</Badge>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              ["replay", "Attack 1: Replay Nullifier"],
-              ["cpt", "Attack 2: Uncovered CPT (15777)"],
-              ["expired", "Attack 3: Expired Policy"],
-              ["cap", "Attack 4: Over Annual Cap"],
-              ["revoked", "Attack 5: Post-Revoke Claim"],
-            ] as const
-          ).map(([id, label]) => {
-            const active = activeAttack === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => runAttackScenario(id)}
-                className={`relative rounded-xl border px-3.5 py-2 text-xs font-medium transition-colors cursor-pointer ${
-                  active
-                    ? "border-[#FECACA] text-[#B91C1C]"
-                    : "border-[#E4E4E7] bg-[#FAFAFA] text-[#52525B] hover:border-[#D4D4D8] hover:text-[#09090B]"
-                }`}
-              >
-                {active ? (
-                  <motion.span
-                    layoutId="attack-tab"
-                    transition={motionTransitions.springMorph}
-                    className="absolute inset-0 rounded-xl bg-[#FEF2F2]"
-                  />
-                ) : null}
-                <span className="relative z-10">{label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <TransitionPanel activeKey={activeAttack + attackResult.status}>
-          <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-4 text-xs space-y-1.5">
-            <div className="font-semibold text-[#09090B]">
-              Selected Verification Case:{" "}
-              <span className="uppercase text-[#B91C1C]">{activeAttack}</span>
-            </div>
-            <div className="font-mono-tabular text-[#B91C1C] break-all">
-              {attackResult.detail || "Select any guardrail case above to confirm fail-closed proof or smart-contract rejection."}
-            </div>
-          </div>
-        </TransitionPanel>
-      </SpotlightCard>
+      <FraudGuardrailsCard
+        activeAttack={activeAttack}
+        attackResult={attackResult}
+        onRunScenario={runAttackScenario}
+      />
     </div>
   );
 }

@@ -1,32 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Download,
-  FileText,
-  KeyRound,
-  Lock,
-  ShieldOff,
-} from "lucide-react";
 import { toast } from "sonner";
 import type { Abi } from "viem";
 import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
-import { AnimatedFileUpload } from "@/components/ui/animated-file-upload";
+import { Cms1500IntakeCard } from "@/components/patient/cms1500-intake-card";
+import { CoveredBenefitsSection } from "@/components/patient/covered-benefits-section";
+import { PatientConsentPanel } from "@/components/patient/patient-consent-panel";
+import { PatientOverviewHeader } from "@/components/patient/patient-overview-header";
+import { PatientVaultTable } from "@/components/patient/patient-vault-table";
 import { AuditTimeline, type AuditEventItem } from "@/components/ui/audit-timeline";
 import { Badge } from "@/components/ui/card";
-import { CopyHash } from "@/components/ui/copy-hash";
-import { DecryptedText } from "@/components/ui/decrypted-text";
-import { NumberTicker, SlidingCountdown } from "@/components/ui/number-ticker";
-import { SmoothAccordion } from "@/components/ui/smooth-accordion";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
-import { StatCard } from "@/components/ui/stat-card";
-import { Stepper } from "@/components/ui/stepper";
-import { TactileButton } from "@/components/ui/tactile-button";
-import { WalletPassCard } from "@/components/ui/wallet-pass-card";
 import canonicalFixtures from "@/lib/canonicalFixtures.json";
-import { ACCREDITED_PROVIDERS, COVERED_CLINICAL_SCHEDULE } from "@/lib/clinicalCatalog";
 import { fetchPatientAuditEvents } from "@/lib/chainEvents";
 import { CONTRACTS, IS_CHAIN_DEPLOYED, explorerTxUrl } from "@/lib/contracts";
 import {
@@ -62,10 +48,6 @@ import {
   preflightSimulateAndWrite,
 } from "@/lib/txHelpers";
 import { useWalletRoles } from "@/lib/useWalletRoles";
-import { shortHex } from "@/lib/utils";
-
-const INPUT_CLASS =
-  "mt-1 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 font-mono-tabular text-xs text-[#09090B] placeholder-[#A1A1AA] focus:border-[#0F766E] focus:outline-none transition-colors";
 
 export default function PatientPage() {
   const { address } = useAccount();
@@ -695,554 +677,62 @@ export default function PatientPage() {
 
   return (
     <div className="space-y-6">
-      {/* Workspace Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="teal">Patient Dashboard</Badge>
-            <Badge variant={roles.isPatient ? "emerald" : IS_CHAIN_DEPLOYED ? "amber" : "neutral"}>
-              {roles.isPatient
-                ? "Patient Wallet Connected"
-                : IS_CHAIN_DEPLOYED
-                ? "Connect Wallet to Anchor"
-                : "Sandbox Mode Open"}
-            </Badge>
-            <span className="text-xs font-mono-tabular text-[#71717A]">
-              IndexedDB · CIDv1 · ECDH P-256
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#09090B]">
-            Patient Record Vault
-          </h1>
-          <p className="text-xs sm:text-sm text-[#52525B]">
-            Extract CMS-1500 fields locally via WASM OCR, seal clinical payloads with AES-256-GCM, and issue revocable provider grants.
-          </p>
-        </div>
-
-        {secondsRemaining > 0 ? (
-          <div className="flex items-center gap-2 rounded-full border border-[#A7F3D0] bg-[#ECFDF5] px-4 py-1.5">
-            <span className="text-xs font-semibold text-[#047857]">Active Grant</span>
-            <SlidingCountdown secondsLeft={secondsRemaining} />
-          </div>
-        ) : null}
-      </div>
-
-      {/* Patient Workflow Stepper */}
-      <Stepper
-        current={grantExpiresAt > nowSec ? 3 : registeredRecordId ? 2 : encrypted ? 1 : 0}
-        steps={[
-          { title: "Intake & Local OCR", description: "CMS-1500 parsed in browser" },
-          { title: "AES-256-GCM Encrypt", description: "IndexedDB + IPFS CIDv1" },
-          { title: "Register & Wrap DEK", description: "Commit on HealthRecords.sol" },
-          { title: "Active Hospital Grant", description: "Time-bounded consent key" },
-        ]}
+      <PatientOverviewHeader
+        isPatientRole={roles.isPatient}
+        isChainDeployed={IS_CHAIN_DEPLOYED}
+        secondsRemaining={secondsRemaining}
+        grantExpiresAt={grantExpiresAt}
+        nowSec={nowSec}
+        registeredRecordId={registeredRecordId}
+        hasEncrypted={Boolean(encrypted)}
+        vaultCount={vaultItems.length}
+        activeGrantsCount={activeGrantsCount}
+        settledClaimsCount={settledClaimsCount}
       />
 
-      {/* Patient Overview KPI Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Encrypted Vault Records"
-          valueText={<NumberTicker value={vaultItems.length} />}
-          sublabel="IndexedDB qlo-vault-v1"
-          deltaText="Local Only"
-          deltaTone="emerald"
-          trend={[1, 1, 2, 2, 3, Math.max(1, vaultItems.length)]}
-          accentColor="#047857"
-        />
-        <StatCard
-          label="Active Provider Grants"
-          valueText={<NumberTicker value={activeGrantsCount} />}
-          sublabel={secondsRemaining > 0 ? "ECDH wrapped key live" : "Ready to delegate"}
-          deltaText={secondsRemaining > 0 ? "Active" : "Standby"}
-          deltaTone={secondsRemaining > 0 ? "teal" : "neutral"}
-          trend={[0, 1, 0, 1, activeGrantsCount, activeGrantsCount]}
-          accentColor="#0F766E"
-        />
-        <StatCard
-          label="Settled Claims"
-          valueText={<NumberTicker value={settledClaimsCount} />}
-          sublabel="Zero-PHI disbursements"
-          deltaText="Base Sepolia"
-          deltaTone="neutral"
-          trend={[0, 1, 1, 2, 2, Math.max(0, settledClaimsCount)]}
-          accentColor="#0F4C81"
-        />
-        <StatCard
-          label="Envelope Cipher"
-          valueText="AES-256-GCM"
-          sublabel="ECDH P-256 ephemeral wrap"
-          deltaText="0 Bytes Sent"
-          deltaTone="emerald"
-          trend={[256, 256, 256, 256, 256, 256]}
-          accentColor="#047857"
-        />
-      </div>
-
-      {/* Main Studio Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <SpotlightCard
-          id="patient-intake"
-          accent="emerald"
-          className="lg:col-span-7 p-6 space-y-5 scroll-mt-20"
-        >
-          <div className="border-b border-[#F4F4F5] pb-4">
-            <h2 className="text-sm font-semibold text-[#09090B]">
-              1. CMS-1500 Claim Intake &amp; Local OCR
-            </h2>
-            <p className="text-xs text-[#52525B]">
-              All diagnosis, CPT, and prescription fields remain strictly private on your device.
-            </p>
-          </div>
+        <Cms1500IntakeCard
+          claim={claim}
+          onChangeClaim={setClaim}
+          completeness={completeness}
+          ocrRunning={ocrRunning}
+          ocrStatus={ocrStatus}
+          onRunSampleOcr={handleTestSampleBillOcr}
+          onFileSelected={handleTextFileUpload}
+        />
 
-          <AnimatedFileUpload
-            ocrRunning={ocrRunning}
-            ocrStatus={ocrStatus}
-            onRunSampleOcr={handleTestSampleBillOcr}
-            onFileSelected={handleTextFileUpload}
-          />
-
-          <div className="space-y-1">
-            <label htmlFor="preset-select" className="text-xs font-medium text-[#52525B]">
-              Sample Clinical Cases
-            </label>
-            <select
-              id="preset-select"
-              value={claim.caseLabel}
-              onChange={(e) => {
-                const found = SYNTHETIC_CMS1500_PRESETS.find((p) => p.caseLabel === e.target.value);
-                if (found) setClaim(found);
-              }}
-              className={INPUT_CLASS}
-            >
-              {SYNTHETIC_CMS1500_PRESETS.map((p) => (
-                <option key={p.caseLabel} value={p.caseLabel}>
-                  {p.caseLabel}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div>
-              <label htmlFor="box1a" className="text-[#52525B] font-medium">
-                Box 1a — Policy ID (Private)
-              </label>
-              <input
-                id="box1a"
-                value={claim.insuredPolicyId}
-                onChange={(e) => setClaim({ ...claim, insuredPolicyId: e.target.value })}
-                className={INPUT_CLASS}
-              />
-            </div>
-            <div>
-              <label htmlFor="box2" className="text-[#52525B] font-medium">
-                Box 2 — Patient Alias (Private)
-              </label>
-              <input
-                id="box2"
-                value={claim.patientAlias}
-                onChange={(e) => setClaim({ ...claim, patientAlias: e.target.value })}
-                className={INPUT_CLASS}
-              />
-            </div>
-            <div>
-              <label htmlFor="box21" className="text-[#52525B] font-medium">
-                Box 21 — ICD-10-CM (Private)
-              </label>
-              <input
-                id="box21"
-                value={claim.icd10Code}
-                onChange={(e) => setClaim({ ...claim, icd10Code: e.target.value })}
-                className={INPUT_CLASS}
-              />
-            </div>
-            <div>
-              <label htmlFor="box24d" className="text-[#52525B] font-medium">
-                Box 24D — CPT Code (Private)
-              </label>
-              <input
-                id="box24d"
-                value={claim.cptCode}
-                onChange={(e) => setClaim({ ...claim, cptCode: e.target.value })}
-                className={INPUT_CLASS}
-              />
-            </div>
-            <div>
-              <label htmlFor="box24f" className="text-[#52525B] font-medium">
-                Box 24F — Charge ETH (Public Signal)
-              </label>
-              <input
-                id="box24f"
-                value={claim.claimAmountEth}
-                onChange={(e) => setClaim({ ...claim, claimAmountEth: e.target.value })}
-                className={INPUT_CLASS}
-              />
-            </div>
-            <div>
-              <label htmlFor="box24j" className="text-[#52525B] font-medium">
-                Box 24J — Rendering NPI (Private)
-              </label>
-              <input
-                id="box24j"
-                value={claim.renderingNpi}
-                onChange={(e) => setClaim({ ...claim, renderingNpi: e.target.value })}
-                className={INPUT_CLASS}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 text-xs">
-            <div>
-              <label htmlFor="rx" className="text-[#52525B] font-medium">
-                Prescription / Rx (Private)
-              </label>
-              <input
-                id="rx"
-                value={claim.prescription}
-                onChange={(e) => setClaim({ ...claim, prescription: e.target.value })}
-                className="mt-1 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 text-xs text-[#09090B] focus:border-[#0F766E] focus:outline-none"
-              />
-            </div>
-            <div>
-              <label htmlFor="notes" className="text-[#52525B] font-medium">
-                Clinical Summary (Private)
-              </label>
-              <textarea
-                id="notes"
-                rows={2}
-                value={claim.clinicalNotes}
-                onChange={(e) => setClaim({ ...claim, clinicalNotes: e.target.value })}
-                className="mt-1 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 text-xs text-[#09090B] focus:border-[#0F766E] focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-4 space-y-2.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-[#09090B] flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5 text-[#0F766E]" />
-                CMS-1500 Completeness Validator
-              </span>
-              <Badge variant={completeness.valid ? "emerald" : "crimson"}>
-                {completeness.score}/{completeness.total} Checks Valid
-              </Badge>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {completeness.checks.map((c) => (
-                <div
-                  key={c.field}
-                  className={`rounded-lg border px-2.5 py-1 text-[11px] flex items-center gap-1.5 ${
-                    c.passed
-                      ? "border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]"
-                      : "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]"
-                  }`}
-                >
-                  {c.passed ? (
-                    <CheckCircle2 className="h-3 w-3 shrink-0" />
-                  ) : (
-                    <AlertCircle className="h-3 w-3 shrink-0" />
-                  )}
-                  <span className="truncate">
-                    {c.box}: {c.detail}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </SpotlightCard>
-
-        {/* Right: Wallet Pass + Encryption + Consent Control */}
-        <div id="patient-consent" className="lg:col-span-5 space-y-5 scroll-mt-20">
-          <WalletPassCard
-            policyId={claim.insuredPolicyId || "2026001"}
-            patientAlias={claim.patientAlias || "SYNTH-CASE"}
-            icd10Code={claim.icd10Code}
-            cptCode={claim.cptCode}
-            claimAmountEth={claim.claimAmountEth || "0"}
-            encrypted={Boolean(encrypted)}
-            cid={cid}
-            recordCommitmentHex={encrypted?.recordCommitmentHex}
-            recordId={registeredRecordId}
-            secondsRemaining={secondsRemaining}
-            targetHospital={targetHospital}
-          />
-
-          <SpotlightCard accent="neutral" className="p-6 space-y-4">
-            <div className="border-b border-[#F4F4F5] pb-3">
-              <h2 className="text-sm font-semibold text-[#09090B]">
-                2. AES-256-GCM Encrypt &amp; CIDv1
-              </h2>
-            </div>
-
-            <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-3 text-xs space-y-1">
-              <div className="text-[#71717A] text-[10px] uppercase tracking-wider font-mono-tabular">
-                Live Cryptographic View
-              </div>
-              <DecryptedText
-                text={`ICD:${claim.icd10Code} | CPT:${claim.cptCode} | RX:${claim.prescription}`}
-                encrypted={Boolean(encrypted)}
-              />
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <TactileButton
-                variant="primary"
-                onClick={handleEncryptLocally}
-                disabled={busy || !completeness.valid}
-              >
-                <Lock className="h-4 w-4" />
-                Encrypt Locally (AES-256-GCM)
-              </TactileButton>
-              {vaultEntry ? (
-                <TactileButton
-                  variant="secondary"
-                  onClick={() => downloadBundleEntry(vaultEntry, registeredRecordId)}
-                >
-                  <Download className="h-4 w-4" />
-                  .qlo.json
-                </TactileButton>
-              ) : null}
-            </div>
-
-            {encrypted && cid ? (
-              <div className="space-y-2 pt-1">
-                <CopyHash label="IPFS CIDv1" value={cid} />
-                <CopyHash label="248-bit Commit" value={encrypted.recordCommitmentHex} />
-                <div className="text-[11px] font-mono-tabular text-[#047857]">
-                  Ciphertext persisted in IndexedDB (<code className="font-semibold">qlo-vault-v1</code>)
-                </div>
-              </div>
-            ) : null}
-          </SpotlightCard>
-
-          <SpotlightCard accent="emerald" className="p-6 space-y-4 text-xs">
-            <div className="border-b border-[#F4F4F5] pb-3">
-              <h2 className="text-sm font-semibold text-[#09090B]">
-                3. On-Chain Consent &amp; ECDH Key Wrap
-              </h2>
-            </div>
-
-            <TactileButton
-              variant="secondary"
-              className="w-full"
-              onClick={handleRegisterOnChain}
-              disabled={busy || !encrypted || (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))}
-            >
-              Register Commitment &amp; CID On-Chain
-              {registeredRecordId ? ` (Record #${registeredRecordId})` : ""}
-            </TactileButton>
-
-            <div className="space-y-2.5 border-t border-[#F4F4F5] pt-3">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-medium text-[#52525B]">Accredited Provider Directory</span>
-                  <span className="font-mono-tabular text-[#71717A]">
-                    {ACCREDITED_PROVIDERS.length} verified on-chain
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {ACCREDITED_PROVIDERS.map((prov) => {
-                    const selected =
-                      prov.address.toLowerCase() === targetHospital.toLowerCase();
-                    return (
-                      <button
-                        key={prov.address}
-                        type="button"
-                        onClick={() => setTargetHospital(prov.address)}
-                        className={`rounded-xl border px-3 py-2 text-left transition-colors cursor-pointer ${
-                          selected
-                            ? "border-[#0F766E] bg-[#F0FDFA]/80"
-                            : "border-[#E4E4E7] bg-[#FAFAFA] hover:border-[#D4D4D8] hover:bg-white"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-1.5">
-                          <span className="truncate font-semibold text-[#09090B] text-[11px]">
-                            {prov.name}
-                          </span>
-                          <span className="shrink-0 rounded bg-[#ECFDF5] px-1.5 py-0.5 font-mono-tabular text-[9px] font-semibold text-[#047857]">
-                            NPI
-                          </span>
-                        </div>
-                        <div className="mt-0.5 truncate text-[10px] text-[#52525B]">
-                          {prov.specialty} · {prov.city}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <label
-                htmlFor="hosp-addr"
-                className="text-[#52525B] font-medium flex items-center justify-between gap-2"
-              >
-                <span>Target Accredited Hospital</span>
-                <span className="flex items-center gap-2">
-                  {address && address.toLowerCase() !== targetHospital.toLowerCase() ? (
-                    <button
-                      type="button"
-                      onClick={() => setTargetHospital(address)}
-                      className="text-[10px] font-mono-tabular text-[#0F766E] underline hover:text-[#09090B] cursor-pointer"
-                    >
-                      Use my wallet
-                    </button>
-                  ) : null}
-                  {pubKeySource ? (
-                    <span className="text-[10px] font-mono-tabular text-[#047857]">
-                      {pubKeySource}
-                    </span>
-                  ) : null}
-                </span>
-              </label>
-
-              <input
-                id="hosp-addr"
-                value={targetHospital}
-                onChange={(e) => setTargetHospital(e.target.value)}
-                className={INPUT_CLASS}
-              />
-
-              <div className="flex items-center gap-2 pt-1">
-                {[10, 30].map((mins) => (
-                  <button
-                    key={mins}
-                    type="button"
-                    onClick={() => setGrantMinutes(mins)}
-                    className={`rounded-lg border px-3 py-1.5 font-mono-tabular cursor-pointer transition-colors ${
-                      grantMinutes === mins
-                        ? "border-[#99F6E4] bg-[#F0FDFA] text-[#0F766E] font-semibold"
-                        : "border-[#E4E4E7] bg-white text-[#52525B] hover:border-[#D4D4D8]"
-                    }`}
-                  >
-                    {mins} min
-                  </button>
-                ))}
-              </div>
-              {/* SMART-on-FHIR Plain-Language Consent Disclosure */}
-              <div className="rounded-xl border border-[#99F6E4] bg-[#F0FDFA]/60 p-3 space-y-1 text-[11px]">
-                <div className="font-semibold text-[#0F766E]">
-                  Consent Scope Disclosure (SMART-on-FHIR Standard)
-                </div>
-                <p className="text-[#52525B] leading-relaxed">
-                  Authorizes{" "}
-                  <span className="font-semibold text-[#09090B]">
-                    {ACCREDITED_PROVIDERS.find(
-                      (p) => p.address.toLowerCase() === targetHospital.toLowerCase()
-                    )?.name ?? targetHospital}
-                  </span>{" "}
-                  to unwrap record{" "}
-                  <span className="font-mono-tabular font-semibold text-[#09090B]">
-                    #{registeredRecordId || "—"}
-                  </span>{" "}
-                  for <span className="font-semibold text-[#09090B]">{grantMinutes} minutes</span> exclusively to compute a zero-knowledge eligibility proof. Insurer sees <span className="font-semibold text-[#047857]">0 clinical bytes</span>.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <TactileButton
-                variant="emerald"
-                onClick={handleGrantAccess}
-                disabled={
-                  busy ||
-                  !registeredRecordId ||
-                  (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))
-                }
-              >
-                <KeyRound className="h-4 w-4" />
-                Grant {grantMinutes}m Access (Wrap DEK)
-              </TactileButton>
-              <TactileButton
-                variant="crimson"
-                onClick={handleRevokeAccess}
-                disabled={
-                  busy ||
-                  !registeredRecordId ||
-                  (IS_CHAIN_DEPLOYED && (!roles.isConnected || roles.wrongChain))
-                }
-              >
-                <ShieldOff className="h-4 w-4" />
-                Revoke Immediately
-              </TactileButton>
-            </div>
-          </SpotlightCard>
-        </div>
+        <PatientConsentPanel
+          claim={claim}
+          encrypted={encrypted}
+          cid={cid}
+          registeredRecordId={registeredRecordId}
+          secondsRemaining={secondsRemaining}
+          targetHospital={targetHospital}
+          onChangeTargetHospital={setTargetHospital}
+          connectedAddress={address}
+          pubKeySource={pubKeySource}
+          grantMinutes={grantMinutes}
+          onChangeGrantMinutes={setGrantMinutes}
+          busy={busy}
+          completenessValid={completeness.valid}
+          vaultEntry={vaultEntry}
+          canSignChainTx={!IS_CHAIN_DEPLOYED || (roles.isConnected && !roles.wrongChain)}
+          onEncryptLocally={handleEncryptLocally}
+          onDownloadBundle={downloadBundleEntry}
+          onRegisterOnChain={handleRegisterOnChain}
+          onGrantAccess={handleGrantAccess}
+          onRevokeAccess={handleRevokeAccess}
+        />
       </div>
 
-      {/* Real Encrypted Records Vault Table */}
-      <SpotlightCard id="patient-vault" accent="neutral" className="p-6 space-y-4 scroll-mt-20">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F4F4F5] pb-3">
-          <div>
-            <h2 className="text-sm font-semibold text-[#09090B]">My Encrypted Records Vault</h2>
-            <p className="text-xs text-[#52525B]">
-              Local IndexedDB (<code className="font-mono-tabular text-[#09090B]">qlo-vault-v1</code>) ciphertext bundles and portable{" "}
-              <code className="font-mono-tabular text-[#09090B]">.qlo.json</code> exports.
-            </p>
-          </div>
-          <Badge variant="neutral">{vaultItems.length} records stored</Badge>
-        </div>
+      <PatientVaultTable
+        vaultItems={vaultItems}
+        targetHospital={targetHospital}
+        activeGrantsMap={activeGrantsMap}
+        nowSec={nowSec}
+        onDownloadBundle={(item) => downloadBundleEntry(item)}
+      />
 
-        {vaultItems.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[#D4D4D8] bg-[#FAFAFA] px-4 py-6 text-center text-xs text-[#52525B] space-y-1">
-            <div className="font-semibold text-[#09090B]">No encrypted records stored locally</div>
-            <p className="text-[#71717A]">
-              Run local OCR or customize a clinical claim above, then select Encrypt Locally (AES-256-GCM) to populate your vault and generate a portable{" "}
-              <code className="font-mono-tabular text-[#09090B]">.qlo.json</code> bundle.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-[#E4E4E7] text-[#71717A]">
-                  <th className="py-2.5 pr-4 font-medium">Record</th>
-                  <th className="py-2.5 pr-4 font-medium">Summary</th>
-                  <th className="py-2.5 pr-4 font-medium">CIDv1</th>
-                  <th className="py-2.5 pr-4 font-medium">Consent Status</th>
-                  <th className="py-2.5 text-right font-medium">Export</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F4F4F5]">
-                {vaultItems.map((item) => {
-                  const hospTarget = (item.hospitalAddress || targetHospital).toLowerCase();
-                  const recGrant = item.recordId
-                    ? activeGrantsMap[`${item.recordId}:${hospTarget}`]
-                    : undefined;
-                  const isActive = Boolean(recGrant && recGrant.expiresAt > nowSec);
-                  return (
-                    <tr key={item.recordCommitmentHex} className="hover:bg-[#FAFAFA]">
-                      <td className="py-2.5 pr-4 font-mono-tabular font-semibold text-[#09090B]">
-                        {item.recordId ? `#${item.recordId}` : "Local"}
-                      </td>
-                      <td className="py-2.5 pr-4 text-[#09090B]">{item.summaryHint || "Encrypted Bill"}</td>
-                      <td className="py-2.5 pr-4 font-mono-tabular text-[#52525B]">
-                        {shortHex(item.cid, 12, 8)}
-                      </td>
-                      <td className="py-2.5 pr-4">
-                        <Badge variant={isActive ? "emerald" : "neutral"}>
-                          {isActive ? "Grant Active" : item.recordId ? "Revoked / Idle" : "Unregistered"}
-                        </Badge>
-                      </td>
-                      <td className="py-2.5 text-right">
-                        <TactileButton
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => downloadBundleEntry(item)}
-                        >
-                          <Download className="h-3 w-3" />
-                          Bundle
-                        </TactileButton>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SpotlightCard>
-
-      {/* Immutable Event Audit Log */}
       <SpotlightCard id="patient-audit" accent="neutral" className="p-6 space-y-4 scroll-mt-20">
         <div className="flex items-center justify-between border-b border-[#F4F4F5] pb-3">
           <h2 className="text-sm font-semibold text-[#09090B]">
@@ -1253,111 +743,7 @@ export default function PatientPage() {
         <AuditTimeline items={auditItems} />
       </SpotlightCard>
 
-      {/* Plain-English Covered Benefits Schedule */}
-      <section id="patient-benefits" className="space-y-3 scroll-mt-20">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-semibold text-[#09090B]">
-              Covered Clinical Benefits Schedule
-            </h2>
-            <p className="text-xs text-[#52525B]">
-              Every procedure below is pre-committed in the Poseidon Depth-6 benefit Merkle tree and settles automatically without exposing diagnoses.
-            </p>
-          </div>
-          <Badge variant="emerald">{COVERED_CLINICAL_SCHEDULE.length} Approved CPT Codes</Badge>
-        </div>
-
-        <SmoothAccordion
-          defaultOpen={["cat-Emergency"]}
-          items={[
-            {
-              id: "cat-Emergency",
-              title: "Emergency & Acute Cardiac Care",
-              subtitle: "Priority high-severity & urgent ED stabilization",
-              badge: "CPT 99285 · 99284",
-              content: (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {COVERED_CLINICAL_SCHEDULE.filter((c) => c.category === "Emergency").map((item) => (
-                    <div
-                      key={item.code}
-                      className="rounded-xl border border-[#E4E4E7] bg-white p-3.5 space-y-1"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-[#09090B]">{item.title}</span>
-                        <span className="font-mono-tabular text-[11px] font-semibold text-[#0F766E]">
-                          CPT {item.code}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-[#52525B]">{item.summary}</p>
-                      <div className="text-[10px] font-mono-tabular text-[#047857]">
-                        {item.copayTier} · {item.typicalTurnaround}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ),
-            },
-            {
-              id: "cat-Specialty",
-              title: "Outpatient Consultations, Cardiology & Orthopedic Care",
-              subtitle: "Follow-up specialist clinics, 12-lead ECG, and closed fracture reduction",
-              badge: "CPT 99214 · 93000 · 27750",
-              content: (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {COVERED_CLINICAL_SCHEDULE.filter((c) =>
-                    ["Outpatient", "Cardiology", "Orthopedic"].includes(c.category)
-                  ).map((item) => (
-                    <div
-                      key={item.code}
-                      className="rounded-xl border border-[#E4E4E7] bg-white p-3.5 space-y-1"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-[#09090B]">{item.title}</span>
-                        <span className="font-mono-tabular text-[11px] font-semibold text-[#0F766E]">
-                          CPT {item.code}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-[#52525B]">{item.summary}</p>
-                      <div className="text-[10px] font-mono-tabular text-[#047857]">
-                        {item.copayTier} · {item.typicalTurnaround}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ),
-            },
-            {
-              id: "cat-Diagnostics",
-              title: "Diagnostic Radiology & Clinical Pathology Panels",
-              subtitle: "Chest imaging, metabolic chemistry panels, and specimen draws",
-              badge: "CPT 71046 · 80053 · 36415",
-              content: (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {COVERED_CLINICAL_SCHEDULE.filter((c) =>
-                    ["Radiology", "Pathology"].includes(c.category)
-                  ).map((item) => (
-                    <div
-                      key={item.code}
-                      className="rounded-xl border border-[#E4E4E7] bg-white p-3.5 space-y-1"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-[#09090B]">{item.title}</span>
-                        <span className="font-mono-tabular text-[11px] font-semibold text-[#0F766E]">
-                          CPT {item.code}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-[#52525B]">{item.summary}</p>
-                      <div className="text-[10px] font-mono-tabular text-[#047857]">
-                        {item.copayTier} · {item.typicalTurnaround}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ),
-            },
-          ]}
-        />
-      </section>
+      <CoveredBenefitsSection />
     </div>
   );
 }
