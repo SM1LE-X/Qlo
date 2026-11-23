@@ -74,8 +74,9 @@ export async function connectInjectedWallet<TConnector>(
 
 export function useWalletRoles(): WalletRolesState {
   const [mounted, setMounted] = useState(false);
-  const { address, isConnected } = useAccount();
-  const chainId = useChainId();
+  const { address, isConnected, chainId: walletChainId } = useAccount();
+  const configChainId = useChainId();
+  const chainId = walletChainId ?? configChainId;
   const publicClient = usePublicClient();
   const { switchChainAsync } = useSwitchChain();
 
