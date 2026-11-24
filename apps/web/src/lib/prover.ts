@@ -98,15 +98,26 @@ export async function buildCircuitInputFromClaim(params: {
   hospitalAddress: string;
   priorPolicySpentWei: bigint;
   claimTimestampOverride?: bigint;
+  /** Accredited hospital list (canonical + demo-accredited). Defaults to fixtures. */
+  hospitals?: ReadonlyArray<{ address: string; licenseId: string }>;
+  /** Active policy preimage (e.g. a policy created by a newly onboarded insurer). */
+  policyOverride?: {
+    policyId: string;
+    patientCommit: string;
+    policyExpiry: string;
+    annualLimitWei: string;
+    policySalt: string;
+  };
 }) {
   const { claim, recordCommitment, hospitalAddress, priorPolicySpentWei } = params;
+  const hospitalList = params.hospitals ?? canonicalFixtures.hospitals;
 
   const hospLeaves = await Promise.all(
-    canonicalFixtures.hospitals.map((h) => computeHospitalLeaf(h.address, h.licenseId))
+    hospitalList.map((h) => computeHospitalLeaf(h.address, h.licenseId))
   );
   const hospTree = await buildPoseidonMerkleTree(hospLeaves);
 
-  const matchedIdx = canonicalFixtures.hospitals.findIndex(
+  const matchedIdx = hospitalList.findIndex(
     (h) => h.address.toLowerCase() === hospitalAddress.toLowerCase()
   );
   const hospIdx = matchedIdx >= 0 ? matchedIdx : 0;
@@ -119,7 +130,7 @@ export async function buildCircuitInputFromClaim(params: {
 
   const policy = claim.useExpiredPolicy
     ? canonicalFixtures.expiredPolicy
-    : canonicalFixtures.activePolicy;
+    : params.policyOverride ?? canonicalFixtures.activePolicy;
 
   const policyCommitment = await computePolicyCommitment({
     policyId: policy.policyId,

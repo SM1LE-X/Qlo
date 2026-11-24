@@ -15,7 +15,7 @@ export default function NotFoundPage() {
             Qlo Portal Route Unavailable
           </h1>
           <p className="text-xs sm:text-sm text-[#52525B]">
-            Select one of the three stakeholder workspaces or return to the public Trust Center.
+            Pick Patient, Hospital or Insurer — or sign in again.
           </p>
         </div>
         <div className="flex flex-wrap gap-2.5 pt-1">
@@ -40,9 +40,9 @@ export default function NotFoundPage() {
               Insurer Treasury
             </TactileButton>
           </Link>
-          <Link href="/story">
+          <Link href="/onboarding">
             <TactileButton size="sm" variant="secondary">
-              Trust Center
+              Sign in
             </TactileButton>
           </Link>
         </div>

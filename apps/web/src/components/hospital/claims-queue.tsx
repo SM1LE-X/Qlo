@@ -115,7 +115,7 @@ function StatusPill({ row }: { row: ClaimRowState }) {
     return (
       <Badge variant="neutral" className="text-[#71717A]">
         <Lock className="h-3 w-3" aria-hidden="true" />
-        Access revoked
+        Not shared with you
       </Badge>
     );
   }
@@ -245,7 +245,7 @@ export function ClaimsQueue({
             <div className="space-y-0.5">
               <p className="text-sm font-medium text-[#09090B]">No incoming claims</p>
               <p className="text-xs text-[#71717A]">
-                Authorized records appear here and prove automatically.
+                Records appear when a patient shares with this wallet ({hospitalAddr.slice(0, 6)}…{hospitalAddr.slice(-4)}).
               </p>
             </div>
             <TactileButton size="sm" variant="secondary" onClick={onRefresh} disabled={refreshing}>
@@ -424,7 +424,7 @@ export function ClaimsQueue({
                     {inspectedRow.proverOutput ? (
                       <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-2.5 text-xs">
                         <div className="flex items-center justify-between">
-                          <span className="font-medium text-[#09090B]">Groth16 Proof</span>
+                          <span className="font-medium text-[#09090B]">Privacy proof</span>
                           <span className="font-mono-tabular text-[#059669]">
                             Verified · {inspectedRow.proverOutput.elapsedMs}ms
                           </span>

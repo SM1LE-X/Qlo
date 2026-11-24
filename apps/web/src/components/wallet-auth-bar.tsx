@@ -12,23 +12,17 @@ import { cn, shortHex } from "@/lib/utils";
 import { TactileButton } from "./ui/tactile-button";
 
 export const WORKFLOW_STEPS = [
-  { href: "/", label: "Overview" },
-  { href: "/patient", label: "Vault" },
-  { href: "/hospital", label: "Claims" },
-  { href: "/insurer", label: "Treasury" },
-  { href: "/story", label: "Protocol" },
-  { href: "/slack", label: "Slack" },
   { href: "/onboarding", label: "Sign In" },
+  { href: "/patient", label: "Patient" },
+  { href: "/hospital", label: "Hospital" },
+  { href: "/insurer", label: "Insurer" },
 ] as const;
 
 export function WorkflowStepSwitcher({ pathname }: { pathname: string }) {
   return (
     <nav aria-label="Primary navigation" className="flex items-center gap-1">
       {WORKFLOW_STEPS.map((item) => {
-        const active =
-          item.href === "/"
-            ? pathname === "/"
-            : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
         return (
           <Link
             key={item.href}
@@ -202,7 +196,6 @@ export function WalletAuthControls({ roles }: { roles: WalletRolesState }) {
   return (
     <div className="flex items-center gap-2 shrink-0">
       <DetectedRoleBadges roles={roles} />
-      <RoleIdentityPill />
 
       <span className="hidden sm:inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E4E4E7] bg-[#FFFFFF] px-2.5 text-xs font-medium text-[#52525B] whitespace-nowrap">
         <span className="relative flex h-2 w-2">

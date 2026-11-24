@@ -1,10 +1,11 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/rateLimit";
-import { publishAppHome } from "@/lib/slack/api";
+import { openUserDm, postEphemeral, postMessage, publishAppHome } from "@/lib/slack/api";
 import { readLiveChainSummary } from "@/lib/slack/serverEngine";
-import { getSlackUserRole } from "@/lib/slack/userRoles";
+import { getSlackUserRole, markWelcomed } from "@/lib/slack/userRoles";
+import { getMetrics } from "@/lib/slack/metrics";
 import { verifySlackSignature } from "@/lib/slack/verifySignature";
-import { buildAppHomeView } from "@/lib/slack/views";
+import { buildAppHomeView, buildChannelWelcome, buildOnboardingMessage } from "@/lib/slack/views";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,6 +20,7 @@ interface SlackEventEnvelope {
     type?: string;
     user?: string;
     tab?: string;
+    channel?: string;
   };
 }
 
@@ -37,6 +39,11 @@ export async function POST(request: NextRequest) {
       { error: "SLACK_NOT_CONFIGURED", detail: "Set SLACK_SIGNING_SECRET to enable Slack Events." },
       { status: 503, headers: NO_STORE }
     );
+  }
+
+  // Slack retries events it thinks timed out; App Home publishes are idempotent, so drop retries.
+  if (request.headers.get("x-slack-retry-num")) {
+    return NextResponse.json({ ok: true }, { status: 200, headers: NO_STORE });
   }
 
   const rawBody = await request.text();
@@ -67,10 +74,36 @@ export async function POST(request: NextRequest) {
       after(async () => {
         const summary = await readLiveChainSummary();
         const role = getSlackUserRole(userId);
-        await publishAppHome(userId, buildAppHomeView({ role, summary }));
+        await publishAppHome(userId, buildAppHomeView({ role, summary, metrics: getMetrics() }));
+        if (!role && markWelcomed(userId)) {
+          const dm = await openUserDm(userId);
+          if (dm) await postMessage(dm, buildOnboardingMessage());
+        }
+      });
+    }
+  }
+
+  if (body.type === "event_callback" && body.event?.type === "member_joined_channel") {
+    const { user: userId, channel } = body.event;
+    if (userId && channel) {
+      after(async () => {
+        const info = await slackChannelRole(channel);
+        if (info) await postEphemeral(channel, userId, buildChannelWelcome(info));
       });
     }
   }
 
   return NextResponse.json({ ok: true }, { status: 200, headers: NO_STORE });
+}
+
+async function slackChannelRole(channelId: string): Promise<"patient" | "hospital" | "insurer" | null> {
+  const { slackApi } = await import("@/lib/slack/api");
+  const res = await slackApi("conversations.info", { channel: channelId });
+  const name = (res.channel as unknown as { name?: string } | undefined)?.name ?? "";
+  const map: Record<string, "patient" | "hospital" | "insurer"> = {
+    [process.env.SLACK_CHANNEL_PATIENT ?? "patient-vault"]: "patient",
+    [process.env.SLACK_CHANNEL_HOSPITAL ?? "hospital-claims"]: "hospital",
+    [process.env.SLACK_CHANNEL_INSURER ?? "insurer-escrow"]: "insurer",
+  };
+  return map[name] ?? null;
 }

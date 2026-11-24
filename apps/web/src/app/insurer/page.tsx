@@ -111,6 +111,15 @@ export default function InsurerTreasuryPage() {
 
   useEffect(() => {
     refreshStats(false).catch(() => undefined);
+    const tick = () => { if (document.visibilityState === "visible") refreshStats(false).catch(() => undefined); };
+    const id = window.setInterval(tick, 8000);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
+    };
   }, [refreshStats]);
 
   const runEscrowMutation = async (action: "deposit" | "withdraw", rawEth: string) => {
@@ -276,7 +285,7 @@ export default function InsurerTreasuryPage() {
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#F4F4F5]">
               <div className={cn("h-full rounded-full transition-all duration-300", utilPct >= 85 ? "bg-[#D97706]" : "bg-[#059669]")} style={{ width: `${Math.max(utilPct > 0 ? 4 : 0, utilPct)}%` }} />
             </div>
-            <p className="text-[11px] text-[#71717A]">Cap enforced privately in Groth16.</p>
+            <p className="text-[11px] text-[#71717A]">Annual limit checked without revealing the bill.</p>
           </div>
         </div>
 
@@ -302,7 +311,7 @@ export default function InsurerTreasuryPage() {
             <span className="rounded-md border border-[#E4E4E7] bg-[#F4F4F5] px-2 py-0.5 font-mono-tabular text-[11px] text-[#52525B]">{sortedClaims.length}</span>
           </div>
           <div className="relative">
-            <label htmlFor="claims-filter" className="sr-only">Filter disbursements by provider or nullifier</label>
+            <label htmlFor="claims-filter" className="sr-only">Search payouts by provider or claim ID</label>
             <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-[#71717A]" aria-hidden="true" />
             <input id="claims-filter" type="search" value={filterText} onChange={(e) => { setFilterText(e.target.value); setPage(0); }} placeholder="Filter provider or nullifier" aria-label="Filter disbursements by provider or nullifier" className="h-8 w-56 rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] pr-3 pl-8 text-xs text-[#09090B] placeholder:text-[#71717A] focus:border-[#09090B] focus:bg-[#FFFFFF] focus:outline-none" />
           </div>

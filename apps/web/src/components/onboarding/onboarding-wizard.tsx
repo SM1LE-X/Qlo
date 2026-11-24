@@ -1,32 +1,39 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { ArrowRight, ChevronDown, Wallet } from "lucide-react";
 import { useConnect, useDisconnect } from "wagmi";
 import { OnboardingChecks } from "@/components/onboarding/checks";
 import { useActiveRole } from "@/components/role-context";
+import { DemoSetup } from "@/components/onboarding/demo-setup";
 import { ROLE_META, ROLE_ORDER, type AppRole } from "@/lib/roles";
 import { connectInjectedWallet } from "@/lib/useWalletRoles";
 import { shortHex } from "@/lib/utils";
 
 const ACCOUNT_SUBTITLES: Record<AppRole, string> = {
-  patient: "Member · Policy #2026001",
-  hospital: "Provider · NPI 1234567890",
-  insurer: "Payer · Escrow Admin",
+  patient: "Upload bills & records · grant or revoke access",
+  hospital: "Open shared records · send claims securely",
+  insurer: "Verify claims & pay — no medical data seen",
 };
 
 export function OnboardingWizard() {
   const router = useRouter();
   const { activeRole, walletRoles, setActiveRole } = useActiveRole();
-  const { connectors, connectAsync, isPending: isConnecting } = useConnect();
+  const { connectors, connectAsync, reset: resetConnect } = useConnect();
+  const [isConnecting, setIsConnecting] = useState(false);
   const { disconnect } = useDisconnect();
   const [statusOpen, setStatusOpen] = useState(false);
 
-  const handleConnect = useCallback(() => {
-    void connectInjectedWallet(connectors, connectAsync);
-  }, [connectors, connectAsync]);
+  const handleConnect = useCallback(async () => {
+    setIsConnecting(true);
+    try {
+      await connectInjectedWallet(connectors, connectAsync);
+    } finally {
+      resetConnect();
+      setIsConnecting(false);
+    }
+  }, [connectors, connectAsync, resetConnect]);
 
   const handleSelectAccount = useCallback(
     (roleId: AppRole) => {
@@ -50,7 +57,7 @@ export function OnboardingWizard() {
             Sign in
           </h1>
           <p className="text-sm text-[#52525B]">
-            Connect a Sepolia wallet or select an organization account.
+            Connect your wallet, then choose how you use Qlo.
           </p>
         </header>
 
@@ -123,14 +130,14 @@ export function OnboardingWizard() {
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#09090B] px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
             >
               <Wallet className="h-4 w-4" aria-hidden="true" />
-              {isConnecting ? "Connecting wallet…" : "Continue with Ethereum Wallet"}
+              {isConnecting ? "Waiting for MetaMask…" : "Connect wallet"}
             </button>
           )}
         </div>
 
         <div className="my-6 flex items-center gap-3">
           <span className="h-px flex-1 bg-[#E4E4E7]" aria-hidden="true" />
-          <span className="text-xs text-[#71717A]">or organization account</span>
+          <span className="text-xs text-[#71717A]">sign in as</span>
           <span className="h-px flex-1 bg-[#E4E4E7]" aria-hidden="true" />
         </div>
 
@@ -168,13 +175,11 @@ export function OnboardingWizard() {
                 </button>
 
                 <div className="flex shrink-0 items-center gap-2">
-                  <Link
-                    href={`/slack?channel=${roleId}`}
-                    onClick={() => setActiveRole(roleId)}
-                    className="rounded-md px-2 py-1 font-mono-tabular text-[11px] text-[#71717A] transition-colors hover:bg-[#F4F4F5] hover:text-[#09090B]"
-                  >
-                    {meta.channelName}
-                  </Link>
+                  {(roleId === "patient" ? walletRoles.isPatient : roleId === "hospital" ? walletRoles.isApprovedHospital : walletRoles.isInsurer) ? (
+                    <span className="rounded-full bg-[#ECFDF5] px-2 py-0.5 text-[11px] font-medium text-[#059669]">
+                      ✓ verified on-chain
+                    </span>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => handleSelectAccount(roleId)}
@@ -189,6 +194,8 @@ export function OnboardingWizard() {
           })}
         </div>
       </section>
+
+      <DemoSetup />
 
       <div className="mt-4">
         <div className="flex justify-center">

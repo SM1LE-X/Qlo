@@ -23,6 +23,8 @@ oauth_config:
       - chat:write
       - chat:write.public
       - channels:read
+      - channels:manage
+      - channels:join
       - groups:read
       - im:write
       - users:read
@@ -31,6 +33,7 @@ settings:
     request_url: https://qlo-three.vercel.app/api/slack/events
     bot_events:
       - app_home_opened
+      - member_joined_channel
   interactivity:
     is_enabled: true
     request_url: https://qlo-three.vercel.app/api/slack/interact

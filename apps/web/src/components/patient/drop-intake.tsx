@@ -28,6 +28,7 @@ export interface DropBillOptions {
 
 interface DropIntakeProps {
   targetHospital: string;
+  hospitalOptions?: ReadonlyArray<{ address: string; name: string }>;
   onChangeTargetHospital: (address: string) => void;
   grantMinutes: number;
   onChangeGrantMinutes: (minutes: number) => void;
@@ -49,7 +50,6 @@ const ALLOWED_MIMES = new Set([
   "",
 ]);
 
-const ACCESS_WINDOWS = [10, 30] as const;
 
 export function sanitizeLabel(raw?: string): string {
   if (!raw) return "Clinical Record";
@@ -102,6 +102,7 @@ function stripFileExtension(fileName: string): string {
 
 export function DropIntake({
   targetHospital,
+  hospitalOptions,
   onChangeTargetHospital,
   grantMinutes,
   onChangeGrantMinutes,
@@ -183,13 +184,33 @@ export function DropIntake({
     [busy, onDropBill]
   );
 
-  const handleFileChange = useCallback(
-    async (event: ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      event.target.value = "";
-      if (file) await processFile(file);
+  const processFiles = useCallback(
+    async (list: FileList | null | undefined) => {
+      const files = Array.from(list ?? []).slice(0, 10);
+      if ((list?.length ?? 0) > 10) toast.message("Uploading the first 10 files.");
+      for (let i = 0; i < files.length; i++) {
+        if (files.length > 1) toast.message(`Securing file ${i + 1} of ${files.length}: ${files[i].name}`);
+        try {
+          await processFile(files[i]);
+        } catch {
+          toast.error(`${files[i].name} failed — continuing with the rest.`);
+        }
+      }
+      if (files.length > 1) toast.success(`${files.length} files processed.`);
     },
     [processFile]
+  );
+
+  const handleFileChange = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const list = event.target.files;
+      const snapshot = list ? Array.from(list) : [];
+      event.target.value = "";
+      const dt = new DataTransfer();
+      snapshot.forEach((f) => dt.items.add(f));
+      await processFiles(dt.files);
+    },
+    [processFiles]
   );
 
   const handleDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
@@ -206,10 +227,9 @@ export function DropIntake({
     async (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault();
       setDragging(false);
-      const file = event.dataTransfer.files?.[0];
-      if (file) await processFile(file);
+      await processFiles(event.dataTransfer.files);
     },
-    [processFile]
+    [processFiles]
   );
 
   const handleSelectVisit = useCallback(
@@ -246,7 +266,8 @@ export function DropIntake({
           ref={fileInputRef}
           id="bill-file-upload"
           type="file"
-          aria-label="Upload bill"
+          aria-label="Upload bills"
+          multiple
           accept=".png,.jpg,.jpeg,.webp,.json,.txt,.edi"
           disabled={busy}
           onChange={handleFileChange}
@@ -276,9 +297,9 @@ export function DropIntake({
               <FileUp className="h-4 w-4" aria-hidden="true" />
             </div>
             <div className="space-y-1">
-              <h2 className="text-sm font-semibold text-[#09090B]">Drop Bill</h2>
+              <h2 className="text-sm font-semibold text-[#09090B]">Drop bills &amp; records</h2>
               <p className="text-xs text-[#52525B]">
-                PNG, JPG, or JSON. Encrypted locally and shared with your provider.
+                One or many files (PNG, JPG, JSON). Encrypted on your device before anything leaves it.
               </p>
             </div>
             <label
@@ -308,7 +329,7 @@ export function DropIntake({
               onChange={(e) => onChangeTargetHospital(e.target.value)}
               className="rounded-lg border border-[#E4E4E7] bg-[#FFFFFF] px-2.5 py-1.5 text-xs font-medium text-[#09090B] transition-colors hover:border-[#D4D4D8] focus:border-[#09090B] focus:outline-none disabled:opacity-50"
             >
-              {canonicalFixtures.hospitals.map((hospital) => (
+              {(hospitalOptions ?? canonicalFixtures.hospitals).map((hospital) => (
                 <option key={hospital.address} value={hospital.address}>
                   {hospital.name}
                 </option>
@@ -316,31 +337,7 @@ export function DropIntake({
             </select>
           </div>
 
-          <div
-            role="group"
-            aria-label="Access window"
-            className="inline-flex items-center rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] p-0.5"
-          >
-            {ACCESS_WINDOWS.map((mins) => {
-              const selected = grantMinutes === mins;
-              return (
-                <button
-                  key={mins}
-                  type="button"
-                  disabled={busy}
-                  aria-pressed={selected}
-                  onClick={() => onChangeGrantMinutes(mins)}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 ${
-                    selected
-                      ? "bg-[#FFFFFF] text-[#09090B] shadow-xs"
-                      : "text-[#52525B] hover:text-[#09090B]"
-                  }`}
-                >
-                  {mins} min
-                </button>
-              );
-            })}
-          </div>
+          <span className="text-xs text-[#52525B]">Access stays on until you revoke</span>
         </div>
 
         <div ref={menuRef} className="relative">

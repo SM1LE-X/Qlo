@@ -49,7 +49,7 @@ export function PatientVaultTable({
               <tr className="border-b border-[#E4E4E7] bg-[#F4F4F5] font-mono-tabular text-[11px] uppercase tracking-wider text-[#71717A]">
                 <th className="px-4 py-2.5 font-medium">Record</th>
                 <th className="px-4 py-2.5 font-medium">Summary</th>
-                <th className="px-4 py-2.5 font-medium">CIDv1</th>
+                <th className="px-4 py-2.5 font-medium">Fingerprint</th>
                 <th className="px-4 py-2.5 font-medium">Consent Status</th>
                 <th className="px-4 py-2.5 text-right font-medium">Export</th>
               </tr>

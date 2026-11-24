@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFAFA] text-[#09090B]">
-      <Navbar onOpenCommandMenu={() => setCommandOpen(true)} />
+      <Navbar />
 
       <CommandMenu open={commandOpen} onOpenChange={setCommandOpen} />
 
@@ -95,12 +95,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                   Sign in as {portalMeta.accountName}
                 </button>
               ) : null}
-              <Link
-                href="/slack"
-                className="rounded-md border border-[#E4E4E7] px-2.5 py-1 text-[11px] text-[#52525B] hover:text-[#09090B] transition-colors"
-              >
-                Open {activeMeta.channelName}
-              </Link>
             </div>
           </div>
         ) : null}

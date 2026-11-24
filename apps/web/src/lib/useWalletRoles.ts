@@ -14,6 +14,8 @@ import canonicalFixtures from "./canonicalFixtures.json";
 import { fetchOnChainVaultSnapshot } from "./chainEvents";
 import { CONTRACTS, DEPLOYMENT, IS_CHAIN_DEPLOYED } from "./contracts";
 import { decodeContractError } from "./txHelpers";
+import { mergedHospitals, type HospitalEntry } from "./demoRegistry";
+import { buildPoseidonMerkleTree, computeHospitalLeaf } from "./merkle";
 import { formatWeiToEth } from "./utils";
 
 export interface MatchedHospitalInfo {
@@ -60,15 +62,29 @@ export async function connectInjectedWallet<TConnector>(
     toast.error("No browser wallet detected. Install MetaMask or continue in Sandbox mode.");
     return;
   }
-  const connector = connectors[0];
+  // Prefer MetaMask explicitly: Brave/other browsers expose their own wallet as window.ethereum,
+  // which silently hangs on "Connecting…" when it isn't set up.
+  const named = connectors as unknown as ReadonlyArray<{ id?: string; name?: string }>;
+  const pick =
+    named.findIndex((c) => c.id === "io.metamask" || /metamask/i.test(c.name ?? "")) >= 0
+      ? named.findIndex((c) => c.id === "io.metamask" || /metamask/i.test(c.name ?? ""))
+      : named.findIndex((c) => c.id !== "injected" && !/brave/i.test(c.name ?? ""));
+  const connector = connectors[pick >= 0 ? pick : 0];
   if (!connector) {
     toast.error("Wallet connector unavailable. Refresh after unlocking MetaMask.");
     return;
   }
   try {
-    await Promise.resolve(connectFn({ connector }));
+    await Promise.race([
+      Promise.resolve(connectFn({ connector })),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("WALLET_TIMEOUT")), 25_000)),
+    ]);
   } catch (err) {
-    toast.error(decodeContractError(err));
+    if (err instanceof Error && err.message === "WALLET_TIMEOUT") {
+      toast.error("Wallet didn't respond. Open MetaMask, approve the request, then try again.");
+    } else {
+      toast.error(decodeContractError(err));
+    }
   }
 }
 
@@ -108,8 +124,24 @@ export function useWalletRoles(): WalletRolesState {
   const [isOwnerOrSeededInsurer, setIsOwnerOrSeededInsurer] = useState(false);
   const [insurerPolicyCount, setInsurerPolicyCount] = useState(0);
 
+  const [hospitalList, setHospitalList] = useState<HospitalEntry[]>(() => mergedHospitals(null));
+  const [mergedRoot, setMergedRoot] = useState<bigint | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/relay/state", { cache: "no-store" });
+        const st = res.ok ? ((await res.json()) as { demoHospitals?: HospitalEntry[] }) : {};
+        const list = mergedHospitals(st.demoHospitals);
+        const tree = await buildPoseidonMerkleTree(await Promise.all(list.map((h) => computeHospitalLeaf(h.address, h.licenseId))));
+        if (!cancelled) { setHospitalList(list); setMergedRoot(tree.root); }
+      } catch { /* fall back to fixtures */ }
+    })();
+    return () => { cancelled = true; };
+  }, [address]);
+
   const matchedHospital: MatchedHospitalInfo | null = address
-    ? canonicalFixtures.hospitals.find(
+    ? hospitalList.find(
         (h) => h.address.toLowerCase() === address.toLowerCase()
       ) ?? null
     : null;
@@ -231,7 +263,8 @@ export function useWalletRoles(): WalletRolesState {
   const rootMatchesFixtures = !IS_CHAIN_DEPLOYED
     ? true
     : onChainHospitalRoot !== null &&
-      onChainHospitalRoot === BigInt(canonicalFixtures.hospitalRoot);
+      (onChainHospitalRoot === BigInt(canonicalFixtures.hospitalRoot) ||
+        (mergedRoot !== null && onChainHospitalRoot === mergedRoot));
 
   const isPatient = effectiveConnected;
   const isApprovedHospital = Boolean(

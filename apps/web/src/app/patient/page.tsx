@@ -19,7 +19,8 @@ import { fetchRelayState, postRelayAction, pushCiphertextToRelay } from "@/lib/r
 import { computeDeterministicCidV1, listVaultEntries, saveEncryptedRecordToVault, serializeQloBundle, type StoredVaultEntry } from "@/lib/storage";
 import { decodeContractError, ensureSepoliaChain, preflightSimulateAndWrite } from "@/lib/txHelpers";
 import { useWalletRoles } from "@/lib/useWalletRoles";
-import { formatCountdown, shortHex } from "@/lib/utils";
+import { connectableHospitals, mergedHospitals, type HospitalEntry } from "@/lib/demoRegistry";
+import { shortHex } from "@/lib/utils";
 
 const SUMMARY_STORAGE_KEY = "qlo-clinical-summaries-v1";
 const loadSavedSummaries = (): Record<string, string> => {
@@ -38,12 +39,25 @@ export default function PatientPage() {
   const { writeContractAsync } = useWriteContract();
   const roles = useWalletRoles();
   const { showStatus } = useAmbientStatus();
+  const [hospitalOptions, setHospitalOptions] = useState<HospitalEntry[]>(() => connectableHospitals(mergedHospitals(null)));
+  useEffect(() => {
+    fetch("/api/relay/state", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((st: { demoHospitals?: HospitalEntry[] } | null) => {
+        const list = connectableHospitals(mergedHospitals(st?.demoHospitals));
+        setHospitalOptions(list);
+        // Default the share target to the newest real (connectable) hospital wallet.
+        setTargetHospital(list[list.length - 1].address);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const [encrypted, setEncrypted] = useState<EncryptedRecordResult | null>(null);
   const [vaultItems, setVaultItems] = useState<StoredVaultEntry[]>([]);
   const [registeredRecordId, setRegisteredRecordId] = useState("");
-  const [targetHospital, setTargetHospital] = useState<string>(canonicalFixtures.accounts.hospital1);
-  const [grantMinutes, setGrantMinutes] = useState(10);
+  const [targetHospital, setTargetHospital] = useState<string>(() => { const l = connectableHospitals(mergedHospitals(null)); return l[l.length - 1].address; });
+  // Access lasts until the patient revokes (contract max: 30 days).
+  const [grantMinutes, setGrantMinutes] = useState(30 * 24 * 60);
   const [grantExpiresAt, setGrantExpiresAt] = useState(0);
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   const [auditItems, setAuditItems] = useState<AuditEventItem[]>([]);
@@ -247,7 +261,7 @@ export default function PatientPage() {
         const { hash } = await preflightSimulateAndWrite({ publicClient, account: address, address: CONTRACTS.HealthRecords.address, abi: CONTRACTS.HealthRecords.abi as Abi, functionName: "grantAccess", args: [BigInt(recId), targetHospital as `0x${string}`, BigInt(grantMinutes * 60), encryptedDekHex], writeContractAsync });
         await postRelayAction(grantPayload);
         setGrantExpiresAt(expiresAt);
-        setAuditItems((prev) => [{ id: `grant-${Date.now()}`, kind: "granted", title: `Shared with ${facilityName} (${grantMinutes}m)`, detail: `Record #${recId}`, timestamp: new Date().toLocaleTimeString(), txHash: hash, explorerUrl: explorerTxUrl(hash) }, ...prev]);
+        setAuditItems((prev) => [{ id: `grant-${Date.now()}`, kind: "granted", title: `Shared with ${facilityName}`, detail: `Record #${recId}`, timestamp: new Date().toLocaleTimeString(), txHash: hash, explorerUrl: explorerTxUrl(hash) }, ...prev]);
         await Promise.all([syncOverviewState(), roles.refetch()]);
       } else {
         const updatedMirror = await postRelayAction(grantPayload);
@@ -255,7 +269,7 @@ export default function PatientPage() {
         if (!updatedMirror) {
           mirror.hospitalPubKeys[targetHospital.toLowerCase()] = hospitalPubHex;
           mirror.grants[`${recId}:${targetHospital.toLowerCase()}`] = { expiresAt, encryptedDekHex };
-          mirror.auditLogs = [{ id: `grant-${Date.now()}`, kind: "granted", title: `Shared with ${facilityName} (${grantMinutes}m)`, detail: `Record #${recId}`, timestamp: new Date().toLocaleTimeString() }, ...mirror.auditLogs];
+          mirror.auditLogs = [{ id: `grant-${Date.now()}`, kind: "granted", title: `Shared with ${facilityName}`, detail: `Record #${recId}`, timestamp: new Date().toLocaleTimeString() }, ...mirror.auditLogs];
           saveLocalChainMirror(mirror);
         }
         window.dispatchEvent(new Event("storage"));
@@ -315,7 +329,7 @@ export default function PatientPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <PatientOverviewHeader isPatientRole={roles.isPatient} isChainDeployed={IS_CHAIN_DEPLOYED} secondsRemaining={secondsRemaining} hasEncrypted={Boolean(encrypted)} hasRegistered={Boolean(registeredRecordId)} />
-      <DropIntake targetHospital={targetHospital} onChangeTargetHospital={setTargetHospital} grantMinutes={grantMinutes} onChangeGrantMinutes={setGrantMinutes} busy={busy} stage={pipelineStage} stageDetail={pipelineDetail} onDropBill={handleDropBill} />
+      <DropIntake targetHospital={targetHospital} hospitalOptions={hospitalOptions} onChangeTargetHospital={setTargetHospital} grantMinutes={grantMinutes} onChangeGrantMinutes={setGrantMinutes} busy={busy} stage={pipelineStage} stageDetail={pipelineDetail} onDropBill={handleDropBill} />
 
       <section className="overflow-hidden rounded-2xl border border-[#E4E4E7] bg-[#FFFFFF]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E4E4E7] px-5 py-3.5">
@@ -343,8 +357,7 @@ export default function PatientPage() {
                 const grant = item.recordId ? activeGrantsMap[`${item.recordId}:${hospAddr.toLowerCase()}`] : undefined;
                 const remaining = grant ? Math.max(0, grant.expiresAt - nowSec) : 0;
                 const isActive = remaining > 0;
-                const { mins, secs } = formatCountdown(remaining);
-                const expanded = Boolean(expandedKeys[item.recordCommitmentHex]);
+                                const expanded = Boolean(expandedKeys[item.recordCommitmentHex]);
                 const isRevoking = revokingKey === item.recordCommitmentHex;
                 const summary = summaries[item.recordCommitmentHex.toLowerCase()] || sanitizeLabel(item.summaryHint);
 
@@ -355,7 +368,7 @@ export default function PatientPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-sm font-medium text-[#09090B]">{facility}</span>
                           <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-mono-tabular text-[11px] font-medium ${isActive ? "bg-[#ECFDF5] text-[#059669]" : "bg-[#F4F4F5] text-[#71717A]"}`}>
-                            {isActive ? `Active · ${mins}:${String(secs).padStart(2, "0")}` : "Not Shared"}
+                            {isActive ? "Shared · until you revoke" : "Not shared"}
                           </span>
                         </div>
                         <p className="truncate text-xs text-[#52525B]">{sanitizeLabel(item.summaryHint)}</p>
@@ -377,7 +390,7 @@ export default function PatientPage() {
                       <div className="mt-3 rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-3.5 text-xs">
                         <dl className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                           <div><dt className="text-[11px] text-[#71717A]">Commitment (248-bit)</dt><dd title={item.recordCommitmentHex} className="mt-0.5 font-mono-tabular text-[#09090B]">{shortHex(item.recordCommitmentHex, 10, 8)}</dd></div>
-                          <div><dt className="text-[11px] text-[#71717A]">CIDv1</dt><dd title={item.cid} className="mt-0.5 font-mono-tabular text-[#09090B]">{shortHex(item.cid, 12, 8)}</dd></div>
+                          <div><dt className="text-[11px] text-[#71717A]">Fingerprint</dt><dd title={item.cid} className="mt-0.5 font-mono-tabular text-[#09090B]">{shortHex(item.cid, 12, 8)}</dd></div>
                           <div className="sm:col-span-2"><dt className="text-[11px] text-[#71717A]">Clinical summary</dt><dd className="mt-0.5 text-[#27272A]">{summary}</dd></div>
                         </dl>
                         <div className="mt-3 flex items-center justify-end border-t border-[#E4E4E7] pt-2.5">

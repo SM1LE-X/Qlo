@@ -75,7 +75,7 @@ export function PatientConsentPanel({
           {registeredRecordId ? (
             <Badge variant="emerald">Saved (#{registeredRecordId})</Badge>
           ) : encrypted ? (
-            <Badge variant="teal">AES-256 Locked</Badge>
+            <Badge variant="teal">Encrypted on your device</Badge>
           ) : (
             <Badge variant="neutral">Unsealed</Badge>
           )}
@@ -96,7 +96,7 @@ export function PatientConsentPanel({
             </span>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[#71717A]">CIDv1 Digest</span>
+            <span className="text-[#71717A]">Storage fingerprint</span>
             <span className="font-mono-tabular text-[#52525B]">
               {cid ? shortHex(cid, 14, 8) : "—"}
             </span>

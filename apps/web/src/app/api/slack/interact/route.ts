@@ -4,6 +4,7 @@ import { checkRateLimit } from "@/lib/rateLimit";
 import {
   openActionPayload,
   openModal,
+  openUserDm,
   postMessage,
   publishAppHome,
   resolveRoleChannel,
@@ -20,6 +21,7 @@ import {
   sealAndGrantBill,
 } from "@/lib/slack/serverEngine";
 import { getSlackUserRole, setSlackUserRole } from "@/lib/slack/userRoles";
+import { acquireLock, getMetrics, recordSettlement, releaseLock } from "@/lib/slack/metrics";
 import { verifySlackSignature } from "@/lib/slack/verifySignature";
 import {
   buildAppHomeView,
@@ -279,13 +281,44 @@ export async function POST(request: NextRequest) {
       setSlackUserRole(userId, nextRole);
       after(async () => {
         const summary = await readLiveChainSummary();
-        await publishAppHome(userId, buildAppHomeView({ role: nextRole, summary }));
+        await publishAppHome(userId, buildAppHomeView({ role: nextRole, summary, metrics: getMetrics() }));
         await respondEphemeral(
           payload.response_url,
           `Role updated to *${nextRole === "hospital" ? "Provider" : nextRole === "insurer" ? "Insurer" : "Patient"}*. Open the *Qlo Home* tab or run \`/qlo submit\`.`
         );
       });
     }
+    return NextResponse.json({}, { status: 200, headers: NO_STORE });
+  }
+
+  if (actionId === SLACK_ACTIONS.SETUP_WORKSPACE && userId) {
+    after(async () => {
+      const { provisionWorkspace } = await import("@/lib/slack/api");
+      const { buildChannelWelcome } = await import("@/lib/slack/views");
+      const lanes = await provisionWorkspace(userId);
+      for (const [role, ch] of Object.entries(lanes)) {
+        if (ch) await postMessage(ch, { text: buildChannelWelcome(role as SlackRole) });
+      }
+      const dm = await openUserDm(userId);
+      const ok = Object.values(lanes).filter(Boolean).length;
+      if (dm) {
+        await postMessage(dm, {
+          text: ok === 3
+            ? "✅ Workspace ready: <#" + lanes.patient + "> → <#" + lanes.hospital + "> → <#" + lanes.insurer + ">. Run `/qlo submit` in the patient lane to send your first claim."
+            : "⚠️ Set up partly finished (" + ok + "/3 channels). Reinstall Qlo with the updated manifest (channels:manage scope) and tap Set up again.",
+        });
+      }
+      const summary = await readLiveChainSummary();
+      await publishAppHome(userId, buildAppHomeView({ role: getSlackUserRole(userId), summary, metrics: getMetrics() }));
+    });
+    return NextResponse.json({}, { status: 200, headers: NO_STORE });
+  }
+
+  if (actionId === SLACK_ACTIONS.REFRESH_HOME && userId) {
+    after(async () => {
+      const summary = await readLiveChainSummary();
+      await publishAppHome(userId, buildAppHomeView({ role: getSlackUserRole(userId), summary, metrics: getMetrics() }));
+    });
     return NextResponse.json({}, { status: 200, headers: NO_STORE });
   }
 
@@ -368,8 +401,10 @@ export async function POST(request: NextRequest) {
 
   if (actionId === SLACK_ACTIONS.APPROVE_SETTLE && action?.value) {
     const state = openActionPayload<SealedClaimState>(action.value, secret);
-    if (state && channelId && messageTs) {
+    const lockKey = `settle:${channelId}:${messageTs}`;
+    if (state && channelId && messageTs && acquireLock(lockKey)) {
       after(async () => {
+       try {
         await updateMessage(
           channelId,
           messageTs,
@@ -387,6 +422,15 @@ export async function POST(request: NextRequest) {
           amountEth: state.amountEth,
           recordCommitmentHex: state.recordCommitmentHex,
           onChainRecord: state.onChain,
+        });
+        recordSettlement({
+          at: Date.now(),
+          amountEth: state.amountEth,
+          ok: result.ok,
+          code: result.code,
+          proofMs: result.proofElapsedMs,
+          txHash: result.txHash,
+          explorerUrl: result.explorerUrl,
         });
 
         if (!result.ok) {
@@ -462,8 +506,26 @@ export async function POST(request: NextRequest) {
 
         if (userId) {
           const summary = await readLiveChainSummary();
-          await publishAppHome(userId, buildAppHomeView({ role: getSlackUserRole(userId), summary }));
+          await publishAppHome(userId, buildAppHomeView({ role: getSlackUserRole(userId), summary, metrics: getMetrics() }));
         }
+       } catch (err) {
+        recordSettlement({ at: Date.now(), amountEth: state.amountEth, ok: false, code: "RELAYER_ERROR" });
+        await updateMessage(
+          channelId,
+          messageTs,
+          buildHospitalClaimCard({
+            recordLabel: state.recordLabel,
+            providerName: state.providerName,
+            categoryLabel: state.categoryLabel,
+            amountEth: state.amountEth,
+            status: "rejected",
+            errorMessage: "Relayer error — no funds moved. Safe to retry.",
+          })
+        ).catch(() => undefined);
+        console.error("[qlo] settle failed", err instanceof Error ? err.message : "unknown");
+       } finally {
+        releaseLock(lockKey);
+       }
       });
     }
     return NextResponse.json({}, { status: 200, headers: NO_STORE });

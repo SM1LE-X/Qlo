@@ -56,7 +56,26 @@ export interface RelaySettledClaim {
   pubSignals: string[];
 }
 
+export interface DemoHospital {
+  address: string;
+  licenseId: string;
+  name: string;
+}
+
+export interface DemoPolicy {
+  insurer: string;
+  policyId: string;
+  patientCommit: string;
+  policyExpiry: string;
+  annualLimitWei: string;
+  policySalt: string;
+  commitment: string;
+}
+
 export interface RelayChainMirror {
+  /** Public, non-PHI demo registry. On-chain hospitalRoot / PolicyRegistry remain the authority. */
+  demoHospitals?: DemoHospital[];
+  demoPolicy?: DemoPolicy | null;
   hospitalPubKeys: Record<string, string>;
   insurerEscrowWei: string;
   policySpentWei: Record<string, string>;
@@ -397,6 +416,39 @@ function applyRelayActionUnpersisted(body: Record<string, unknown>): RelayChainM
 
   if (action === "reset") {
     return resetRelayStore();
+  }
+
+  if (action === "accreditHospital") {
+    const address = String(body.address ?? "").trim().toLowerCase();
+    const licenseId = String(body.licenseId ?? "").trim();
+    const name = String(body.name ?? "").trim().slice(0, 60) || "Demo Hospital";
+    if (!/^0x[0-9a-f]{40}$/i.test(address)) throw new Error("Invalid hospital address");
+    if (!/^\d{6,12}$/.test(licenseId)) throw new Error("Invalid license id");
+    const list = (state.demoHospitals ?? []).filter((h) => h.address.toLowerCase() !== address);
+    list.push({ address, licenseId, name });
+    state.demoHospitals = list.slice(-50);
+    return state;
+  }
+
+  if (action === "setDemoPolicy") {
+    const p = body.policy as Record<string, unknown> | undefined;
+    const insurer = String(p?.insurer ?? "").trim().toLowerCase();
+    if (!/^0x[0-9a-f]{40}$/i.test(insurer)) throw new Error("Invalid insurer address");
+    const num = (k: string) => {
+      const v = String(p?.[k] ?? "");
+      if (!/^\d{1,80}$/.test(v)) throw new Error(`Invalid ${k}`);
+      return v;
+    };
+    state.demoPolicy = {
+      insurer,
+      policyId: num("policyId"),
+      patientCommit: num("patientCommit"),
+      policyExpiry: num("policyExpiry"),
+      annualLimitWei: num("annualLimitWei"),
+      policySalt: num("policySalt"),
+      commitment: num("commitment"),
+    };
+    return state;
   }
 
   if (action === "publishPubKey") {

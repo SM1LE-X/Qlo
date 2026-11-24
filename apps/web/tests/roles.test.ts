@@ -44,9 +44,9 @@ describe("RBAC role access rules", () => {
 
   it("describes institutional lock reasons without persona jargon", () => {
     const msg = describeLockReason("hospital", "patient", false);
-    expect(msg).toContain("Alex Rivera");
-    expect(msg).toContain("#hospital-claims");
-    expect(msg).toContain(ROLE_META.hospital.contractGate);
+    expect(msg).toContain("Patient");
+    expect(msg).toContain("requires Hospital access");
+    expect(msg).not.toContain(ROLE_META.hospital.contractGate);
     expect(msg.toLowerCase()).not.toContain("persona");
 
     const walletMsg = describeLockReason("insurer", "insurer", true);

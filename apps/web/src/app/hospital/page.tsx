@@ -8,6 +8,7 @@ import { ClaimsQueue, type ClaimRowState } from "@/components/hospital/claims-qu
 import { HospitalOverviewHeader } from "@/components/hospital/hospital-overview-header";
 import { useAmbientStatus } from "@/components/ui/ambient-pill";
 import canonicalFixtures from "@/lib/canonicalFixtures.json";
+import { registryFromMirror } from "@/lib/demoRegistry";
 import { CONTRACTS, IS_CHAIN_DEPLOYED } from "@/lib/contracts";
 import { decryptClinicalPayload, getOrCreateHospitalKeypair, unwrapDekForHospital } from "@/lib/crypto";
 import { type Cms1500Claim } from "@/lib/intake";
@@ -115,7 +116,8 @@ export default function HospitalPage() {
   const rowsRef = useRef<ClaimRowState[]>([]);
   rowsRef.current = rows;
   const runIdRef = useRef(0);
-  const matchedProvider = canonicalFixtures.hospitals.find((h) => h.address.toLowerCase() === hospitalAddr.toLowerCase()) ?? null;
+  const [registry, setRegistry] = useState(() => registryFromMirror(null));
+  const matchedProvider = registry.hospitals.find((h) => h.address.toLowerCase() === hospitalAddr.toLowerCase()) ?? null;
 
   const patchRow = useCallback((commitmentHex: string, patch: Partial<ClaimRowState>) => {
     const target = commitmentHex.toLowerCase();
@@ -150,7 +152,10 @@ export default function HospitalPage() {
 
     const initialRows = buildInitialRows(entries, rowsRef.current, mirror, forceReprove);
     setRows(initialRows);
-    const providerForTarget = canonicalFixtures.hospitals.find((h) => h.address.toLowerCase() === targetAddr.toLowerCase()) ?? null;
+    const reg = registryFromMirror(mirror as unknown as Parameters<typeof registryFromMirror>[0]);
+    setRegistry(reg);
+    const policyCommit = reg.policy.commitment;
+    const providerForTarget = reg.hospitals.find((h) => h.address.toLowerCase() === targetAddr.toLowerCase()) ?? null;
 
     for (const item of initialRows) {
       if (isStale()) continue;
@@ -183,12 +188,12 @@ export default function HospitalPage() {
       if (isStale()) return;
 
       const claim: Cms1500Claim = providerForTarget && plain.renderingNpi.trim() !== providerForTarget.licenseId ? { ...plain, renderingNpi: providerForTarget.licenseId } : plain;
-      let priorSpentWei = BigInt(mirror.policySpentWei[POLICY_COMMIT] ?? "0");
+      let priorSpentWei = BigInt(mirror.policySpentWei[policyCommit] ?? "0");
       let claimTimestampOverride: bigint | undefined;
       if (IS_CHAIN_DEPLOYED && publicClient) {
         try {
           const [spent, block] = await Promise.all([
-            readContractSafe<bigint>(publicClient, "ClaimsVault", "policySpent", [BigInt(POLICY_COMMIT)]),
+            readContractSafe<bigint>(publicClient, "ClaimsVault", "policySpent", [BigInt(policyCommit)]),
             publicClient.getBlock({ blockTag: "latest" }),
           ]);
           priorSpentWei = spent;
@@ -199,7 +204,7 @@ export default function HospitalPage() {
       }
       if (isStale()) return;
 
-      const input = await buildCircuitInputFromClaim({ claim, recordCommitment: BigInt(item.entry.recordCommitmentHex), hospitalAddress: targetAddr, priorPolicySpentWei: priorSpentWei, claimTimestampOverride });
+      const input = await buildCircuitInputFromClaim({ claim, recordCommitment: BigInt(item.entry.recordCommitmentHex), hospitalAddress: targetAddr, priorPolicySpentWei: priorSpentWei, claimTimestampOverride, hospitals: reg.hospitals, policyOverride: reg.policy });
       if (isStale()) return;
 
       let used = Boolean(mirror.nullifierUsed[input.nullifier]);
@@ -259,7 +264,8 @@ export default function HospitalPage() {
       const sorted = Array.from(merged.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       if (IS_CHAIN_DEPLOYED && publicClient) {
         const pub = await readContractSafe<`0x${string}`>(publicClient, "HospitalRegistry", "hospitalEncryptionPubKey", [targetAddr as `0x${string}`]).catch(() => "0x" as `0x${string}`);
-        setOnChainKeyRegistered(Boolean(pub && pub.length >= 132));
+        // Must match THIS browser's key, otherwise shared records cannot be unlocked here.
+        setOnChainKeyRegistered(Boolean(pub && pub.length >= 132 && pub.toLowerCase() === kp.publicKeyHex.toLowerCase()));
       } else {
         setOnChainKeyRegistered(false);
       }
@@ -273,6 +279,39 @@ export default function HospitalPage() {
 
   useEffect(() => { refreshHospitalInbox(hospitalAddr, false).catch(() => undefined); }, [hospitalAddr, refreshHospitalInbox]);
   useEffect(() => { if (address) setHospitalAddr(address); }, [address]);
+
+  // Near-real-time inbox: cheap poll + tab focus. Only re-runs the (expensive) proof
+  // pipeline when a NEW record appears, so in-flight proofs are never cancelled.
+  useEffect(() => {
+    let checking = false;
+    let tick = 0;
+    const check = async () => {
+      if (checking || document.visibilityState !== "visible") return;
+      checking = true;
+      try {
+        const [local, relayed] = await Promise.all([
+          listVaultEntries().catch(() => [] as StoredVaultEntry[]),
+          fetchHospitalRelayVault(hospitalAddr).catch(() => [] as StoredVaultEntry[]),
+        ]);
+        const known = new Set(rowsRef.current.map((r) => r.entry.recordCommitmentHex.toLowerCase()));
+        const hasNew = [...local, ...relayed].some((e) => !known.has(e.recordCommitmentHex.toLowerCase()));
+        // Grant tx may still be mining when the record first appears: recheck "not shared" rows every ~12s.
+        const recheckPending = ++tick % 3 === 0 && rowsRef.current.some((r) => r.status === "revoked");
+        if (hasNew || recheckPending) await refreshHospitalInbox(hospitalAddr, false);
+      } finally {
+        checking = false;
+      }
+    };
+    const id = window.setInterval(() => void check(), 4000);
+    const onWake = () => void check();
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("focus", onWake);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("focus", onWake);
+    };
+  }, [hospitalAddr, refreshHospitalInbox]);
 
   const handleRegisterHospitalPubKey = async () => {
     if (!hospitalPubKeyHex || txBusy) return;

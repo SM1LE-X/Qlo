@@ -163,3 +163,37 @@ export async function resolveRoleChannel(
   }
   return null;
 }
+
+export async function postEphemeral(
+  channel: string,
+  user: string,
+  text: string,
+  blocks?: unknown[]
+): Promise<SlackApiResponse> {
+  return slackApi("chat.postEphemeral", { channel, user, text, ...(blocks ? { blocks } : {}) });
+}
+
+/** Creates (or finds) the three Qlo lane channels, invites the user, and returns their ids. */
+export async function provisionWorkspace(userId: string): Promise<Record<SlackRole, string | null>> {
+  const out = { patient: null, hospital: null, insurer: null } as Record<SlackRole, string | null>;
+  for (const role of Object.keys(ROLE_CHANNEL_NAMES) as SlackRole[]) {
+    const name = ROLE_CHANNEL_NAMES[role].defaultName;
+    let id: string | null = channelCache.get(name) ?? null;
+    if (!id) {
+      const created = await slackApi("conversations.create", { name, is_private: false });
+      const ch = created.channel as unknown as { id?: string } | undefined;
+      if (created.ok && ch?.id) {
+        id = ch.id;
+        channelCache.set(name, id);
+      } else {
+        id = await resolveRoleChannel(role);
+      }
+    }
+    if (id) {
+      await slackApi("conversations.join", { channel: id });
+      await slackApi("conversations.invite", { channel: id, users: userId }); // already_in_channel is fine
+    }
+    out[role] = id;
+  }
+  return out;
+}

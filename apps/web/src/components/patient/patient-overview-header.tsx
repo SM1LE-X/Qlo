@@ -2,7 +2,6 @@
 
 import { FileLock2 } from "lucide-react";
 import { Badge } from "@/components/ui/card";
-import { SlidingCountdown } from "@/components/ui/number-ticker";
 
 interface PatientOverviewHeaderProps {
   isPatientRole: boolean;
@@ -42,7 +41,7 @@ export function PatientOverviewHeader({
         {secondsRemaining > 0 ? (
           <div className="flex items-center gap-2.5 rounded-lg border border-[#059669]/25 bg-[#ECFDF5] px-3.5 py-1.5">
             <span className="text-xs font-medium text-[#059669]">Hospital Access Active</span>
-            <SlidingCountdown secondsLeft={secondsRemaining} />
+            <span className="text-xs text-[#047857]">until you revoke</span>
           </div>
         ) : null}
       </div>

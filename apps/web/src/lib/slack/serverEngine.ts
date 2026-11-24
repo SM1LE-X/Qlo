@@ -176,52 +176,59 @@ export interface LiveChainSummary {
   policySpentWei: bigint;
   networkLive: boolean;
   relayerEnabled: boolean;
+  relayerBalanceEth?: string;
+  rpcLatencyMs?: number;
+  readAt: number;
 }
 
+let lastGoodSummary: LiveChainSummary | null = null;
+
 export async function readLiveChainSummary(): Promise<LiveChainSummary> {
-  const relayerEnabled = Boolean(getRelayerAccount());
+  const relayer = getRelayerAccount();
+  const relayerEnabled = Boolean(relayer);
+  const t0 = Date.now();
   try {
     const client = createSepoliaPublicClient();
     const vault = DEPLOYMENT.contracts.ClaimsVault as Address;
     const insurer = DEPLOYMENT.seededInsurer as Address;
     const policyCommit = BigInt(canonicalFixtures.activePolicy.commitment);
 
-    const [escrowWei, settledCount, policySpentWei] = await Promise.all([
-      client.readContract({
-        address: vault,
-        abi: ClaimsVaultAbi,
-        functionName: "insurerEscrow",
-        args: [insurer],
-      }),
-      client.readContract({
-        address: vault,
-        abi: ClaimsVaultAbi,
-        functionName: "totalClaimsSettled",
-      }),
-      client.readContract({
-        address: vault,
-        abi: ClaimsVaultAbi,
-        functionName: "policySpent",
-        args: [policyCommit],
-      }),
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("RPC_TIMEOUT")), 6_000)
+    );
+    const [escrowWei, settledCount, policySpentWei, relayerWei] = await Promise.race([
+      Promise.all([
+        client.readContract({ address: vault, abi: ClaimsVaultAbi, functionName: "insurerEscrow", args: [insurer] }),
+        client.readContract({ address: vault, abi: ClaimsVaultAbi, functionName: "totalClaimsSettled" }),
+        client.readContract({ address: vault, abi: ClaimsVaultAbi, functionName: "policySpent", args: [policyCommit] }),
+        relayer ? client.getBalance({ address: relayer.address }) : Promise.resolve(null),
+      ]),
+      timeout,
     ]);
 
-    return {
+    lastGoodSummary = {
       escrowEth: Number(formatEther(escrowWei)).toFixed(4),
       settledCount: Number(settledCount),
       policySpentEth: Number(formatEther(policySpentWei)).toFixed(4),
       policySpentWei,
       networkLive: true,
       relayerEnabled,
+      relayerBalanceEth: relayerWei === null ? undefined : Number(formatEther(relayerWei)).toFixed(4),
+      rpcLatencyMs: Date.now() - t0,
+      readAt: Date.now(),
     };
+    return lastGoodSummary;
   } catch {
+    // Never invent numbers: serve the last verified on-chain read, flagged as cached.
+    if (lastGoodSummary) return { ...lastGoodSummary, networkLive: false };
     return {
-      escrowEth: "0.0160",
-      settledCount: 2,
-      policySpentEth: "0.0090",
-      policySpentWei: 9_000_000_000_000_000n,
+      escrowEth: "—",
+      settledCount: 0,
+      policySpentEth: "—",
+      policySpentWei: 0n,
       networkLive: false,
       relayerEnabled,
+      readAt: Date.now(),
     };
   }
 }
@@ -418,6 +425,14 @@ export async function proveAndSettleClaim(params: {
   }
 
   const chainSummary = await readLiveChainSummary();
+  if (relayer && !chainSummary.networkLive) {
+    return {
+      ok: false,
+      code: "RPC_UNAVAILABLE",
+      reason: "Sepolia RPC unreachable — settlement paused to avoid proving against stale policy state. Retry in a moment.",
+      onChain: true,
+    };
+  }
   const claimAmountWei = parseEther(params.amountEth);
   const annualLimitWei = BigInt(canonicalFixtures.activePolicy.annualLimitWei);
   if (chainSummary.policySpentWei + claimAmountWei > annualLimitWei) {

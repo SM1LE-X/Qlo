@@ -43,6 +43,7 @@ describe("Slack-native Block Kit views (Zero-PHI)", () => {
       policySpentWei: 9_000_000_000_000_000n,
       networkLive: true,
       relayerEnabled: true,
+      readAt: Date.now(),
     };
 
     const views = [

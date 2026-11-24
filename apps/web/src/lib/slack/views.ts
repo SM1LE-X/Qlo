@@ -1,4 +1,5 @@
 import type { SlackRole } from "./blocks";
+import type { MetricsSnapshot } from "./metrics";
 import { PROVIDER_OPTIONS, VISIT_PRESETS, type LiveChainSummary } from "./serverEngine";
 
 export const SLACK_ACTIONS = {
@@ -10,6 +11,8 @@ export const SLACK_ACTIONS = {
   APPROVE_SETTLE: "qlo_approve_settle",
   REVOKE_ACCESS: "qlo_revoke_access",
   INSPECT_PROOF: "qlo_inspect_proof",
+  REFRESH_HOME: "qlo_refresh_home",
+  SETUP_WORKSPACE: "qlo_setup_workspace",
 } as const;
 
 export const SLACK_CALLBACKS = {
@@ -18,7 +21,7 @@ export const SLACK_CALLBACKS = {
 
 const ROLE_LABELS: Record<SlackRole, { title: string; subtitle: string; channel: string }> = {
   patient: {
-    title: "Patient · Alex Rivera",
+    title: "Patient",
     subtitle: "Submit medical bills privately and revoke provider access anytime.",
     channel: "#patient-vault",
   },
@@ -58,11 +61,92 @@ function roleButtons(activeRole?: SlackRole) {
   };
 }
 
+function bar(fraction: number, width = 20): string {
+  const f = Math.max(0, Math.min(1, Number.isFinite(fraction) ? fraction : 0));
+  const filled = Math.round(f * width);
+  return "█".repeat(filled) + "░".repeat(width - filled);
+}
+
+export function buildAnalyticsBlocks(
+  summary: LiveChainSummary,
+  metrics?: MetricsSnapshot
+): Array<Record<string, unknown>> {
+  const capEth = 0.03;
+  const spent = Number(summary.policySpentEth);
+  const capFrac = Number.isFinite(spent) ? spent / capEth : 0;
+  const updated = new Date(summary.readAt || Date.now()).toISOString().slice(11, 19);
+  const blocks: Array<Record<string, unknown>> = [
+    { type: "divider" },
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: "*📊 Live Protocol Analytics*" },
+      accessory: {
+        type: "button",
+        text: { type: "plain_text", text: "↻ Refresh" },
+        action_id: SLACK_ACTIONS.REFRESH_HOME,
+      },
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Insurer escrow*\n${summary.escrowEth} ETH` },
+        { type: "mrkdwn", text: `*Claims settled on-chain*\n${summary.settledCount}` },
+        { type: "mrkdwn", text: `*PHI bytes on-chain / in Slack*\n0 / 0` },
+        { type: "mrkdwn", text: `*Relayer gas balance*\n${summary.relayerBalanceEth ? `${summary.relayerBalanceEth} ETH` : summary.relayerEnabled ? "—" : "demo mode (no relayer key)"}` },
+      ],
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Annual policy cap*  \`${bar(capFrac)}\`  ${summary.policySpentEth} / ${capEth.toFixed(4)} ETH (${Math.round(capFrac * 100)}%)`,
+      },
+    },
+  ];
+
+  if (metrics && metrics.attempts > 0) {
+    const blockedText = Object.entries(metrics.blockedByCode)
+      .map(([code, n]) => `\`${code}\` ×${n}`)
+      .join("  ") || "none";
+    blocks.push({
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Session settlements*\n${metrics.settled} ok / ${metrics.attempts} attempts` },
+        { type: "mrkdwn", text: `*Groth16 prove time*\navg ${metrics.avgProofMs ?? "—"} ms · p95 ${metrics.p95ProofMs ?? "—"} ms` },
+        { type: "mrkdwn", text: `*ETH released this session*\n${metrics.totalSettledEth} ETH` },
+        { type: "mrkdwn", text: `*Blocked by protocol*\n${blockedText}` },
+      ],
+    });
+    const recent = metrics.recent
+      .map((e) => {
+        const t = new Date(e.at).toISOString().slice(11, 19);
+        const link = e.explorerUrl ? ` · <${e.explorerUrl}|tx>` : "";
+        return e.ok
+          ? `✅ ${t}  ${e.amountEth} ETH · ${e.proofMs ?? "?"} ms${link}`
+          : `⛔ ${t}  ${e.amountEth} ETH · \`${e.code ?? "REJECTED"}\``;
+      })
+      .join("\n");
+    blocks.push({ type: "section", text: { type: "mrkdwn", text: `*Recent activity*\n${recent}` } });
+  }
+
+  blocks.push({
+    type: "context",
+    elements: [
+      {
+        type: "mrkdwn",
+        text: `${summary.networkLive ? "🟢 Live Sepolia read" : "🟡 Cached — RPC unreachable"}${summary.rpcLatencyMs ? ` · RPC ${summary.rpcLatencyMs} ms` : ""} · updated ${updated} UTC`,
+      },
+    ],
+  });
+  return blocks;
+}
+
 export function buildAppHomeView(params: {
   role?: SlackRole;
   summary: LiveChainSummary;
+  metrics?: MetricsSnapshot;
 }): Record<string, unknown> {
-  const { role, summary } = params;
+  const { role, summary, metrics } = params;
   const blocks: Array<Record<string, unknown>> = [
     {
       type: "header",
@@ -80,12 +164,20 @@ export function buildAppHomeView(params: {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: role
-          ? `*Active role:* ${ROLE_LABELS[role].title}\n${ROLE_LABELS[role].subtitle}\n*Channel:* \`${ROLE_LABELS[role].channel}\``
-          : "*Choose your role to get started:*",
+        text:
+          "*How a claim flows through your workspace*\n" +
+          "`#patient-vault`  →  bill encrypted, time-boxed consent\n" +
+          "`#hospital-claims`  →  one tap: private proof + instant payout\n" +
+          "`#insurer-escrow`  →  verified receipt, zero patient data\n" +
+          "_No wallets, gas or crypto — Qlo's relayer handles the chain._",
+      },
+      accessory: {
+        type: "button",
+        text: { type: "plain_text", text: "⚡ Set up workspace" },
+        style: "primary",
+        action_id: SLACK_ACTIONS.SETUP_WORKSPACE,
       },
     },
-    roleButtons(role),
   ];
 
   if (role === "patient" || !role) {
@@ -138,18 +230,7 @@ export function buildAppHomeView(params: {
     );
   }
 
-  blocks.push(
-    { type: "divider" },
-    {
-      type: "context",
-      elements: [
-        {
-          type: "mrkdwn",
-          text: `${summary.networkLive ? "🟢" : "🟡"} Ethereum Sepolia · Escrow ${summary.escrowEth} ETH · ${summary.settledCount} settled · Zero-PHI verified`,
-        },
-      ],
-    }
-  );
+  blocks.push(...buildAnalyticsBlocks(summary, metrics));
 
   return { type: "home", blocks };
 }
@@ -166,10 +247,9 @@ export function buildOnboardingMessage(role?: SlackRole) {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: "Select your role to personalize your workspace, or submit a bill right away.",
+          text: "Qlo settles health insurance claims privately inside Slack. Open the *Home* tab and tap *⚡ Set up workspace* — channels, team and a sandbox claim are ready in seconds.",
         },
       },
-      roleButtons(role),
       {
         type: "actions",
         elements: [
@@ -524,4 +604,14 @@ export function buildAuditProofModal(params: {
       },
     ],
   };
+}
+
+const CHANNEL_WELCOME: Record<SlackRole, string> = {
+  patient: "Welcome to *#patient-vault* 👋 Your receipts land here. Run `/qlo submit` to send a bill — nothing medical is ever posted, and you can revoke access anytime.",
+  hospital: "Welcome to *#hospital-claims* 👋 Verified claims arrive here as cards. Tap *Approve & Settle* — proof + payout happen automatically.",
+  insurer: "Welcome to *#insurer-escrow* 👋 Every payout shows up here with a tamper-proof receipt. Tap *Inspect Proof* to audit — zero patient data revealed.",
+};
+
+export function buildChannelWelcome(role: SlackRole): string {
+  return CHANNEL_WELCOME[role];
 }

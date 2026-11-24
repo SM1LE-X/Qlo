@@ -72,7 +72,7 @@ export function HospitalRecordQueueCard({
       <div className="border-b border-[#E4E4E7] pb-3.5 space-y-0.5">
         <h2 className="text-sm font-semibold text-[#09090B]">Shared Patient Records</h2>
         <p className="text-xs text-[#52525B]">
-          Verify active on-chain consent and unwrap AES-256-GCM medical records locally.
+          Opens only while the patient’s permission is active. Decrypted on this device only.
         </p>
       </div>
 
@@ -159,7 +159,7 @@ export function HospitalRecordQueueCard({
           disabled={!selectedEntry || txBusy}
         >
           <KeyRound className="h-4 w-4" />
-          {decryptedClaim ? "Record Unlocked (Re-Decrypt)" : "Unlock & View Patient Record"}
+          {decryptedClaim ? "Record open" : "Unlock & View Patient Record"}
         </TactileButton>
       )}
 

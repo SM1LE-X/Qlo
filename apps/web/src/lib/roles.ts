@@ -32,12 +32,12 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
     id: "patient",
     label: "Patient",
     shortLabel: "Patient",
-    accountName: "Alex Rivera",
+    accountName: "Patient",
     accountSubtitle: `Member · Policy #${canonicalFixtures.activePolicy.policyId}`,
     accountEmail: "alex.rivera@member.qlo.health",
     accountAddress: canonicalFixtures.accounts.patient as `0x${string}`,
     badgeCode: "MEMBER",
-    actorName: "Alex Rivera",
+    actorName: "Patient",
     channelName: "#patient-vault",
     portalHref: "/patient",
     portalLabel: "Open Records Vault",
@@ -59,7 +59,7 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
     id: "hospital",
     label: "Hospital",
     shortLabel: "Provider",
-    accountName: primaryHospital.name,
+    accountName: "Hospital",
     accountSubtitle: `Provider · NPI ${primaryHospital.licenseId}`,
     accountEmail: "billing@metrocardiac.org",
     accountAddress: primaryHospital.address as `0x${string}`,
@@ -86,12 +86,12 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
     id: "insurer",
     label: "Insurer",
     shortLabel: "Payer",
-    accountName: "Meridian Health Plan",
+    accountName: "Insurer",
     accountSubtitle: "Payer · Escrow Treasury Admin",
     accountEmail: "treasury@meridianhealth.io",
     accountAddress: canonicalFixtures.accounts.insurer as `0x${string}`,
     badgeCode: "ESCROW ADMIN",
-    actorName: "Meridian Health Plan",
+    actorName: "Insurer",
     channelName: "#insurer-escrow",
     portalHref: "/insurer",
     portalLabel: "Open Escrow Treasury",
@@ -153,5 +153,5 @@ export function describeLockReason(
     return `Connected Ethereum Sepolia wallet lacks ${targetMeta.label} access (${targetMeta.contractGate}).`;
   }
   const activeMeta = ROLE_META[activeRole];
-  return `Signed in as ${activeMeta.accountName}. ${targetMeta.channelName} requires ${targetMeta.label} access (${targetMeta.contractGate}).`;
+  return `Signed in as ${activeMeta.accountName}. This page requires ${targetMeta.label} access. Switch to an approved wallet in MetaMask.`;
 }

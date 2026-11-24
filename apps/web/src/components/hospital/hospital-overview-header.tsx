@@ -75,10 +75,10 @@ export function HospitalOverviewHeader({
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#0284C7]/25 bg-[#F0F9FF] px-5 py-3.5 text-xs">
           <div className="space-y-0.5">
             <div className="font-semibold text-[#09090B]">
-              Register Hospital Encryption Key
+              One-time setup: enable this device to open patient records
             </div>
             <p className="text-[#52525B]">
-              Publish your browser&apos;s ECDH P-256 public key on Sepolia so patients can wrap record DEKs directly for your facility.
+              Do this before the patient shares. Records shared earlier to another device can&apos;t be opened here — ask the patient to share again.
             </p>
           </div>
           <TactileButton
@@ -88,7 +88,7 @@ export function HospitalOverviewHeader({
             disabled={txBusy || !isConnected || wrongChain}
           >
             <KeyRound className="h-3.5 w-3.5" />
-            Register Hospital Key
+            Enable this device
           </TactileButton>
         </div>
       ) : null}
