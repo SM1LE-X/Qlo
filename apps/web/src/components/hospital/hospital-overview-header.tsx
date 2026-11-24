@@ -53,7 +53,7 @@ export function HospitalOverviewHeader({
               </Badge>
             </div>
             <p className="text-xs text-[#52525B]">
-              Unwrap patient-authorized CMS-1500 records locally, prove 8 Groth16 predicates, and settle ETH from ClaimsVault.
+              Local Groth16 proving and ClaimsVault escrow settlement.
             </p>
           </div>
 

@@ -280,7 +280,7 @@ export default function ProtocolOverviewPage() {
             ) : null}
           </div>
           <p className="text-xs text-[#52525B]">
-            Zero-knowledge health insurance clearinghouse · Groth16 BN254 settlement &amp; AES-256-GCM record consent
+            Zero-knowledge health claims settlement on Ethereum Sepolia.
           </p>
         </div>
 

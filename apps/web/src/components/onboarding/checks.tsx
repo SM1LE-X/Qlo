@@ -111,7 +111,7 @@ async function runChecks(): Promise<CheckRow[]> {
         : "Status endpoint unavailable",
       hint: slackReady
         ? ""
-        : "Direct web channels active. Add SLACK_SIGNING_SECRET & webhook URLs below to mirror to your enterprise Slack workspace.",
+        : "Optional. Configure env vars below for external Slack webhooks.",
     },
   ];
 }

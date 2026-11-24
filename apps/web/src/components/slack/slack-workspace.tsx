@@ -259,7 +259,7 @@ export function SlackWorkspace() {
               <div role="tablist" aria-label="Workspace mode" className="inline-flex rounded-lg border border-[#E4E4E7] bg-[#FFFFFF] p-0.5">
                 {(["live", "story"] as const).map((modeTab) => (
                   <button key={modeTab} type="button" role="tab" aria-selected={tab === modeTab} onClick={() => handleSelectTab(modeTab)} className={`cursor-pointer rounded-md px-2.5 py-1 text-[12px] font-medium transition ${tab === modeTab ? "bg-[#FFFFFF] text-[#09090B] shadow-[0_1px_0_rgba(255,255,255,0.06)_inset]" : "text-[#52525B] hover:text-[#18181B]"}`}>
-                    {modeTab === "live" ? "Live" : "Story mode"}
+                    {modeTab === "live" ? "Live" : "Walkthrough"}
                   </button>
                 ))}
               </div>
@@ -357,7 +357,7 @@ export function SlackWorkspace() {
           <div className="border-t border-[#E4E4E7] bg-[#FAFAFA]/80 px-4 py-3">
             {tab === "live" && !isLocked ? (
               <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                <span className="inline-flex items-center gap-1 text-[11px] text-[#71717A]"><Sparkles className="h-3 w-3" aria-hidden="true" />Quick commands:</span>
+                <span className="inline-flex items-center gap-1 text-[11px] text-[#71717A]"><Sparkles className="h-3 w-3" aria-hidden="true" />Commands:</span>
                 {QUICK_COMMANDS.map((cmd) => (
                   <button key={cmd} type="button" disabled={!chain} onClick={() => executeSlashCommand(cmd)} className="cursor-pointer rounded-md border border-[#E4E4E7] bg-[#FFFFFF] px-2 py-0.5 font-mono-tabular text-[11px] text-[#27272A] transition hover:border-[#D4D4D8] hover:text-[#059669] disabled:cursor-not-allowed disabled:opacity-40">{cmd}</button>
                 ))}
@@ -372,9 +372,9 @@ export function SlackWorkspace() {
                 aria-label={`Message ${channelMeta.channelName}`}
                 placeholder={
                   isLocked
-                    ? `Access restricted — sign in as ${channelMeta.accountName} to post in ${channelMeta.channelName}`
+                    ? `Restricted — sign in as ${channelMeta.accountName}`
                     : tab === "story"
-                      ? "Protocol walkthrough active — switch to Live to run /qlo slash commands"
+                      ? "Switch to Live for /qlo commands"
                       : "/qlo status | claims | audit <n> | help"
                 }
                 className="w-full rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] py-2.5 pr-11 pl-3.5 text-[13px] text-[#09090B] placeholder:text-[#71717A] focus:border-[#D4D4D8] focus:outline-none disabled:cursor-not-allowed disabled:opacity-55"

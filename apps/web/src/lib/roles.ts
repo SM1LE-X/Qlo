@@ -44,15 +44,15 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
     accentHex: "#059669",
     contractGate: "HealthRecords.patient == msg.sender",
     gateDescription:
-      "Only the record owner account can seal AES-256-GCM medical records, mint time-bound ECDH grants, or broadcast on-chain revocation.",
+      "Record owner signs encryption, grants, and revocations.",
     canSee: [
-      "Plaintext CMS-1500 bill & local WASM OCR output",
-      "Client-side AES-256-GCM key & backup envelope",
-      "Active provider grants, TTL expiry & 1-click Revoke",
+      "Local OCR and bill fields",
+      "AES-256-GCM key and backup",
+      "Active grants and revocation",
     ],
     hiddenFromRole: [
-      "Provider internal billing queue & NPI witness secrets",
-      "Payer treasury escrow liquidity & other members' claims",
+      "Provider billing queue",
+      "Payer treasury reserves",
     ],
   },
   hospital: {
@@ -71,15 +71,15 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
     accentHex: "#0284C7",
     contractGate: "HospitalRegistry.hospitalRoot & pubSignals[6] == msg.sender",
     gateDescription:
-      "Requires an accredited provider account verified in the HospitalRegistry Merkle tree to unwrap ECDH DEKs and settle Groth16 claims.",
+      "Verified hospital address required for Groth16 settlement.",
     canSee: [
-      "Records explicitly granted by patients via wrapped P-256 DEK",
-      "Local Groth16 BN254 witness prover (4,349 R1CS constraints)",
-      "Eligible claim payout queue & instant Sepolia settlement",
+      "Patient-authorized records",
+      "Local Groth16 proof builder",
+      "Claim settlement queue",
     ],
     hiddenFromRole: [
-      "Revoked or unshared patient records (mathematically undecryptable)",
-      "Payer private actuarial reserves outside public escrow balance",
+      "Revoked or unshared records",
+      "Payer internal reserves",
     ],
   },
   insurer: {
@@ -98,15 +98,15 @@ export const ROLE_META: Record<AppRole, RoleMeta> = {
     accentHex: "#D97706",
     contractGate: "PolicyRegistry.insurer & ClaimsVault.insurerEscrow",
     gateDescription:
-      "Requires a registered payer account or escrow depositor to manage ETH liquidity and audit Zero-PHI settlement proofs.",
+      "Registered payer account required for escrow and audit.",
     canSee: [
-      "Groth16 BN254 proof validity & 8 public signals",
-      "Cumulative annual policy spend & deterministic nullifiers",
-      "Zero-PHI calldata audit & HL7 FHIR R4 ClaimResponse receipts",
+      "Groth16 proofs and public signals",
+      "Policy spend and nullifiers",
+      "Zero-PHI calldata and FHIR receipts",
     ],
     hiddenFromRole: [
-      "Patient identity, name, SSN, raw bills & ICD-10 diagnoses (0 bytes)",
-      "Clinical notes, prescriptions & unredacted encounter records",
+      "Patient identity and diagnoses",
+      "Clinical notes and raw bills",
     ],
   },
 };
@@ -150,8 +150,8 @@ export function describeLockReason(
 ): string {
   const targetMeta = ROLE_META[target];
   if (walletConnected) {
-    return `Connected Ethereum Sepolia wallet does not hold the ${targetMeta.label} role (${targetMeta.contractGate}).`;
+    return `Connected Ethereum Sepolia wallet lacks ${targetMeta.label} access (${targetMeta.contractGate}).`;
   }
   const activeMeta = ROLE_META[activeRole];
-  return `Signed in as ${activeMeta.accountName} (${activeMeta.label}). ${targetMeta.channelName} requires an accredited ${targetMeta.label} account (${targetMeta.contractGate}).`;
+  return `Signed in as ${activeMeta.accountName}. ${targetMeta.channelName} requires ${targetMeta.label} access (${targetMeta.contractGate}).`;
 }

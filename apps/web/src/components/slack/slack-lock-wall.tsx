@@ -54,11 +54,11 @@ export function SlackLockWall({ channel }: SlackLockWallProps) {
           </div>
 
           <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-[#DC2626]/30 bg-[#FEF2F2] px-2.5 py-0.5 font-mono-tabular text-[10.5px] font-medium uppercase tracking-wider text-[#DC2626]">
-            403 · {meta.label} Role Required
+            403 · {meta.label} only
           </div>
 
           <h2 className="text-[17px] font-semibold tracking-[-0.015em] text-[#09090B]">
-            Access Restricted — {meta.channelName}
+            Restricted — {meta.channelName}
           </h2>
 
           <div className="mt-2.5 inline-flex max-w-full items-center gap-1.5 rounded-full border border-[#D4D4D8] bg-[#FFFFFF] px-3 py-1">
@@ -82,7 +82,7 @@ export function SlackLockWall({ channel }: SlackLockWallProps) {
           <div className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] p-3.5">
             <div className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#18181B]">
               <Eye className="h-3.5 w-3.5 shrink-0" style={{ color: accent }} aria-hidden="true" />
-              <span>Protected inside this channel</span>
+              <span>Permitted</span>
             </div>
             <ul className="space-y-2">
               {meta.canSee.map((item) => (
@@ -104,7 +104,7 @@ export function SlackLockWall({ channel }: SlackLockWallProps) {
           <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-3.5">
             <div className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#52525B]">
               <EyeOff className="h-3.5 w-3.5 shrink-0 text-[#71717A]" aria-hidden="true" />
-              <span>Hidden from other roles</span>
+              <span>Restricted</span>
             </div>
             <ul className="space-y-2">
               {meta.hiddenFromRole.map((item) => (

@@ -35,7 +35,7 @@ export function PatientOverviewHeader({
             </Badge>
           </div>
           <p className="text-xs text-[#52525B]">
-            Browser-local CMS-1500 intake, AES-256-GCM encryption, and revocable ECDH P-256 hospital grants.
+            Local AES-256-GCM encryption and revocable provider grants.
           </p>
         </div>
 

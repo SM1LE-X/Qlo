@@ -104,7 +104,7 @@ export function WireDiffDrawer({
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-[15px] font-semibold tracking-[-0.015em] text-[#09090B]">
-                    Cryptographic Iceberg · Wire Diff
+                    Wire payload
                   </h2>
                   <span className="inline-flex items-center gap-1 rounded-full border border-[#059669]/35 bg-[#ECFDF5] px-2 py-0.5 font-mono-tabular text-[11px] font-medium text-[#059669]">
                     <ShieldCheck className="h-3 w-3" aria-hidden="true" />
@@ -135,7 +135,7 @@ export function WireDiffDrawer({
                   <div className="flex items-center gap-2">
                     <span className="h-1.5 w-1.5 rounded-full bg-[#059669]" aria-hidden="true" />
                     <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#27272A]">
-                      SENT TO SLACK · ZERO-PHI BLOCK KIT
+                      Outbound payload
                     </h3>
                   </div>
 
@@ -176,8 +176,7 @@ export function WireDiffDrawer({
                     </pre>
                   ) : (
                     <div className="p-4 text-[12px] text-[#71717A]">
-                      No outbound Slack card in {meta.channelName} yet. Run a slash command or play
-                      Story mode to inspect a signed Zero-PHI wire payload.
+                      No payload in {meta.channelName} yet. Run a /qlo command or open Walkthrough.
                     </div>
                   )}
                 </div>
@@ -188,14 +187,14 @@ export function WireDiffDrawer({
                 <div className="flex items-center gap-2">
                   <Lock className="h-3.5 w-3.5 text-[#B45309]" aria-hidden="true" />
                   <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#27272A]">
-                    KEPT ON PATIENT DEVICE · NEVER TRANSMITTED
+                    Local vault (never transmitted)
                   </h3>
                 </div>
 
                 <div className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[12px] font-medium text-[#18181B]">
-                      AES-256-GCM ciphertext, never sent to Slack
+                      Encrypted locally (AES-256-GCM)
                     </span>
                     <span className="rounded border border-[#D4D4D8] bg-[#FAFAFA] px-2 py-0.5 font-mono-tabular text-[10px] uppercase tracking-wider text-[#52525B]">
                       Local Vault
@@ -208,7 +207,7 @@ export function WireDiffDrawer({
 
                   <div className="pt-1">
                     <p className="mb-2 text-[11px] text-[#71717A]">
-                      Redacted at source (0 bytes emitted to Slack or Sepolia):
+                      Never transmitted:
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {REDACTED_FIELDS.map((field) => (

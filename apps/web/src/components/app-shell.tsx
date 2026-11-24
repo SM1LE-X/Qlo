@@ -77,11 +77,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="flex items-center gap-2.5">
               <Lock className="h-3.5 w-3.5 text-[#B45309] shrink-0" />
               <span>
-                Signed in as <strong className="text-[#09090B]">{activeMeta.accountName}</strong> ({activeMeta.label}) · Viewing{" "}
-                <strong className="text-[#09090B]">{portalMeta.accountName}</strong> workspace
-                <span className="hidden md:inline font-mono-tabular text-[11px] text-[#71717A]">
-                  {" "}· Gate: {portalMeta.contractGate}
-                </span>
+                Signed in as <strong className="text-[#09090B]">{activeMeta.accountName}</strong> · Viewing{" "}
+                <strong className="text-[#09090B]">{portalMeta.accountName}</strong>
               </span>
             </div>
             <div className="flex items-center gap-2">

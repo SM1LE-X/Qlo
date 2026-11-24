@@ -19,9 +19,9 @@ const STEPS = [
 ] as const;
 
 const ACCOUNT_SESSION_POINTS = [
-  "Pre-verified institutional credentials matched to Sepolia Merkle root",
-  "Client-side AES-256-GCM medical record vault & local WASM OCR",
-  "Strict private channel isolation across Patient, Provider, and Payer",
+  "Verified Sepolia registry credentials",
+  "Local AES-256-GCM vault and OCR",
+  "Role-scoped channel access",
 ] as const;
 
 const PRIMARY_BTN = "inline-flex items-center gap-1.5 rounded-lg bg-[#09090B] px-4 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 cursor-pointer";
@@ -102,7 +102,7 @@ export function OnboardingWizard() {
             })}
           </nav>
           <Link href="/slack?tab=story" className={GHOST_LINK}>
-            <Play className="h-3 w-3 text-[#059669]" aria-hidden="true" /> Run the whole story
+            <Play className="h-3 w-3 text-[#059669]" aria-hidden="true" /> Walkthrough
           </Link>
         </header>
 
@@ -121,7 +121,7 @@ export function OnboardingWizard() {
               ) : null}
               {step === 2 ? (
                 <div className="space-y-6">
-                  <StepHeading title="Verify deployment health" subtitle="Live probes across the clearinghouse API, relay store, Sepolia contracts, and optional Slack ChatOps." />
+                  <StepHeading title="System status" subtitle="Live API, relay, and Sepolia contract checks." />
                   <OnboardingChecks />
                 </div>
               ) : null}
@@ -164,7 +164,7 @@ function StepRole({ activeRole, onSelect }: { activeRole: AppRole; onSelect: (ro
   const selected = ROLE_META[activeRole];
   return (
     <div className="space-y-6">
-      <StepHeading title="Sign in to Qlo Clearinghouse" subtitle="Select your institutional role account. Each role is cryptographically isolated inside its own private channel and smart contract boundary." />
+      <StepHeading title="Sign in" subtitle="Select an account. Access is scoped by role." />
 
       <div role="radiogroup" aria-label="Clearinghouse role" className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {ROLE_ORDER.map((roleId, idx) => {
@@ -203,12 +203,12 @@ function StepRole({ activeRole, onSelect }: { activeRole: AppRole; onSelect: (ro
 
       <div className="overflow-hidden rounded-xl border border-[#E4E4E7] bg-[#FAFAFA]">
         <div className="flex items-center justify-between border-b border-[#E4E4E7] bg-[#FFFFFF]/50 px-4 py-2 font-mono-tabular text-[11px]">
-          <span className="uppercase tracking-wider text-[#52525B]">Cryptographic Visibility Matrix</span>
+          <span className="uppercase tracking-wider text-[#52525B]">Access scope</span>
           <span style={{ color: selected.accentHex }}>{selected.channelName}</span>
         </div>
         <div className="grid grid-cols-1 divide-y divide-[#E4E4E7] md:grid-cols-2 md:divide-x md:divide-y-0">
           <div className="space-y-3 p-4 sm:p-5">
-            <div className="font-mono-tabular text-[11px] font-semibold uppercase tracking-wider text-[#059669]">VISIBLE TO {selected.label.toUpperCase()}</div>
+            <div className="font-mono-tabular text-[11px] font-semibold uppercase tracking-wider text-[#059669]">Allowed</div>
             <ul className="space-y-2.5">
               {selected.canSee.map((item) => (
                 <li key={item} className="flex items-start gap-2.5 text-xs leading-relaxed text-[#27272A]">
@@ -220,7 +220,7 @@ function StepRole({ activeRole, onSelect }: { activeRole: AppRole; onSelect: (ro
           </div>
           <div className="flex flex-col justify-between gap-4 p-4 sm:p-5">
             <div className="space-y-3">
-              <div className="font-mono-tabular text-[11px] font-semibold uppercase tracking-wider text-[#71717A]">CRYPTOGRAPHICALLY HIDDEN</div>
+              <div className="font-mono-tabular text-[11px] font-semibold uppercase tracking-wider text-[#71717A]">Hidden</div>
               <ul className="space-y-2.5">
                 {selected.hiddenFromRole.map((item) => (
                   <li key={item} className="flex items-start gap-2.5 text-xs leading-relaxed text-[#52525B]">
@@ -258,17 +258,17 @@ function StepIdentity({
 
   return (
     <div className="space-y-6">
-      <StepHeading title="Authentication & signing method" subtitle="Sign in with your accredited Qlo session account or bind live Sepolia transactions directly to MetaMask." />
+      <StepHeading title="Signing method" subtitle="Use an authenticated role session or connect MetaMask on Sepolia." />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <article className={cardCls(isSandbox)}>
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-2">
               <h2 className="flex items-center gap-2 text-sm font-semibold text-[#09090B]">
-                <ShieldCheck className="h-4 w-4 text-[#059669]" aria-hidden="true" /> Institutional Role Session
+                <ShieldCheck className="h-4 w-4 text-[#059669]" aria-hidden="true" /> Role Session
               </h2>
-              <span className={pillCls(isSandbox)}>{isSandbox ? "Signed In" : "Available"}</span>
+              <span className={pillCls(isSandbox)}>{isSandbox ? "Active" : "Available"}</span>
             </div>
-            <p className="text-xs leading-relaxed text-[#52525B]">Authenticated role session backed by the verified Sepolia registry and client-side Zero-PHI vault.</p>
+            <p className="text-xs leading-relaxed text-[#52525B]">Scoped account session backed by the Sepolia registry.</p>
             <ul className="space-y-2 border-t border-[#E4E4E7] pt-3.5 text-xs text-[#27272A]">
               {ACCOUNT_SESSION_POINTS.map((point) => (
                 <li key={point} className="flex items-start gap-2">
@@ -363,7 +363,7 @@ function StepEnter({
           <span>·</span>
           <span>{mode === "wallet" && walletAddress ? `Sepolia ${shortHex(walletAddress)}` : shortHex(activeMeta.accountAddress, 6, 4)}</span>
         </div>
-        <StepHeading title={`Signed in as ${activeMeta.accountName}`} subtitle="Your account is scoped to its accredited private channel and portal boundary. Other role channels remain locked by contract policy." />
+        <StepHeading title={`Signed in as ${activeMeta.accountName}`} subtitle="Channel and portal permissions are active." />
       </div>
 
       <div className="overflow-hidden rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] divide-y divide-[#E4E4E7]">
@@ -391,7 +391,7 @@ function StepEnter({
       <div className="flex flex-wrap items-center gap-3 pt-1">
         <Link href={`/slack?channel=${activeRole}`} className="inline-flex items-center gap-2 rounded-lg bg-[#09090B] px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90">Enter {activeMeta.channelName} <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
         <Link href={activeMeta.portalHref} className="inline-flex items-center gap-2 rounded-lg border border-[#D4D4D8] bg-[#FFFFFF] px-4 py-2.5 text-sm font-medium text-[#09090B] transition-colors hover:border-[#94A3B8]/50 hover:bg-[#F4F4F5]">{activeMeta.portalLabel} <ArrowUpRight className="h-4 w-4 text-[#52525B]" aria-hidden="true" /></Link>
-        <Link href="/slack?tab=story" className={GHOST_LINK}><Play className="h-3 w-3 text-[#059669]" aria-hidden="true" /> Run the whole story</Link>
+        <Link href="/slack?tab=story" className={GHOST_LINK}><Play className="h-3 w-3 text-[#059669]" aria-hidden="true" /> Walkthrough</Link>
       </div>
     </div>
   );
