@@ -23,19 +23,19 @@ export function StandardsStagingCard({
     <div id="hospital-standards" className="space-y-4 scroll-mt-20">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <FileCode2 className="h-4 w-4 text-[#38BDF8]" />
+          <FileCode2 className="h-4 w-4 text-[#0284C7]" />
           <div>
-            <h3 className="text-sm font-semibold text-[#F3F4F6]">
+            <h3 className="text-sm font-semibold text-[#09090B]">
               HL7 FHIR R4 &amp; ANSI X12 837P Off-Chain Staging
             </h3>
-            <p className="text-xs text-[#94A3B8]">
+            <p className="text-xs text-[#52525B]">
               Generated strictly in-browser after DEK unwrap — never written to chain.
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg border border-[#1E242D] bg-[#0D1014] p-0.5">
+          <div className="inline-flex rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] p-0.5">
             {(
               [
                 ["fhir", "HL7 FHIR R4"],
@@ -50,8 +50,8 @@ export function StandardsStagingCard({
                   onClick={() => onChangeTab(id)}
                   className={`rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
                     active
-                      ? "bg-[#161B22] text-[#F3F4F6] border border-[#2B3340]"
-                      : "text-[#94A3B8] hover:text-[#F3F4F6] border border-transparent"
+                      ? "bg-[#F4F4F5] text-[#09090B] border border-[#D4D4D8]"
+                      : "text-[#52525B] hover:text-[#09090B] border border-transparent"
                   }`}
                 >
                   {label}
@@ -102,7 +102,7 @@ export function StandardsStagingCard({
       </div>
 
       {decryptedClaim ? (
-        <pre className="max-h-64 overflow-y-auto rounded-lg border border-[#1E242D] bg-[#090B0E] p-4 font-mono-tabular text-[11px] leading-relaxed text-[#F3F4F6]">
+        <pre className="max-h-64 overflow-y-auto rounded-lg border border-[#E4E4E7] bg-[#FAFAFA] p-4 font-mono-tabular text-[11px] leading-relaxed text-[#09090B]">
           {standardsTab === "fhir"
             ? JSON.stringify(
                 cms1500ToFhirClaim(
@@ -119,7 +119,7 @@ export function StandardsStagingCard({
               )}
         </pre>
       ) : (
-        <div className="rounded-lg border border-dashed border-[#1E242D] bg-[#0D1014] py-6 text-center text-xs text-[#64748B]">
+        <div className="rounded-lg border border-dashed border-[#E4E4E7] bg-[#F4F4F5] py-6 text-center text-xs text-[#71717A]">
           Unwrap and decrypt an authorized patient record above to stage HL7 FHIR R4 or ANSI X12 837P payloads locally.
         </div>
       )}

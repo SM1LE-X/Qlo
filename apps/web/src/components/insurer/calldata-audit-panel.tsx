@@ -54,23 +54,23 @@ export function CalldataAuditPanel({
   return (
     <section
       id="insurer-audit"
-      className="rounded-xl border border-[#1E242D] bg-[#111419] p-5 sm:p-6 space-y-5"
+      className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] p-5 sm:p-6 space-y-5"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#1E242D] pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E4E4E7] pb-4">
         <div className="space-y-0.5">
-          <div className="text-[11px] font-mono-tabular uppercase tracking-wider text-[#10B981]">
+          <div className="text-[11px] font-mono-tabular uppercase tracking-wider text-[#059669]">
             Forensic Zero-PHI Calldata Inspector
           </div>
-          <h2 className="text-base font-semibold tracking-tight text-[#F3F4F6]">
+          <h2 className="text-base font-semibold tracking-tight text-[#09090B]">
             On-Chain Calldata vs. Sealed Off-Chain Clinical Fields
           </h2>
-          <p className="text-xs text-[#94A3B8]">
+          <p className="text-xs text-[#52525B]">
             Inspect any settled Ethereum Sepolia transaction to confirm zero clinical data crossed the privacy boundary.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="hidden sm:inline-block rounded-md border border-[#1E242D] bg-[#0D1014] px-2.5 py-1 font-mono-tabular text-[11px] text-[#64748B]">
+          <span className="hidden sm:inline-block rounded-md border border-[#E4E4E7] bg-[#F4F4F5] px-2.5 py-1 font-mono-tabular text-[11px] text-[#71717A]">
             {selectedClaim
               ? `tx/${shortHex(selectedClaim.txHash, 10, 8)}`
               : "ClaimsVault.submitClaim"}
@@ -94,7 +94,7 @@ export function CalldataAuditPanel({
           value={txHashInput}
           onChange={(e) => onChangeTxHashInput(e.target.value)}
           placeholder="Paste a Sepolia settlement tx hash (0x...) or click Inspect on a claim above"
-          className="flex-1 min-w-[260px] rounded-lg border border-[#1E242D] bg-[#0D1014] px-3.5 py-2 text-xs font-mono-tabular text-[#F3F4F6] placeholder-[#64748B] focus:border-[#10B981] focus:outline-none"
+          className="flex-1 min-w-[260px] rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] px-3.5 py-2 text-xs font-mono-tabular text-[#09090B] placeholder-[#64748B] focus:border-[#059669] focus:outline-none"
         />
         <TactileButton size="md" variant="primary" onClick={onInspectTx}>
           <Search className="h-3.5 w-3.5" />
@@ -104,9 +104,9 @@ export function CalldataAuditPanel({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Left: Public On-Chain Data */}
-        <div className="rounded-xl border border-[#1E242D] bg-[#0D1014] p-4 space-y-3.5">
+        <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-3.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#10B981] flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-[#059669] flex items-center gap-1.5">
               <Eye className="h-4 w-4" />
               Public On-Chain Proof Inputs
             </span>
@@ -115,7 +115,7 @@ export function CalldataAuditPanel({
                 href={explorerTxUrl(selectedClaim.txHash)}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-md border border-[#1E242D] bg-[#161B22] px-2.5 py-0.5 text-[11px] font-medium text-[#10B981] hover:border-[#2B3340]"
+                className="inline-flex items-center gap-1 rounded-md border border-[#E4E4E7] bg-[#F4F4F5] px-2.5 py-0.5 text-[11px] font-medium text-[#059669] hover:border-[#D4D4D8]"
               >
                 Etherscan <ExternalLink className="h-3 w-3" />
               </a>
@@ -123,27 +123,27 @@ export function CalldataAuditPanel({
           </div>
 
           {selectedClaim ? (
-            <div className="space-y-1.5 text-xs font-mono-tabular text-[#F3F4F6]">
-              <div className="flex justify-between gap-2 rounded-lg bg-[#111419] px-3 py-2 border border-[#1E242D]">
-                <span className="text-[#94A3B8] font-sans">Hospital Paid</span>
+            <div className="space-y-1.5 text-xs font-mono-tabular text-[#09090B]">
+              <div className="flex justify-between gap-2 rounded-lg bg-[#FFFFFF] px-3 py-2 border border-[#E4E4E7]">
+                <span className="text-[#52525B] font-sans">Hospital Paid</span>
                 <span>{shortHex(selectedClaim.hospital, 8, 6)}</span>
               </div>
-              <div className="flex justify-between gap-2 rounded-lg bg-[#111419] px-3 py-2 border border-[#1E242D]">
-                <span className="text-[#94A3B8] font-sans">claimAmount</span>
-                <span className="font-semibold text-[#10B981]">
+              <div className="flex justify-between gap-2 rounded-lg bg-[#FFFFFF] px-3 py-2 border border-[#E4E4E7]">
+                <span className="text-[#52525B] font-sans">claimAmount</span>
+                <span className="font-semibold text-[#059669]">
                   {formatWeiToEth(selectedClaim.amountWei)} ETH
                 </span>
               </div>
-              <div className="flex justify-between gap-2 rounded-lg bg-[#111419] px-3 py-2 border border-[#1E242D]">
-                <span className="text-[#94A3B8] font-sans">policyCommitment</span>
+              <div className="flex justify-between gap-2 rounded-lg bg-[#FFFFFF] px-3 py-2 border border-[#E4E4E7]">
+                <span className="text-[#52525B] font-sans">policyCommitment</span>
                 <span>{shortHex(selectedClaim.policyCommitment, 10, 6)}</span>
               </div>
-              <div className="flex justify-between gap-2 rounded-lg bg-[#111419] px-3 py-2 border border-[#1E242D]">
-                <span className="text-[#94A3B8] font-sans">claimNullifier</span>
+              <div className="flex justify-between gap-2 rounded-lg bg-[#FFFFFF] px-3 py-2 border border-[#E4E4E7]">
+                <span className="text-[#52525B] font-sans">claimNullifier</span>
                 <span>{shortHex(selectedClaim.nullifier, 10, 6)}</span>
               </div>
-              <div className="flex justify-between gap-2 rounded-lg bg-[#111419] px-3 py-2 border border-[#1E242D]">
-                <span className="text-[#94A3B8] font-sans">approvedHospitalRoot</span>
+              <div className="flex justify-between gap-2 rounded-lg bg-[#FFFFFF] px-3 py-2 border border-[#E4E4E7]">
+                <span className="text-[#52525B] font-sans">approvedHospitalRoot</span>
                 <span>
                   {shortHex(
                     selectedClaim.pubSignals?.[0] ??
@@ -156,13 +156,13 @@ export function CalldataAuditPanel({
               </div>
             </div>
           ) : (
-            <div className="text-xs text-[#94A3B8] space-y-2 py-2">
+            <div className="text-xs text-[#52525B] space-y-2 py-2">
               <p>
                 No settled claim selected yet. Submit a claim in Claims Prover to inspect its live blockchain proof here.
               </p>
               <Link
                 href="/hospital"
-                className="inline-flex items-center font-semibold text-[#10B981] hover:underline"
+                className="inline-flex items-center font-semibold text-[#059669] hover:underline"
               >
                 Open Claims Prover →
               </Link>
@@ -171,10 +171,10 @@ export function CalldataAuditPanel({
 
           {inspectedCalldata ? (
             <details className="text-[11px]">
-              <summary className="cursor-pointer font-semibold text-[#10B981] select-none">
+              <summary className="cursor-pointer font-semibold text-[#059669] select-none">
                 View raw transaction calldata ({Math.floor(inspectedCalldata.length / 2)} bytes)
               </summary>
-              <div className="mt-2 rounded-lg border border-[#1E242D] bg-[#090B0E] p-3 font-mono-tabular text-[10px] text-[#94A3B8] break-all max-h-40 overflow-y-auto">
+              <div className="mt-2 rounded-lg border border-[#E4E4E7] bg-[#FAFAFA] p-3 font-mono-tabular text-[10px] text-[#52525B] break-all max-h-40 overflow-y-auto">
                 {inspectedCalldata}
               </div>
             </details>
@@ -182,10 +182,10 @@ export function CalldataAuditPanel({
         </div>
 
         {/* Right: Sealed Private Vault */}
-        <div className="rounded-xl border border-[#1E242D] bg-[#0D1014] p-4 space-y-3.5">
+        <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-3.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#F3F4F6] flex items-center gap-1.5">
-              <Lock className="h-4 w-4 text-[#10B981]" />
+            <span className="text-xs font-semibold text-[#09090B] flex items-center gap-1.5">
+              <Lock className="h-4 w-4 text-[#059669]" />
               Patient Medical Details (Hidden)
             </span>
             <Badge variant="emerald">Never Exposed</Badge>
@@ -204,13 +204,13 @@ export function CalldataAuditPanel({
             ].map((field) => (
               <div
                 key={field.label}
-                className="flex items-center justify-between gap-3 rounded-lg border border-[#1E242D] bg-[#111419] px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-lg border border-[#E4E4E7] bg-[#FFFFFF] px-3 py-2"
               >
                 <div className="min-w-0">
-                  <div className="font-medium text-[#F3F4F6]">{field.label}</div>
-                  <div className="text-[10px] text-[#64748B]">{field.note}</div>
+                  <div className="font-medium text-[#09090B]">{field.label}</div>
+                  <div className="text-[10px] text-[#71717A]">{field.note}</div>
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-md border border-[#10B981]/25 bg-[#10B981]/10 px-2 py-0.5 text-[11px] font-medium text-[#10B981] shrink-0">
+                <span className="inline-flex items-center gap-1 rounded-md border border-[#059669]/25 bg-[#ECFDF5] px-2 py-0.5 text-[11px] font-medium text-[#059669] shrink-0">
                   <Lock className="h-3 w-3" />
                   Hidden
                 </span>

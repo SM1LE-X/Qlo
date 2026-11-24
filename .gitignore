@@ -29,7 +29,15 @@ circuits/build/*.zkey
 tools/circom.exe
 tools/circom
 
-# OS / Editor / Runtime PIDs
+# OS / Editor / Runtime PIDs / TS incremental cache
 .DS_Store
 Thumbs.db
 .qlo-runtime/
+*.tsbuildinfo
+
+# Internal planning & presentation docs (kept local, excluded from repo)
+docs/
+interfaces/
+SPEC.md
+STATUS.md
+WALKTHROUGH.md

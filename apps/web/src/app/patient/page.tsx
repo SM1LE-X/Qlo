@@ -720,13 +720,13 @@ export default function PatientPage() {
         />
       </div>
 
-      <section className="rounded-xl border border-[#1E242D] bg-[#111419] overflow-hidden">
+      <section className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] overflow-hidden">
         <div
           role="tablist"
           aria-label="Patient vault records, audit log, and benefits"
-          className="flex flex-wrap items-center justify-between gap-3 border-b border-[#1E242D] bg-[#0D1014] px-4 py-2.5"
+          className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E4E4E7] bg-[#F4F4F5] px-4 py-2.5"
         >
-          <div className="inline-flex items-center gap-1 rounded-lg border border-[#1E242D] bg-[#111419] p-0.5">
+          <div className="inline-flex items-center gap-1 rounded-lg border border-[#E4E4E7] bg-[#FFFFFF] p-0.5">
             {(
               [
                 ["vault", `Encrypted Vault (${vaultItems.length})`],
@@ -742,8 +742,8 @@ export default function PatientPage() {
                 onClick={() => setBottomTab(id)}
                 className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
                   bottomTab === id
-                    ? "bg-[#161B22] text-[#F3F4F6] border border-[#2B3340]"
-                    : "text-[#94A3B8] hover:text-[#F3F4F6] border border-transparent"
+                    ? "bg-[#F4F4F5] text-[#09090B] border border-[#D4D4D8]"
+                    : "text-[#52525B] hover:text-[#09090B] border border-transparent"
                 }`}
               >
                 {label}
@@ -751,11 +751,11 @@ export default function PatientPage() {
             ))}
           </div>
 
-          <div className="flex items-center gap-2 text-[11px] font-mono-tabular text-[#64748B]">
+          <div className="flex items-center gap-2 text-[11px] font-mono-tabular text-[#71717A]">
             <span>{activeGrantsCount} active grants</span>
             <span>·</span>
             <span>{settledClaimsCount} settled</span>
-            {pubKeySource ? <span className="text-[#94A3B8]">· {pubKeySource}</span> : null}
+            {pubKeySource ? <span className="text-[#52525B]">· {pubKeySource}</span> : null}
           </div>
         </div>
 
@@ -771,7 +771,7 @@ export default function PatientPage() {
           ) : bottomTab === "audit" ? (
             <div id="patient-audit" className="space-y-4 scroll-mt-20">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-[#F3F4F6]">Access &amp; Consent Activity Log</h3>
+                <h3 className="text-sm font-semibold text-[#09090B]">Access &amp; Consent Activity Log</h3>
                 <Badge variant="neutral">On-Chain Events</Badge>
               </div>
               <AuditTimeline items={auditItems} />

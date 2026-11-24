@@ -294,3 +294,12 @@ Qlo/
     ├── tests/                     # Vitest unit test suites
     └── e2e/                       # Playwright Chromium E2E, Multi-Actor & OWASP 2025 ECC audit suites
 ```
+
+## Slack ChatOps, real vs simulated, known gaps
+
+- **Real:** the signed-request verification (5-min replay window), the relay (persisted to a file under QLO_DATA_DIR), and on-chain actions bound to wallet signatures.
+- **Simulated:** the Slack preview in /slack runs without any Slack workspace.
+- **Not implemented:** Demo Mode (server-side testnet key) is NOT implemented yet.
+- **Unverified:** live Slack delivery is unverified until you supply SLACK_SIGNING_SECRET and SLACK_WEBHOOK_URL_* yourself.
+- **Gaps:** see docs/SCALE_AND_AUDIENCE.md and docs/THREAT_MODEL.md. Slack channel membership is not authorization.
+

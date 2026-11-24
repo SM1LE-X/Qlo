@@ -94,7 +94,7 @@ export function LivePrivacyStage() {
                   setPaused(true);
                 }}
                 className={`relative inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
-                  active ? "text-[#090C0E]" : "text-zinc-400 hover:text-white"
+                  active ? "text-[#090C0E]" : "text-zinc-400 hover:text-[#09090B]"
                 }`}
               >
                 {active ? (
@@ -118,7 +118,7 @@ export function LivePrivacyStage() {
         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-zinc-200">
-              <Lock className="h-3.5 w-3.5 text-[#34D399]" />
+              <Lock className="h-3.5 w-3.5 text-[#059669]" />
               Off-Chain Private Device
             </span>
             <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 font-mono-tabular text-[10px] text-emerald-300">
@@ -175,7 +175,7 @@ export function LivePrivacyStage() {
         <div className="rounded-2xl border border-emerald-400/25 bg-emerald-950/25 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-200">
-              <ShieldCheck className="h-3.5 w-3.5 text-[#34D399]" />
+              <ShieldCheck className="h-3.5 w-3.5 text-[#059669]" />
               Ethereum Sepolia Sees
             </span>
             <span className="rounded-full border border-emerald-400/40 bg-emerald-400/15 px-2 py-0.5 font-mono-tabular text-[10px] font-semibold text-emerald-300">
@@ -195,7 +195,7 @@ export function LivePrivacyStage() {
                   key={check}
                   className="flex items-center gap-2 rounded-lg border border-emerald-400/20 bg-black/30 px-2.5 py-1.5 text-emerald-100"
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5 text-[#34D399] shrink-0" />
+                  <CheckCircle2 className="h-3.5 w-3.5 text-[#059669] shrink-0" />
                   <span>{check}</span>
                 </div>
               ))}

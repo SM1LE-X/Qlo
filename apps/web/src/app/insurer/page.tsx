@@ -328,12 +328,12 @@ export default function InsurerPage() {
   return (
     <div className="space-y-6">
       {/* Compact Institutional Treasury Header */}
-      <section className="rounded-xl border border-[#1E242D] bg-[#111419] px-5 py-4">
+      <section className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2.5">
-              <Landmark className="h-4 w-4 text-[#10B981]" />
-              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#F3F4F6]">
+              <Landmark className="h-4 w-4 text-[#059669]" />
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#09090B]">
                 Escrow Treasury
               </h1>
               <Badge variant={roles.isInsurer ? "emerald" : "neutral"}>
@@ -345,12 +345,12 @@ export default function InsurerPage() {
               </Badge>
               {vaultPaused ? <Badge variant="crimson">Vault Paused</Badge> : null}
             </div>
-            <p className="text-xs text-[#94A3B8]">
+            <p className="text-xs text-[#52525B]">
               Manage the native ETH escrow pool, audit Groth16 claim disbursements on Ethereum Sepolia, and verify zero PHI exposure in transaction calldata.
             </p>
           </div>
 
-          <div className="inline-flex items-center gap-2 rounded-lg border border-[#10B981]/25 bg-[#10B981]/10 px-3.5 py-1.5 text-xs font-medium text-[#10B981]">
+          <div className="inline-flex items-center gap-2 rounded-lg border border-[#059669]/25 bg-[#ECFDF5] px-3.5 py-1.5 text-xs font-medium text-[#059669]">
             <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
             Live Calldata Verification Active
           </div>
@@ -361,10 +361,10 @@ export default function InsurerPage() {
       <div id="insurer-reserves" className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <SpotlightCard accent="emerald" className="p-5 space-y-4">
           <div className="space-y-1">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-[#71717A]">
               Escrow Pool Balance
             </div>
-            <div className="text-2xl font-semibold font-mono-tabular text-[#10B981]">
+            <div className="text-2xl font-semibold font-mono-tabular text-[#059669]">
               <NumberTicker value={liveEscrowNum} decimals={4} suffix=" ETH" />
             </div>
           </div>
@@ -375,7 +375,7 @@ export default function InsurerPage() {
                 value={depositEth}
                 onChange={(e) => setDepositEth(e.target.value)}
                 aria-label="Deposit ETH amount"
-                className="w-24 rounded-lg border border-[#1E242D] bg-[#0D1014] px-3 py-1.5 text-xs font-mono-tabular text-[#F3F4F6] focus:border-[#10B981] focus:outline-none"
+                className="w-24 rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] px-3 py-1.5 text-xs font-mono-tabular text-[#09090B] focus:border-[#059669] focus:outline-none"
               />
               <TactileButton
                 size="sm"
@@ -393,7 +393,7 @@ export default function InsurerPage() {
                 value={withdrawEth}
                 onChange={(e) => setWithdrawEth(e.target.value)}
                 aria-label="Withdraw ETH amount"
-                className="w-24 rounded-lg border border-[#1E242D] bg-[#0D1014] px-3 py-1.5 text-xs font-mono-tabular text-[#F3F4F6] focus:border-[#10B981] focus:outline-none"
+                className="w-24 rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] px-3 py-1.5 text-xs font-mono-tabular text-[#09090B] focus:border-[#059669] focus:outline-none"
               />
               <TactileButton
                 size="sm"
@@ -409,49 +409,49 @@ export default function InsurerPage() {
 
         <SpotlightCard accent="neutral" className="p-5 flex flex-col justify-between gap-4">
           <div className="space-y-2">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-[#71717A]">
               Total Paid to Hospitals
             </div>
-            <div className="text-2xl font-semibold font-mono-tabular text-[#F3F4F6]">
+            <div className="text-2xl font-semibold font-mono-tabular text-[#09090B]">
               <NumberTicker value={liveSpentNum} decimals={4} suffix=" ETH" />
             </div>
-            <div className="text-xs text-[#94A3B8]">
+            <div className="text-xs text-[#52525B]">
               {settledList.length} verified {settledList.length === 1 ? "claim" : "claims"} settled automatically
             </div>
             <div className="space-y-1.5 pt-1">
-              <div className="flex items-center justify-between text-[11px] font-mono-tabular text-[#94A3B8]">
+              <div className="flex items-center justify-between text-[11px] font-mono-tabular text-[#52525B]">
                 <span>Policy Spend Utilization</span>
-                <span className="text-[#10B981] font-semibold">
+                <span className="text-[#059669] font-semibold">
                   {Math.min(100, Math.round((liveSpentNum / 0.03) * 100))}% of Private Cap
                 </span>
               </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#0D1014] border border-[#1E242D]">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#F4F4F5] border border-[#E4E4E7]">
                 <div
-                  className="h-full rounded-full bg-[#10B981] transition-all duration-300"
+                  className="h-full rounded-full bg-[#059669] transition-all duration-300"
                   style={{ width: `${Math.min(100, Math.max(6, (liveSpentNum / 0.03) * 100))}%` }}
                 />
               </div>
             </div>
           </div>
-          <div className="text-[11px] text-[#94A3B8] rounded-lg border border-[#1E242D] bg-[#0D1014] px-3 py-2 leading-relaxed">
+          <div className="text-[11px] text-[#52525B] rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] px-3 py-2 leading-relaxed">
             Annual policy cap stays strictly private inside the Groth16 proof while cumulative spend is tracked on-chain.
           </div>
         </SpotlightCard>
 
-        <div className="rounded-xl border border-[#1E242D] bg-[#111419] p-5 flex flex-col justify-between gap-4">
+        <div className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] p-5 flex flex-col justify-between gap-4">
           <div className="space-y-1.5">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-[#64748B] flex items-center gap-1.5">
-              <Lock className="h-3.5 w-3.5 text-[#10B981]" />
+            <div className="text-[11px] font-medium uppercase tracking-wider text-[#71717A] flex items-center gap-1.5">
+              <Lock className="h-3.5 w-3.5 text-[#059669]" />
               Medical Data Exposed
             </div>
-            <div className="text-2xl font-semibold font-mono-tabular text-[#10B981]">0 Bytes</div>
-            <div className="text-xs text-[#94A3B8] leading-relaxed">
+            <div className="text-2xl font-semibold font-mono-tabular text-[#059669]">0 Bytes</div>
+            <div className="text-xs text-[#52525B] leading-relaxed">
               Diagnoses, procedure codes, and prescriptions never touch Ethereum Sepolia.
             </div>
           </div>
 
-          <details className="text-[11px] pt-3 border-t border-[#1E242D]">
-            <summary className="cursor-pointer font-medium text-[#94A3B8] hover:text-[#F3F4F6] select-none">
+          <details className="text-[11px] pt-3 border-t border-[#E4E4E7]">
+            <summary className="cursor-pointer font-medium text-[#52525B] hover:text-[#09090B] select-none">
               Register custom policy hash
             </summary>
             <div className="mt-2.5 flex items-center gap-1.5">
@@ -461,7 +461,7 @@ export default function InsurerPage() {
                 placeholder="0x... policy hash"
                 value={customPolicyCommit}
                 onChange={(e) => setCustomPolicyCommit(e.target.value)}
-                className="flex-1 min-w-0 rounded-lg border border-[#1E242D] bg-[#0D1014] px-2.5 py-1.5 font-mono-tabular text-[11px] text-[#F3F4F6] placeholder-[#64748B] focus:border-[#10B981] focus:outline-none"
+                className="flex-1 min-w-0 rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] px-2.5 py-1.5 font-mono-tabular text-[11px] text-[#09090B] placeholder-[#64748B] focus:border-[#059669] focus:outline-none"
               />
               <TactileButton
                 size="sm"
@@ -473,7 +473,7 @@ export default function InsurerPage() {
               </TactileButton>
             </div>
             {policyStatus ? (
-              <div className="mt-1.5 font-mono-tabular text-[#10B981]">{policyStatus}</div>
+              <div className="mt-1.5 font-mono-tabular text-[#059669]">{policyStatus}</div>
             ) : null}
           </details>
         </div>

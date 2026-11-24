@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { IS_CHAIN_DEPLOYED } from "@/lib/contracts";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { cardsForLatestEvent } from "@/lib/slack/feed";
+import { notifyRole } from "@/lib/slack/notify";
 import {
   applyRelayAction,
   assertZeroPhiPayload,
@@ -76,6 +78,9 @@ export async function POST(request: NextRequest) {
     }
 
     const updated = applyRelayAction(body);
+    for (const card of cardsForLatestEvent(updated)) {
+      void notifyRole(card.role, card.message);
+    }
     return NextResponse.json(updated, {
       status: 200,
       headers: {

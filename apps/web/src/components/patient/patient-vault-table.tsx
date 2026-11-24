@@ -25,28 +25,28 @@ export function PatientVaultTable({
     <div id="patient-vault" className="space-y-4 scroll-mt-20">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold text-[#F3F4F6]">Encrypted Records Vault</h3>
-          <p className="text-xs text-[#94A3B8]">
-            Local IndexedDB (<code className="font-mono-tabular text-[#F3F4F6]">qlo-vault-v1</code>) ciphertext bundles and portable{" "}
-            <code className="font-mono-tabular text-[#F3F4F6]">.qlo.json</code> exports.
+          <h3 className="text-sm font-semibold text-[#09090B]">Encrypted Records Vault</h3>
+          <p className="text-xs text-[#52525B]">
+            Local IndexedDB (<code className="font-mono-tabular text-[#09090B]">qlo-vault-v1</code>) ciphertext bundles and portable{" "}
+            <code className="font-mono-tabular text-[#09090B]">.qlo.json</code> exports.
           </p>
         </div>
         <Badge variant="neutral">{vaultItems.length} records stored</Badge>
       </div>
 
       {vaultItems.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#1E242D] bg-[#0D1014] px-4 py-8 text-center text-xs text-[#94A3B8] space-y-1">
-          <div className="font-medium text-[#F3F4F6]">No encrypted records stored locally</div>
-          <p className="text-[#64748B]">
+        <div className="rounded-xl border border-dashed border-[#E4E4E7] bg-[#F4F4F5] px-4 py-8 text-center text-xs text-[#52525B] space-y-1">
+          <div className="font-medium text-[#09090B]">No encrypted records stored locally</div>
+          <p className="text-[#71717A]">
             Encrypt a CMS-1500 bill above to populate your local IndexedDB store and generate a portable{" "}
-            <code className="font-mono-tabular text-[#94A3B8]">.qlo.json</code> bundle.
+            <code className="font-mono-tabular text-[#52525B]">.qlo.json</code> bundle.
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-[#1E242D]">
+        <div className="overflow-x-auto rounded-xl border border-[#E4E4E7]">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-[#1E242D] bg-[#0D1014] font-mono-tabular text-[11px] uppercase tracking-wider text-[#64748B]">
+              <tr className="border-b border-[#E4E4E7] bg-[#F4F4F5] font-mono-tabular text-[11px] uppercase tracking-wider text-[#71717A]">
                 <th className="px-4 py-2.5 font-medium">Record</th>
                 <th className="px-4 py-2.5 font-medium">Summary</th>
                 <th className="px-4 py-2.5 font-medium">CIDv1</th>
@@ -54,7 +54,7 @@ export function PatientVaultTable({
                 <th className="px-4 py-2.5 text-right font-medium">Export</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1E242D]">
+            <tbody className="divide-y divide-[#E4E4E7]">
               {vaultItems.map((item) => {
                 const hospTarget = (item.hospitalAddress || targetHospital).toLowerCase();
                 const recGrant = item.recordId
@@ -62,12 +62,12 @@ export function PatientVaultTable({
                   : undefined;
                 const isActive = Boolean(recGrant && recGrant.expiresAt > nowSec);
                 return (
-                  <tr key={item.recordCommitmentHex} className="hover:bg-[#161B22] transition-colors">
-                    <td className="px-4 py-3 font-mono-tabular font-semibold text-[#F3F4F6]">
+                  <tr key={item.recordCommitmentHex} className="hover:bg-[#F4F4F5] transition-colors">
+                    <td className="px-4 py-3 font-mono-tabular font-semibold text-[#09090B]">
                       {item.recordId ? `#${item.recordId}` : "Local"}
                     </td>
-                    <td className="px-4 py-3 text-[#F3F4F6]">{item.summaryHint || "Encrypted Bill"}</td>
-                    <td className="px-4 py-3 font-mono-tabular text-[#94A3B8]">
+                    <td className="px-4 py-3 text-[#09090B]">{item.summaryHint || "Encrypted Bill"}</td>
+                    <td className="px-4 py-3 font-mono-tabular text-[#52525B]">
                       {shortHex(item.cid, 12, 8)}
                     </td>
                     <td className="px-4 py-3">

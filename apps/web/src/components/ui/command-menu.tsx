@@ -138,38 +138,38 @@ export function CommandMenu({
             exit={{ opacity: 0, scale: 0.97, y: -8 }}
             transition={motionTransitions.springSnappy}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg overflow-hidden rounded-xl border border-[#2B3340] bg-[#111419] shadow-[0_24px_64px_-16px_rgba(0,0,0,0.85)]"
+            className="w-full max-w-lg overflow-hidden rounded-xl border border-[#D4D4D8] bg-[#FFFFFF] shadow-[0_24px_64px_-16px_rgba(0,0,0,0.85)]"
           >
-            <div className="flex items-center gap-3 border-b border-[#1E242D] px-4 py-3">
-              <Search className="h-4 w-4 text-[#64748B] shrink-0" />
+            <div className="flex items-center gap-3 border-b border-[#E4E4E7] px-4 py-3">
+              <Search className="h-4 w-4 text-[#71717A] shrink-0" />
               <input
                 autoFocus
                 aria-label="Command menu search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Navigate protocol modules or contracts..."
-                className="flex-1 bg-transparent text-sm text-[#F3F4F6] placeholder-[#64748B] outline-none"
+                className="flex-1 bg-transparent text-sm text-[#09090B] placeholder-[#64748B] outline-none"
               />
-              <kbd className="hidden sm:inline rounded border border-[#2B3340] bg-[#0D1014] px-1.5 py-0.5 font-mono-tabular text-[10px] text-[#64748B]">
+              <kbd className="hidden sm:inline rounded border border-[#D4D4D8] bg-[#F4F4F5] px-1.5 py-0.5 font-mono-tabular text-[10px] text-[#71717A]">
                 ESC
               </kbd>
               <button
                 type="button"
                 aria-label="Close command menu"
                 onClick={() => onOpenChange(false)}
-                className="rounded-md p-1 text-[#64748B] hover:bg-[#161B22] hover:text-[#F3F4F6] transition-colors cursor-pointer"
+                className="rounded-md p-1 text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#09090B] transition-colors cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <div className="p-2 space-y-1 max-h-96 overflow-y-auto">
-              <div className="px-2.5 pt-1 pb-0.5 font-mono-tabular text-[10px] uppercase tracking-[0.14em] text-[#64748B]">
+              <div className="px-2.5 pt-1 pb-0.5 font-mono-tabular text-[10px] uppercase tracking-[0.14em] text-[#71717A]">
                 Modules
               </div>
 
               {filtered.length === 0 ? (
-                <div className="px-3 py-6 text-center text-xs text-[#64748B]">
+                <div className="px-3 py-6 text-center text-xs text-[#71717A]">
                   No matching modules for &ldquo;{query}&rdquo;
                 </div>
               ) : (
@@ -189,29 +189,29 @@ export function CommandMenu({
                       className={cn(
                         "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors cursor-pointer",
                         isActive
-                          ? "bg-[#161B22] text-[#F3F4F6]"
-                          : "text-[#94A3B8] hover:bg-[#161B22]"
+                          ? "bg-[#F4F4F5] text-[#09090B]"
+                          : "text-[#52525B] hover:bg-[#F4F4F5]"
                       )}
                     >
                       <div
                         className={cn(
                           "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
                           isActive
-                            ? "border-[#10B981]/35 bg-[#10B981]/10 text-[#10B981]"
-                            : "border-[#1E242D] bg-[#0D1014] text-[#94A3B8]"
+                            ? "border-[#059669]/35 bg-[#ECFDF5] text-[#059669]"
+                            : "border-[#E4E4E7] bg-[#F4F4F5] text-[#52525B]"
                         )}
                       >
                         <Icon className="h-4 w-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-[13px] font-medium text-[#F3F4F6]">
+                        <div className="text-[13px] font-medium text-[#09090B]">
                           {item.label}
                         </div>
-                        <div className="text-[11px] text-[#64748B] truncate">
+                        <div className="text-[11px] text-[#71717A] truncate">
                           {item.sub}
                         </div>
                       </div>
-                      <span className="rounded border border-[#1E242D] bg-[#0D1014] px-1.5 py-0.5 font-mono-tabular text-[10px] text-[#64748B]">
+                      <span className="rounded border border-[#E4E4E7] bg-[#F4F4F5] px-1.5 py-0.5 font-mono-tabular text-[10px] text-[#71717A]">
                         {item.tag}
                       </span>
                     </button>
@@ -220,8 +220,8 @@ export function CommandMenu({
               )}
 
               {IS_CHAIN_DEPLOYED ? (
-                <div className="mt-2 pt-2 border-t border-[#1E242D] space-y-0.5">
-                  <div className="px-2.5 pb-0.5 font-mono-tabular text-[10px] uppercase tracking-[0.14em] text-[#64748B]">
+                <div className="mt-2 pt-2 border-t border-[#E4E4E7] space-y-0.5">
+                  <div className="px-2.5 pb-0.5 font-mono-tabular text-[10px] uppercase tracking-[0.14em] text-[#71717A]">
                     Sepolia Contracts (11155111)
                   </div>
                   <a
@@ -229,10 +229,10 @@ export function CommandMenu({
                     target="_blank"
                     rel="noreferrer"
                     onClick={() => onOpenChange(false)}
-                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs text-[#94A3B8] hover:bg-[#161B22] hover:text-[#F3F4F6] transition-colors"
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs text-[#52525B] hover:bg-[#F4F4F5] hover:text-[#09090B] transition-colors"
                   >
                     <span className="font-medium">ClaimsVault · Etherscan</span>
-                    <span className="inline-flex items-center gap-1.5 font-mono-tabular text-[11px] text-[#10B981]">
+                    <span className="inline-flex items-center gap-1.5 font-mono-tabular text-[11px] text-[#059669]">
                       {shortHex(DEPLOYMENT.contracts.ClaimsVault, 6, 4)}
                       <ExternalLink className="h-3 w-3" />
                     </span>
@@ -242,10 +242,10 @@ export function CommandMenu({
                     target="_blank"
                     rel="noreferrer"
                     onClick={() => onOpenChange(false)}
-                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs text-[#94A3B8] hover:bg-[#161B22] hover:text-[#F3F4F6] transition-colors"
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs text-[#52525B] hover:bg-[#F4F4F5] hover:text-[#09090B] transition-colors"
                   >
                     <span className="font-medium">Groth16Verifier · Sourcify</span>
-                    <span className="inline-flex items-center gap-1.5 font-mono-tabular text-[11px] text-[#38BDF8]">
+                    <span className="inline-flex items-center gap-1.5 font-mono-tabular text-[11px] text-[#0284C7]">
                       {shortHex(DEPLOYMENT.contracts.Groth16Verifier, 6, 4)}
                       <ExternalLink className="h-3 w-3" />
                     </span>

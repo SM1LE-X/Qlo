@@ -252,17 +252,17 @@ export default function ProtocolOverviewPage() {
   return (
     <div className="space-y-6">
       {/* COMPACT PROTOCOL HEADER BAR */}
-      <section className="flex flex-wrap items-center justify-between gap-4 border-b border-[#1E242D] pb-5">
+      <section className="flex flex-wrap items-center justify-between gap-4 border-b border-[#E4E4E7] pb-5">
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#F3F4F6]">
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#09090B]">
               Qlo Protocol
             </h1>
             <Badge variant="neutral" className="font-mono-tabular">
               <span
                 className={cn(
                   "h-1.5 w-1.5 rounded-full",
-                  IS_CHAIN_DEPLOYED ? "bg-[#10B981]" : "bg-[#F59E0B]"
+                  IS_CHAIN_DEPLOYED ? "bg-[#059669]" : "bg-[#F59E0B]"
                 )}
               />
               {IS_CHAIN_DEPLOYED
@@ -279,7 +279,7 @@ export default function ProtocolOverviewPage() {
               </Badge>
             ) : null}
           </div>
-          <p className="text-xs text-[#94A3B8]">
+          <p className="text-xs text-[#52525B]">
             Zero-knowledge health insurance clearinghouse · Groth16 BN254 settlement &amp; AES-256-GCM record consent
           </p>
         </div>
@@ -290,7 +290,7 @@ export default function ProtocolOverviewPage() {
             onClick={() => loadProtocolState(true)}
             disabled={refreshing}
             aria-label="Refresh on-chain protocol state"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#1E242D] bg-[#111419] text-[#94A3B8] hover:border-[#2B3340] hover:text-[#F3F4F6] transition-colors disabled:opacity-50 cursor-pointer"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E4E4E7] bg-[#FFFFFF] text-[#52525B] hover:border-[#D4D4D8] hover:text-[#09090B] transition-colors disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
           </button>
@@ -310,61 +310,61 @@ export default function ProtocolOverviewPage() {
 
       {/* 4 FLAT INSTITUTIONAL METRIC CARDS */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-[#1E242D] bg-[#111419] p-4 space-y-2">
-          <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
+        <div className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] p-4 space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-[#71717A]">
             <span>ClaimsVault Escrow</span>
-            <span className="font-mono-tabular text-[#10B981]">LIVE</span>
+            <span className="font-mono-tabular text-[#059669]">LIVE</span>
           </div>
-          <div className="font-mono-tabular text-2xl font-semibold tracking-tight text-[#F3F4F6]">
+          <div className="font-mono-tabular text-2xl font-semibold tracking-tight text-[#09090B]">
             {loading ? "—" : `${formatWeiToEth(escrowWei, 4)} ETH`}
           </div>
-          <div className="font-mono-tabular text-[11px] text-[#94A3B8] truncate">
+          <div className="font-mono-tabular text-[11px] text-[#52525B] truncate">
             {IS_CHAIN_DEPLOYED
               ? `Contract ${shortHex(DEPLOYMENT.contracts.ClaimsVault, 6, 4)}`
               : "Local sandbox pool"}
           </div>
         </div>
 
-        <div className="rounded-xl border border-[#1E242D] bg-[#111419] p-4 space-y-2">
-          <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
+        <div className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] p-4 space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-[#71717A]">
             <span>Claims Settled</span>
-            <span className="font-mono-tabular text-[#38BDF8]">BN254</span>
+            <span className="font-mono-tabular text-[#0284C7]">BN254</span>
           </div>
-          <div className="font-mono-tabular text-2xl font-semibold tracking-tight text-[#F3F4F6]">
+          <div className="font-mono-tabular text-2xl font-semibold tracking-tight text-[#09090B]">
             {loading ? "—" : claimsCount.toLocaleString()}
           </div>
-          <div className="font-mono-tabular text-[11px] text-[#94A3B8]">
+          <div className="font-mono-tabular text-[11px] text-[#52525B]">
             {loading
               ? "Syncing payout ledger..."
               : `${formatWeiToEth(totalDisbursedWei, 4)} ETH disbursed`}
           </div>
         </div>
 
-        <div className="rounded-xl border border-[#1E242D] bg-[#111419] p-4 space-y-2">
-          <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
+        <div className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] p-4 space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-[#71717A]">
             <span>Accredited Hospital Root</span>
-            <span className="font-mono-tabular text-[#64748B]">DEPTH 6</span>
+            <span className="font-mono-tabular text-[#71717A]">DEPTH 6</span>
           </div>
           <div
-            className="font-mono-tabular text-lg font-semibold tracking-tight text-[#F3F4F6] pt-1"
+            className="font-mono-tabular text-lg font-semibold tracking-tight text-[#09090B] pt-1"
             title={hospitalRootHex}
           >
             {loading ? "—" : shortHex(hospitalRootHex, 8, 6)}
           </div>
-          <div className="font-mono-tabular text-[11px] text-[#94A3B8] truncate">
+          <div className="font-mono-tabular text-[11px] text-[#52525B] truncate">
             Poseidon Merkle · HospitalRegistry
           </div>
         </div>
 
-        <div className="rounded-xl border border-[#1E242D] bg-[#111419] p-4 space-y-2">
-          <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
+        <div className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] p-4 space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-[#71717A]">
             <span>Zero-Knowledge Circuit</span>
-            <span className="font-mono-tabular text-[#10B981]">GROTH16</span>
+            <span className="font-mono-tabular text-[#059669]">GROTH16</span>
           </div>
-          <div className="font-mono-tabular text-lg font-semibold tracking-tight text-[#10B981] pt-1">
+          <div className="font-mono-tabular text-lg font-semibold tracking-tight text-[#059669] pt-1">
             4,349 R1CS · 0 bytes PHI
           </div>
-          <div className="font-mono-tabular text-[11px] text-[#94A3B8]">
+          <div className="font-mono-tabular text-[11px] text-[#52525B]">
             8 claim predicates · 8 public signals
           </div>
         </div>
@@ -375,19 +375,19 @@ export default function ProtocolOverviewPage() {
         {/* LEFT 8 COLS: LIVE SETTLEMENTS + CONSENT & REGISTRY EVENTS */}
         <div className="lg:col-span-8 space-y-5">
           {/* LIVE ON-CHAIN SETTLEMENTS TABLE */}
-          <div className="overflow-hidden rounded-xl border border-[#1E242D] bg-[#111419]">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1E242D] px-5 py-3.5">
+          <div className="overflow-hidden rounded-xl border border-[#E4E4E7] bg-[#FFFFFF]">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E4E4E7] px-5 py-3.5">
               <div className="flex items-center gap-2.5">
-                <h2 className="text-sm font-semibold text-[#F3F4F6]">
+                <h2 className="text-sm font-semibold text-[#09090B]">
                   Live On-Chain Settlements
                 </h2>
-                <span className="rounded-md border border-[#1E242D] bg-[#0D1014] px-2 py-0.5 font-mono-tabular text-[11px] text-[#94A3B8]">
+                <span className="rounded-md border border-[#E4E4E7] bg-[#F4F4F5] px-2 py-0.5 font-mono-tabular text-[11px] text-[#52525B]">
                   {settledClaims.length}
                 </span>
               </div>
               <Link
                 href="/insurer"
-                className="inline-flex items-center gap-1 text-xs font-medium text-[#94A3B8] hover:text-[#F3F4F6] transition-colors"
+                className="inline-flex items-center gap-1 text-xs font-medium text-[#52525B] hover:text-[#09090B] transition-colors"
               >
                 Open Treasury
                 <ArrowUpRight className="h-3.5 w-3.5" />
@@ -395,28 +395,28 @@ export default function ProtocolOverviewPage() {
             </div>
 
             {loading ? (
-              <div className="divide-y divide-[#1E242D]">
+              <div className="divide-y divide-[#E4E4E7]">
                 {[0, 1, 2].map((idx) => (
                   <div
                     key={idx}
                     className="flex items-center justify-between gap-4 px-5 py-3.5 animate-pulse"
                   >
-                    <div className="h-3.5 w-32 rounded bg-[#161B22]" />
-                    <div className="h-3.5 w-24 rounded bg-[#161B22]" />
-                    <div className="h-3.5 w-20 rounded bg-[#161B22]" />
+                    <div className="h-3.5 w-32 rounded bg-[#F4F4F5]" />
+                    <div className="h-3.5 w-24 rounded bg-[#F4F4F5]" />
+                    <div className="h-3.5 w-20 rounded bg-[#F4F4F5]" />
                   </div>
                 ))}
               </div>
             ) : visibleClaims.length === 0 ? (
               <div className="px-5 py-10 text-center space-y-2.5">
-                <p className="text-xs text-[#94A3B8]">
-                  No <span className="font-mono-tabular text-[#F3F4F6]">ClaimSettled</span> events in the
+                <p className="text-xs text-[#52525B]">
+                  No <span className="font-mono-tabular text-[#09090B]">ClaimSettled</span> events in the
                   active RPC lookback window.
                 </p>
                 <div className="flex items-center justify-center gap-3">
                   <Link
                     href="/hospital"
-                    className="inline-flex items-center gap-1 text-xs font-medium text-[#10B981] hover:underline"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-[#059669] hover:underline"
                   >
                     Generate &amp; settle a Groth16 claim <ArrowUpRight className="h-3 w-3" />
                   </Link>
@@ -426,7 +426,7 @@ export default function ProtocolOverviewPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-[#1E242D] bg-[#0D1014] text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
+                    <tr className="border-b border-[#E4E4E7] bg-[#F4F4F5] text-[11px] font-medium uppercase tracking-wider text-[#71717A]">
                       <th className="py-2.5 pl-5 pr-3">Hospital</th>
                       <th className="py-2.5 px-3">Nullifier</th>
                       <th className="py-2.5 px-3">Policy Commit</th>
@@ -435,7 +435,7 @@ export default function ProtocolOverviewPage() {
                       <th className="py-2.5 pl-3 pr-5 text-right">Tx</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#1E242D] text-xs">
+                  <tbody className="divide-y divide-[#E4E4E7] text-xs">
                     {visibleClaims.map((claim) => {
                       const facility = resolveHospitalName(claim.hospital);
                       const nullifierHex = formatFieldAsHex(claim.nullifier);
@@ -448,31 +448,31 @@ export default function ProtocolOverviewPage() {
                       return (
                         <tr
                           key={`${claim.txHash}-${claim.nullifier}`}
-                          className="hover:bg-[#161B22]/60 transition-colors"
+                          className="hover:bg-[#F4F4F5]/60 transition-colors"
                         >
                           <td className="py-3 pl-5 pr-3 whitespace-nowrap">
-                            <div className="font-medium text-[#F3F4F6]">
+                            <div className="font-medium text-[#09090B]">
                               {facility ?? shortHex(claim.hospital, 6, 4)}
                             </div>
                             {facility ? (
-                              <div className="font-mono-tabular text-[11px] text-[#64748B]">
+                              <div className="font-mono-tabular text-[11px] text-[#71717A]">
                                 {shortHex(claim.hospital, 6, 4)}
                               </div>
                             ) : null}
                           </td>
                           <td
-                            className="py-3 px-3 font-mono-tabular text-[#94A3B8] whitespace-nowrap"
+                            className="py-3 px-3 font-mono-tabular text-[#52525B] whitespace-nowrap"
                             title={nullifierHex}
                           >
                             {shortHex(nullifierHex, 8, 4)}
                           </td>
                           <td
-                            className="py-3 px-3 font-mono-tabular text-[#94A3B8] whitespace-nowrap"
+                            className="py-3 px-3 font-mono-tabular text-[#52525B] whitespace-nowrap"
                             title={policyHex}
                           >
                             {shortHex(policyHex, 8, 4)}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono-tabular font-semibold text-[#10B981] whitespace-nowrap">
+                          <td className="py-3 px-3 text-right font-mono-tabular font-semibold text-[#059669] whitespace-nowrap">
                             +{formatWeiToEth(claim.amountWei, 4)} ETH
                           </td>
                           <td className="py-3 px-3 whitespace-nowrap">
@@ -487,19 +487,19 @@ export default function ProtocolOverviewPage() {
                                   href={explorerTxUrl(claim.txHash)}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="inline-flex items-center gap-1 font-mono-tabular text-[11px] text-[#94A3B8] hover:text-[#F3F4F6] transition-colors"
+                                  className="inline-flex items-center gap-1 font-mono-tabular text-[11px] text-[#52525B] hover:text-[#09090B] transition-colors"
                                 >
                                   {shortHex(claim.txHash, 6, 4)}
                                   <ExternalLink className="h-3 w-3" />
                                 </a>
                               ) : (
-                                <span className="font-mono-tabular text-[11px] text-[#64748B]">
+                                <span className="font-mono-tabular text-[11px] text-[#71717A]">
                                   {shortHex(claim.txHash, 6, 4)}
                                 </span>
                               )}
                               <Link
                                 href="/insurer"
-                                className="rounded-md border border-[#2B3340] bg-[#161B22] px-2 py-1 text-[11px] font-medium text-[#F3F4F6] hover:border-[#374151] hover:bg-[#1E242D] transition-colors"
+                                className="rounded-md border border-[#D4D4D8] bg-[#F4F4F5] px-2 py-1 text-[11px] font-medium text-[#09090B] hover:border-[#374151] hover:bg-[#E4E4E7] transition-colors"
                               >
                                 Inspect
                               </Link>
@@ -515,19 +515,19 @@ export default function ProtocolOverviewPage() {
           </div>
 
           {/* RECENT CONSENT & REGISTRY EVENTS TABLE */}
-          <div className="overflow-hidden rounded-xl border border-[#1E242D] bg-[#111419]">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1E242D] px-5 py-3.5">
+          <div className="overflow-hidden rounded-xl border border-[#E4E4E7] bg-[#FFFFFF]">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E4E4E7] px-5 py-3.5">
               <div className="flex items-center gap-2.5">
-                <h2 className="text-sm font-semibold text-[#F3F4F6]">
+                <h2 className="text-sm font-semibold text-[#09090B]">
                   Recent Consent &amp; Registry Events
                 </h2>
-                <span className="rounded-md border border-[#1E242D] bg-[#0D1014] px-2 py-0.5 font-mono-tabular text-[11px] text-[#94A3B8]">
+                <span className="rounded-md border border-[#E4E4E7] bg-[#F4F4F5] px-2 py-0.5 font-mono-tabular text-[11px] text-[#52525B]">
                   {auditEvents.length}
                 </span>
               </div>
               <Link
                 href="/patient"
-                className="inline-flex items-center gap-1 text-xs font-medium text-[#94A3B8] hover:text-[#F3F4F6] transition-colors"
+                className="inline-flex items-center gap-1 text-xs font-medium text-[#52525B] hover:text-[#09090B] transition-colors"
               >
                 Open Vault
                 <ArrowUpRight className="h-3.5 w-3.5" />
@@ -535,26 +535,26 @@ export default function ProtocolOverviewPage() {
             </div>
 
             {loading ? (
-              <div className="divide-y divide-[#1E242D]">
+              <div className="divide-y divide-[#E4E4E7]">
                 {[0, 1, 2].map((idx) => (
                   <div
                     key={idx}
                     className="flex items-center justify-between gap-4 px-5 py-3.5 animate-pulse"
                   >
-                    <div className="h-3.5 w-44 rounded bg-[#161B22]" />
-                    <div className="h-3.5 w-24 rounded bg-[#161B22]" />
+                    <div className="h-3.5 w-44 rounded bg-[#F4F4F5]" />
+                    <div className="h-3.5 w-24 rounded bg-[#F4F4F5]" />
                   </div>
                 ))}
               </div>
             ) : visibleAudit.length === 0 ? (
               <div className="px-5 py-10 text-center space-y-2">
-                <p className="text-xs text-[#94A3B8]">
-                  No <span className="font-mono-tabular text-[#F3F4F6]">HealthRecords</span> registry or
+                <p className="text-xs text-[#52525B]">
+                  No <span className="font-mono-tabular text-[#09090B]">HealthRecords</span> registry or
                   consent events in the active lookback window.
                 </p>
                 <Link
                   href="/patient"
-                  className="inline-flex items-center gap-1 text-xs font-medium text-[#38BDF8] hover:underline"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-[#0284C7] hover:underline"
                 >
                   Encrypt &amp; register a record in Vault <ArrowUpRight className="h-3 w-3" />
                 </Link>
@@ -563,38 +563,38 @@ export default function ProtocolOverviewPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-[#1E242D] bg-[#0D1014] text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
+                    <tr className="border-b border-[#E4E4E7] bg-[#F4F4F5] text-[11px] font-medium uppercase tracking-wider text-[#71717A]">
                       <th className="py-2.5 pl-5 pr-3">Event</th>
                       <th className="py-2.5 px-3">Details</th>
                       <th className="py-2.5 px-3">Time / Block</th>
                       <th className="py-2.5 pl-3 pr-5 text-right">Tx</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#1E242D] text-xs">
+                  <tbody className="divide-y divide-[#E4E4E7] text-xs">
                     {visibleAudit.map((evt) => {
                       const tone = EVENT_TONE[evt.kind];
                       return (
                         <tr
                           key={evt.id}
-                          className="hover:bg-[#161B22]/60 transition-colors"
+                          className="hover:bg-[#F4F4F5]/60 transition-colors"
                         >
                           <td className="py-3 pl-5 pr-3 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <Badge variant={tone.variant}>{tone.label}</Badge>
-                              <span className="font-medium text-[#F3F4F6]">
+                              <span className="font-medium text-[#09090B]">
                                 {evt.title}
                               </span>
                             </div>
                           </td>
                           <td className="py-3 px-3 max-w-[280px]">
                             <div
-                              className="font-mono-tabular text-[11px] text-[#94A3B8] truncate"
+                              className="font-mono-tabular text-[11px] text-[#52525B] truncate"
                               title={evt.detail}
                             >
                               {evt.detail}
                             </div>
                           </td>
-                          <td className="py-3 px-3 font-mono-tabular text-[11px] text-[#64748B] whitespace-nowrap">
+                          <td className="py-3 px-3 font-mono-tabular text-[11px] text-[#71717A] whitespace-nowrap">
                             {evt.timestamp}
                           </td>
                           <td className="py-3 pl-3 pr-5 text-right whitespace-nowrap">
@@ -603,17 +603,17 @@ export default function ProtocolOverviewPage() {
                                 href={evt.explorerUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1 font-mono-tabular text-[11px] text-[#94A3B8] hover:text-[#F3F4F6] transition-colors"
+                                className="inline-flex items-center gap-1 font-mono-tabular text-[11px] text-[#52525B] hover:text-[#09090B] transition-colors"
                               >
                                 {shortHex(evt.txHash, 6, 4)}
                                 <ExternalLink className="h-3 w-3" />
                               </a>
                             ) : evt.txHash ? (
-                              <span className="font-mono-tabular text-[11px] text-[#64748B]">
+                              <span className="font-mono-tabular text-[11px] text-[#71717A]">
                                 {shortHex(evt.txHash, 6, 4)}
                               </span>
                             ) : (
-                              <span className="font-mono-tabular text-[11px] text-[#64748B]">
+                              <span className="font-mono-tabular text-[11px] text-[#71717A]">
                                 —
                               </span>
                             )}
@@ -631,27 +631,27 @@ export default function ProtocolOverviewPage() {
         {/* RIGHT 4 COLS: DEPLOYED CONTRACTS + PROTOCOL MODULES */}
         <div className="lg:col-span-4 space-y-5">
           {/* DEPLOYED CONTRACTS */}
-          <div className="overflow-hidden rounded-xl border border-[#1E242D] bg-[#111419]">
-            <div className="flex items-center justify-between gap-2 border-b border-[#1E242D] px-5 py-3.5">
-              <h2 className="text-sm font-semibold text-[#F3F4F6]">
+          <div className="overflow-hidden rounded-xl border border-[#E4E4E7] bg-[#FFFFFF]">
+            <div className="flex items-center justify-between gap-2 border-b border-[#E4E4E7] px-5 py-3.5">
+              <h2 className="text-sm font-semibold text-[#09090B]">
                 Deployed Contracts
               </h2>
-              <span className="font-mono-tabular text-[11px] text-[#64748B]">
+              <span className="font-mono-tabular text-[11px] text-[#71717A]">
                 Sepolia {DEPLOYMENT.chainId}
               </span>
             </div>
 
-            <div className="divide-y divide-[#1E242D]">
+            <div className="divide-y divide-[#E4E4E7]">
               {DEPLOYED_CONTRACTS.map((contract) => (
                 <div
                   key={contract.name}
-                  className="flex items-center justify-between gap-2 px-5 py-3 hover:bg-[#161B22]/50 transition-colors"
+                  className="flex items-center justify-between gap-2 px-5 py-3 hover:bg-[#F4F4F5]/50 transition-colors"
                 >
                   <div className="min-w-0">
-                    <div className="text-xs font-medium text-[#F3F4F6]">
+                    <div className="text-xs font-medium text-[#09090B]">
                       {contract.name}
                     </div>
-                    <div className="font-mono-tabular text-[11px] text-[#64748B]">
+                    <div className="font-mono-tabular text-[11px] text-[#71717A]">
                       {shortHex(contract.address, 6, 4)}
                     </div>
                   </div>
@@ -661,10 +661,10 @@ export default function ProtocolOverviewPage() {
                       type="button"
                       onClick={() => handleCopyAddress(contract.address)}
                       aria-label={`Copy ${contract.name} address`}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[#1E242D] bg-[#0D1014] text-[#64748B] hover:border-[#2B3340] hover:text-[#F3F4F6] transition-colors cursor-pointer"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[#E4E4E7] bg-[#F4F4F5] text-[#71717A] hover:border-[#D4D4D8] hover:text-[#09090B] transition-colors cursor-pointer"
                     >
                       {copiedAddr === contract.address ? (
-                        <Check className="h-3 w-3 text-[#10B981]" />
+                        <Check className="h-3 w-3 text-[#059669]" />
                       ) : (
                         <Copy className="h-3 w-3" />
                       )}
@@ -673,7 +673,7 @@ export default function ProtocolOverviewPage() {
                       href={explorerAddressUrl(contract.address)}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex h-7 items-center gap-1 rounded-md border border-[#1E242D] bg-[#0D1014] px-2 font-mono-tabular text-[10px] text-[#94A3B8] hover:border-[#2B3340] hover:text-[#F3F4F6] transition-colors"
+                      className="inline-flex h-7 items-center gap-1 rounded-md border border-[#E4E4E7] bg-[#F4F4F5] px-2 font-mono-tabular text-[10px] text-[#52525B] hover:border-[#D4D4D8] hover:text-[#09090B] transition-colors"
                     >
                       Etherscan
                       <ExternalLink className="h-2.5 w-2.5" />
@@ -682,7 +682,7 @@ export default function ProtocolOverviewPage() {
                       href={sourcifyContractUrl(contract.address)}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex h-7 items-center gap-1 rounded-md border border-[#10B981]/25 bg-[#10B981]/8 px-2 font-mono-tabular text-[10px] text-[#10B981] hover:bg-[#10B981]/15 transition-colors"
+                      className="inline-flex h-7 items-center gap-1 rounded-md border border-[#059669]/25 bg-[#059669]/8 px-2 font-mono-tabular text-[10px] text-[#059669] hover:bg-[#ECFDF5] transition-colors"
                     >
                       Sourcify
                       <ExternalLink className="h-2.5 w-2.5" />
@@ -692,7 +692,7 @@ export default function ProtocolOverviewPage() {
               ))}
             </div>
 
-            <div className="flex items-center justify-between gap-2 border-t border-[#1E242D] bg-[#0D1014] px-5 py-2.5 font-mono-tabular text-[10px] text-[#64748B]">
+            <div className="flex items-center justify-between gap-2 border-t border-[#E4E4E7] bg-[#F4F4F5] px-5 py-2.5 font-mono-tabular text-[10px] text-[#71717A]">
               <span>Deploy Block #{DEPLOYMENT.deployBlock.toLocaleString()}</span>
               <span title={DEPLOYMENT.zkeySha256}>
                 zkey {DEPLOYMENT.zkeySha256.slice(0, 8)}...
@@ -701,36 +701,36 @@ export default function ProtocolOverviewPage() {
           </div>
 
           {/* PROTOCOL MODULES */}
-          <div className="overflow-hidden rounded-xl border border-[#1E242D] bg-[#111419]">
-            <div className="border-b border-[#1E242D] px-5 py-3.5">
-              <h2 className="text-sm font-semibold text-[#F3F4F6]">
+          <div className="overflow-hidden rounded-xl border border-[#E4E4E7] bg-[#FFFFFF]">
+            <div className="border-b border-[#E4E4E7] px-5 py-3.5">
+              <h2 className="text-sm font-semibold text-[#09090B]">
                 Protocol Modules
               </h2>
             </div>
 
-            <div className="divide-y divide-[#1E242D]">
+            <div className="divide-y divide-[#E4E4E7]">
               {PROTOCOL_MODULES.map((mod) => {
                 const Icon = mod.icon;
                 return (
                   <Link
                     key={mod.href}
                     href={mod.href}
-                    className="group flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-[#161B22]/60 transition-colors"
+                    className="group flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-[#F4F4F5]/60 transition-colors"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#1E242D] bg-[#0D1014] text-[#94A3B8] group-hover:border-[#2B3340] group-hover:text-[#10B981] transition-colors">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] text-[#52525B] group-hover:border-[#D4D4D8] group-hover:text-[#059669] transition-colors">
                         <Icon className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <div className="text-xs font-medium text-[#F3F4F6]">
+                        <div className="text-xs font-medium text-[#09090B]">
                           {mod.name}
                         </div>
-                        <div className="font-mono-tabular text-[11px] text-[#64748B] truncate">
+                        <div className="font-mono-tabular text-[11px] text-[#71717A] truncate">
                           {mod.meta}
                         </div>
                       </div>
                     </div>
-                    <ArrowUpRight className="h-4 w-4 text-[#64748B] group-hover:text-[#F3F4F6] shrink-0 transition-colors" />
+                    <ArrowUpRight className="h-4 w-4 text-[#71717A] group-hover:text-[#09090B] shrink-0 transition-colors" />
                   </Link>
                 );
               })}

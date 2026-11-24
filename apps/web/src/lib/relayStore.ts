@@ -73,8 +73,8 @@ interface RelayStoreSingleton {
   chainState: RelayChainMirror;
 }
 
-const MAX_VAULT_BUNDLES = 150;
-const MAX_AUDIT_LOGS = 150;
+const MAX_VAULT_BUNDLES = 2000;
+const MAX_AUDIT_LOGS = 1000;
 
 function prependAudit(state: RelayChainMirror, entry: RelayAuditEntry): void {
   state.auditLogs = [entry, ...state.auditLogs].slice(0, MAX_AUDIT_LOGS);
@@ -161,6 +161,41 @@ function persistVaultCache(map: Map<string, RelayCiphertextRecord>): void {
   }
 }
 
+const PERSIST_ENABLED = process.env.NODE_ENV !== "test";
+const CHAIN_DISK_CACHE = path.join(
+  process.env.QLO_DATA_DIR || os.tmpdir(),
+  "qlo-relay-chain.json"
+);
+
+function loadChainDiskCache(): RelayChainMirror | null {
+  if (!PERSIST_ENABLED) return null;
+  try {
+    if (!fs.existsSync(CHAIN_DISK_CACHE)) return null;
+    const parsed = JSON.parse(fs.readFileSync(CHAIN_DISK_CACHE, "utf8")) as Partial<RelayChainMirror>;
+    if (
+      !parsed ||
+      typeof parsed.insurerEscrowWei !== "string" ||
+      !Array.isArray(parsed.records) ||
+      !Array.isArray(parsed.settledClaims) ||
+      !Array.isArray(parsed.auditLogs)
+    ) {
+      return null;
+    }
+    return { ...createDefaultChainState(), ...parsed } as RelayChainMirror;
+  } catch {
+    return null;
+  }
+}
+
+function persistChainState(state: RelayChainMirror): void {
+  if (!PERSIST_ENABLED) return;
+  try {
+    fs.writeFileSync(CHAIN_DISK_CACHE, JSON.stringify(state));
+  } catch {
+    // Non-fatal in read-only serverless containers
+  }
+}
+
 declare global {
   var __qloRelayStore: RelayStoreSingleton | undefined;
 }
@@ -171,7 +206,7 @@ export function getRelayStore(): RelayStoreSingleton {
     loadVaultDiskCache(vaultBundles);
     globalThis.__qloRelayStore = {
       vaultBundles,
-      chainState: createDefaultChainState(),
+      chainState: loadChainDiskCache() ?? createDefaultChainState(),
     };
   }
   return globalThis.__qloRelayStore;
@@ -250,6 +285,7 @@ export function resetRelayStore(): RelayChainMirror {
   store.vaultBundles.clear();
   persistVaultCache(store.vaultBundles);
   store.chainState = createDefaultChainState();
+  persistChainState(store.chainState);
   return store.chainState;
 }
 
@@ -348,6 +384,12 @@ export function upsertVaultRecord(raw: unknown): RelayCiphertextRecord {
 }
 
 export function applyRelayAction(body: Record<string, unknown>): RelayChainMirror {
+  const next = applyRelayActionUnpersisted(body);
+  persistChainState(next);
+  return next;
+}
+
+function applyRelayActionUnpersisted(body: Record<string, unknown>): RelayChainMirror {
   const store = getRelayStore();
   const state = store.chainState;
   const action = String(body.action ?? "");

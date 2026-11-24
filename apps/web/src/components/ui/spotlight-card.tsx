@@ -13,20 +13,20 @@ export interface SpotlightCardProps extends HTMLAttributes<HTMLDivElement> {
 
 const ACCENT_MAP = {
   neutral: {
-    fill: "rgba(243, 244, 246, 0.025)",
-    border: "rgba(148, 163, 184, 0.16)",
+    fill: "rgba(9, 9, 11, 0.02)",
+    border: "rgba(9, 9, 11, 0.12)",
   },
   emerald: {
-    fill: "rgba(16, 185, 129, 0.04)",
-    border: "rgba(16, 185, 129, 0.24)",
+    fill: "rgba(5, 150, 105, 0.035)",
+    border: "rgba(5, 150, 105, 0.25)",
   },
   amber: {
-    fill: "rgba(245, 158, 11, 0.04)",
-    border: "rgba(245, 158, 11, 0.24)",
+    fill: "rgba(217, 119, 6, 0.035)",
+    border: "rgba(217, 119, 6, 0.25)",
   },
   crimson: {
-    fill: "rgba(239, 68, 68, 0.04)",
-    border: "rgba(239, 68, 68, 0.24)",
+    fill: "rgba(220, 38, 38, 0.035)",
+    border: "rgba(220, 38, 38, 0.25)",
   },
 } as const;
 
@@ -65,7 +65,7 @@ export function SpotlightCard({
         mouseY.set(-1000);
       }}
       className={cn(
-        "group relative overflow-hidden rounded-xl border border-[#1E242D] bg-[#111419] text-[#F3F4F6] transition-colors duration-150 hover:border-[#2B3340]",
+        "group relative overflow-hidden rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] text-[#09090B] shadow-[0_1px_2px_rgba(9,9,11,0.03)] transition-colors duration-150 hover:border-[#D4D4D8]",
         className
       )}
       {...props}

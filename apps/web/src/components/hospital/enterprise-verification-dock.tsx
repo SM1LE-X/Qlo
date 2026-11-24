@@ -29,13 +29,13 @@ export function EnterpriseVerificationDock({
   const [dockTab, setDockTab] = useState<"security" | "standards">("security");
 
   return (
-    <section className="rounded-xl border border-[#1E242D] bg-[#111419] overflow-hidden">
+    <section className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] overflow-hidden">
       <div
         role="tablist"
         aria-label="Security guardrails and healthcare standards export"
-        className="flex flex-wrap items-center justify-between gap-3 border-b border-[#1E242D] bg-[#0D1014] px-4 py-2.5"
+        className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E4E4E7] bg-[#F4F4F5] px-4 py-2.5"
       >
-        <div className="inline-flex items-center gap-1 rounded-lg border border-[#1E242D] bg-[#111419] p-0.5">
+        <div className="inline-flex items-center gap-1 rounded-lg border border-[#E4E4E7] bg-[#FFFFFF] p-0.5">
           {(
             [
               ["security", "Security Guardrails (5 Attacks)", ShieldAlert],
@@ -52,17 +52,17 @@ export function EnterpriseVerificationDock({
                 onClick={() => setDockTab(id)}
                 className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
                   active
-                    ? "bg-[#161B22] text-[#F3F4F6] border border-[#2B3340]"
-                    : "text-[#94A3B8] hover:text-[#F3F4F6] border border-transparent"
+                    ? "bg-[#F4F4F5] text-[#09090B] border border-[#D4D4D8]"
+                    : "text-[#52525B] hover:text-[#09090B] border border-transparent"
                 }`}
               >
                 <Icon
                   className={`h-3.5 w-3.5 ${
                     active
                       ? id === "security"
-                        ? "text-[#EF4444]"
-                        : "text-[#38BDF8]"
-                      : "text-[#64748B]"
+                        ? "text-[#DC2626]"
+                        : "text-[#0284C7]"
+                      : "text-[#71717A]"
                   }`}
                 />
                 <span>{label}</span>
@@ -71,7 +71,7 @@ export function EnterpriseVerificationDock({
           })}
         </div>
 
-        <span className="font-mono-tabular text-[11px] text-[#64748B]">
+        <span className="font-mono-tabular text-[11px] text-[#71717A]">
           Fail-Closed Circuit &amp; Clearinghouse Interop
         </span>
       </div>

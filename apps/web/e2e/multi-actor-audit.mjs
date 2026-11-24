@@ -11,6 +11,7 @@ const webDir = path.resolve(__dirname, "..");
 const EDGE_PATH = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 const BASE_URL = "http://127.0.0.1:3000";
 const VAULT_DISK_CACHE = path.join(os.tmpdir(), "qlo-zero-phi-vault.json");
+const CHAIN_DISK_CACHE = path.join(os.tmpdir(), "qlo-relay-chain.json");
 
 async function waitForServer(url, timeoutMs = 20000) {
   const start = Date.now();
@@ -39,6 +40,7 @@ async function main() {
   assert.ok(fs.existsSync(EDGE_PATH), `Edge executable not found at ${EDGE_PATH}`);
   try {
     if (fs.existsSync(VAULT_DISK_CACHE)) fs.unlinkSync(VAULT_DISK_CACHE);
+    if (fs.existsSync(CHAIN_DISK_CACHE)) fs.unlinkSync(CHAIN_DISK_CACHE);
   } catch {
     // non-fatal
   }
@@ -184,7 +186,7 @@ async function main() {
     await patientPage.getByRole("button", { name: /Encrypt Record on Device|Encrypted Locally/i }).click();
     await patientPage.waitForSelector("text=AES-256 Locked", { timeout: 10000 });
     await patientPage.getByRole("button", { name: /Save Fingerprint On-Chain/i }).click();
-    await patientPage.waitForSelector("text=/Saved \\(#1\\)/i", { timeout: 10000 });
+    await patientPage.waitForSelector("text=/Saved \\(#\\d+\\)/i", { timeout: 10000 });
     await patientPage.getByRole("button", { name: /Grant Access/i }).click();
     await patientPage.waitForSelector("text=Access Granted", { timeout: 10000 });
 

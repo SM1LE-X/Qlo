@@ -74,17 +74,17 @@ export default function StoryPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border border-[#1E242D] bg-[#111419] px-5 py-4">
+      <section className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2.5">
-              <FileCode2 className="h-4 w-4 text-[#10B981]" />
-              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#F3F4F6]">
+              <FileCode2 className="h-4 w-4 text-[#059669]" />
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#09090B]">
                 Protocol Specification &amp; Circuit Registry
               </h1>
               <Badge variant="emerald">4,349 R1CS · 5/5 Sourcify Exact Match</Badge>
             </div>
-            <p className="text-xs text-[#94A3B8]">
+            <p className="text-xs text-[#52525B]">
               Fail-closed Groth16 BN254 circuit constraints, live browser proving-key SHA-256 verification, and Ethereum Sepolia contract registry.
             </p>
           </div>
@@ -93,12 +93,12 @@ export default function StoryPage() {
 
       {/* Live Browser .zkey SHA-256 Verifier */}
       <SpotlightCard accent="emerald" className="p-5 sm:p-6 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1E242D] pb-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E4E4E7] pb-3.5">
           <div>
-            <h2 className="text-sm font-semibold text-[#F3F4F6]">
-              Live Proving Key Integrity Verification (<code className="font-mono-tabular text-[#10B981]">/zk/ClaimValidity.zkey</code>)
+            <h2 className="text-sm font-semibold text-[#09090B]">
+              Live Proving Key Integrity Verification (<code className="font-mono-tabular text-[#059669]">/zk/ClaimValidity.zkey</code>)
             </h2>
-            <p className="text-xs text-[#94A3B8]">
+            <p className="text-xs text-[#52525B]">
               Computes the SHA-256 digest of the active Groth16 proving key via WebCrypto and compares it against the pinned ceremony manifest.
             </p>
           </div>
@@ -110,27 +110,27 @@ export default function StoryPage() {
 
         {zkeyResult ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
-            <div className="rounded-xl border border-[#1E242D] bg-[#0D1014] p-4 space-y-2.5">
+            <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-[#94A3B8] font-medium">Verification Status</span>
+                <span className="text-[#52525B] font-medium">Verification Status</span>
                 <Badge variant={zkeyResult.verified ? "emerald" : "crimson"}>
                   <CheckCircle2 className="h-3 w-3" />
                   {zkeyResult.verified ? `MATCHED (${zkeyResult.checkedAtMs}ms)` : "MISMATCH"}
                 </Badge>
               </div>
-              <div className="text-[#94A3B8]">
-                Phase 1: <span className="text-[#F3F4F6] font-medium">{zkeyResult.manifest.ptauFile}</span> (
+              <div className="text-[#52525B]">
+                Phase 1: <span className="text-[#09090B] font-medium">{zkeyResult.manifest.ptauFile}</span> (
                 {zkeyResult.manifest.nConstraints} constraints / {zkeyResult.manifest.ptauCapacity} cap)
               </div>
-              <div className="text-[#94A3B8]">
+              <div className="text-[#52525B]">
                 Proving Key Size:{" "}
-                <span className="font-mono-tabular font-semibold text-[#F3F4F6]">
+                <span className="font-mono-tabular font-semibold text-[#09090B]">
                   {(zkeyResult.manifest.zkeyBytes / (1024 * 1024)).toFixed(2)} MB
                 </span>
               </div>
             </div>
 
-            <div className="rounded-xl border border-[#1E242D] bg-[#0D1014] p-4 space-y-2">
+            <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-2">
               <CopyHash label="Expected SHA-256" value={zkeyResult.expectedSha256} />
               <CopyHash label="Computed Browser SHA-256" value={zkeyResult.actualSha256} />
               {DEPLOYMENT.zkeySha256 ? (
@@ -139,18 +139,18 @@ export default function StoryPage() {
             </div>
           </div>
         ) : (
-          <div className="text-xs text-[#94A3B8]">Computing SHA-256 of /zk/ClaimValidity.zkey...</div>
+          <div className="text-xs text-[#52525B]">Computing SHA-256 of /zk/ClaimValidity.zkey...</div>
         )}
       </SpotlightCard>
 
       {/* Ethereum Sepolia Contract Registry */}
       <SpotlightCard accent="neutral" className="p-5 sm:p-6 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1E242D] pb-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E4E4E7] pb-3.5">
           <div>
-            <h2 className="text-sm font-semibold text-[#F3F4F6]">
+            <h2 className="text-sm font-semibold text-[#09090B]">
               Ethereum Sepolia Contract Registry (Chain ID {DEPLOYMENT.chainId})
             </h2>
-            <p className="text-xs text-[#94A3B8]">
+            <p className="text-xs text-[#52525B]">
               {IS_CHAIN_DEPLOYED
                 ? "Verified open-source Solidity 0.8.28 contracts on Sourcify & Ethereum Sepolia."
                 : "Pre-broadcast deployment manifest — verified on Anvil local EVM; ready for Ethereum Sepolia broadcast."}
@@ -165,10 +165,10 @@ export default function StoryPage() {
           {Object.entries(DEPLOYMENT.contracts).map(([name, addr]) => (
             <div
               key={name}
-              className="rounded-xl border border-[#1E242D] bg-[#0D1014] p-3.5 space-y-2"
+              className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-3.5 space-y-2"
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[#F3F4F6]">{name}</span>
+                <span className="text-xs font-semibold text-[#09090B]">{name}</span>
                 <Badge variant={IS_CHAIN_DEPLOYED ? "emerald" : "neutral"}>
                   {IS_CHAIN_DEPLOYED ? "Verified" : "Pending Deploy"}
                 </Badge>
@@ -182,7 +182,7 @@ export default function StoryPage() {
                   href={sourcifyContractUrl(addr)}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-[#10B981] hover:underline"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-[#059669] hover:underline"
                 >
                   Sourcify Match <ExternalLink className="h-3 w-3" />
                 </a>
@@ -194,32 +194,32 @@ export default function StoryPage() {
 
       {/* Frozen 8-Signal ABI */}
       <SpotlightCard accent="neutral" className="p-5 sm:p-6 space-y-4">
-        <div className="border-b border-[#1E242D] pb-3.5">
-          <h2 className="text-sm font-semibold text-[#F3F4F6]">Frozen 8-Public-Signal Circuit ABI</h2>
+        <div className="border-b border-[#E4E4E7] pb-3.5">
+          <h2 className="text-sm font-semibold text-[#09090B]">Frozen 8-Public-Signal Circuit ABI</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-[#1E242D] text-[#64748B]">
+              <tr className="border-b border-[#E4E4E7] text-[#71717A]">
                 <th className="py-2.5 pr-4 font-medium">Index</th>
                 <th className="py-2.5 pr-4 font-medium">Signal Name</th>
                 <th className="py-2.5 pr-4 font-medium">Domain</th>
                 <th className="py-2.5 font-medium">
-                  On-Chain Invariant (<code className="font-mono-tabular text-[#F3F4F6]">ClaimsVault.sol</code>)
+                  On-Chain Invariant (<code className="font-mono-tabular text-[#09090B]">ClaimsVault.sol</code>)
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1E242D]">
+            <tbody className="divide-y divide-[#E4E4E7]">
               {PUBLIC_SIGNALS.map((row) => (
-                <tr key={row.idx} className="hover:bg-[#161B22]/50 transition-colors">
-                  <td className="py-2.5 pr-4 font-mono-tabular font-semibold text-[#10B981]">
+                <tr key={row.idx} className="hover:bg-[#F4F4F5]/50 transition-colors">
+                  <td className="py-2.5 pr-4 font-mono-tabular font-semibold text-[#059669]">
                     [{row.idx}]
                   </td>
-                  <td className="py-2.5 pr-4 font-mono-tabular font-medium text-[#F3F4F6]">
+                  <td className="py-2.5 pr-4 font-mono-tabular font-medium text-[#09090B]">
                     {row.name}
                   </td>
-                  <td className="py-2.5 pr-4 font-mono-tabular text-[#94A3B8]">{row.type}</td>
-                  <td className="py-2.5 text-[#F3F4F6]">{row.check}</td>
+                  <td className="py-2.5 pr-4 font-mono-tabular text-[#52525B]">{row.type}</td>
+                  <td className="py-2.5 text-[#09090B]">{row.check}</td>
                 </tr>
               ))}
             </tbody>
@@ -229,41 +229,41 @@ export default function StoryPage() {
 
       {/* Cryptographic Honesty & STRIDE Boundaries */}
       <SpotlightCard accent="amber" className="p-5 sm:p-6 space-y-4">
-        <div className="flex items-center gap-2 border-b border-[#1E242D] pb-3.5">
-          <ShieldAlert className="h-4 w-4 text-[#F59E0B]" />
-          <h2 className="text-sm font-semibold text-[#F3F4F6]">
+        <div className="flex items-center gap-2 border-b border-[#E4E4E7] pb-3.5">
+          <ShieldAlert className="h-4 w-4 text-[#B45309]" />
+          <h2 className="text-sm font-semibold text-[#09090B]">
             Cryptographic Honesty &amp; STRIDE Boundaries
           </h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs leading-relaxed">
-          <div className="rounded-xl border border-[#1E242D] bg-[#0D1014] p-4 space-y-1.5">
-            <div className="font-semibold text-[#F59E0B]">1. Post-Decryption Analog Hole</div>
-            <p className="text-[#94A3B8]">
+          <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-1.5">
+            <div className="font-semibold text-[#B45309]">1. Post-Decryption Analog Hole</div>
+            <p className="text-[#52525B]">
               Revoking access deletes the on-chain wrapped DEK and immediately halts future decryption and{" "}
-              <code className="text-[#F3F4F6] font-semibold">ClaimsVault</code> settlement. However, no cryptography can erase plaintext if a malicious hospital saved a local copy prior to revocation (mitigated in v2 via hardware TEEs).
+              <code className="text-[#09090B] font-semibold">ClaimsVault</code> settlement. However, no cryptography can erase plaintext if a malicious hospital saved a local copy prior to revocation (mitigated in v2 via hardware TEEs).
             </p>
           </div>
-          <div className="rounded-xl border border-[#1E242D] bg-[#0D1014] p-4 space-y-1.5">
-            <div className="font-semibold text-[#F59E0B]">2. Groth16 Trusted Setup &amp; Pinning</div>
-            <p className="text-[#94A3B8]">
+          <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-1.5">
+            <div className="font-semibold text-[#B45309]">2. Groth16 Trusted Setup &amp; Pinning</div>
+            <p className="text-[#52525B]">
               Phase 1 builds on the 80+ contributor Ethereum Foundation PSE Perpetual Powers of Tau ceremony, followed by a verifiable Phase 2 contribution whose exact SHA-256 is verified live above.
             </p>
           </div>
-          <div className="rounded-xl border border-[#1E242D] bg-[#0D1014] p-4 space-y-1.5">
-            <div className="font-semibold text-[#10B981]">3. Deterministic Nullifier &amp; Anti-Front-Run</div>
-            <p className="text-[#94A3B8]">
+          <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-1.5">
+            <div className="font-semibold text-[#059669]">3. Deterministic Nullifier &amp; Anti-Front-Run</div>
+            <p className="text-[#52525B]">
               Removing arbitrary nonces prevents infinite vault drains (
-              <code className="text-[#F3F4F6] font-semibold">
+              <code className="text-[#09090B] font-semibold">
                 nullifier = Poseidon(salt, policyId, recordCommit)
               </code>
-              ), while binding <code className="text-[#F3F4F6] font-semibold">msg.sender</code> inside the proof stops mempool payout theft.
+              ), while binding <code className="text-[#09090B] font-semibold">msg.sender</code> inside the proof stops mempool payout theft.
             </p>
           </div>
-          <div className="rounded-xl border border-[#1E242D] bg-[#0D1014] p-4 space-y-1.5">
-            <div className="font-semibold text-[#10B981]">4. Range-Checked Comparators &amp; Clock Window</div>
-            <p className="text-[#94A3B8]">
-              Explicit <code className="text-[#F3F4F6] font-semibold">Num2Bits(64/96)</code> checks prevent BN254 field aliasing bugs in{" "}
-              <code className="text-[#F3F4F6] font-semibold">LessThan</code>, and Ethereum Sepolia enforces a 15-minute freshness window against backdated proofs.
+          <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-1.5">
+            <div className="font-semibold text-[#059669]">4. Range-Checked Comparators &amp; Clock Window</div>
+            <p className="text-[#52525B]">
+              Explicit <code className="text-[#09090B] font-semibold">Num2Bits(64/96)</code> checks prevent BN254 field aliasing bugs in{" "}
+              <code className="text-[#09090B] font-semibold">LessThan</code>, and Ethereum Sepolia enforces a 15-minute freshness window against backdated proofs.
             </p>
           </div>
         </div>
@@ -271,10 +271,10 @@ export default function StoryPage() {
 
       {/* Prior Art Comparison (VeriSure ETHDenver 2025) */}
       <SpotlightCard accent="neutral" className="p-5 sm:p-6 space-y-4">
-        <div className="flex items-center justify-between gap-2 border-b border-[#1E242D] pb-3.5">
+        <div className="flex items-center justify-between gap-2 border-b border-[#E4E4E7] pb-3.5">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-[#10B981]" />
-            <h2 className="text-sm font-semibold text-[#F3F4F6]">
+            <ShieldCheck className="h-4 w-4 text-[#059669]" />
+            <h2 className="text-sm font-semibold text-[#09090B]">
               Prior Art Comparison: Qlo vs. VeriSure (ETHDenver 2025)
             </h2>
           </div>
@@ -283,18 +283,18 @@ export default function StoryPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-[#1E242D] text-[#64748B]">
+              <tr className="border-b border-[#E4E4E7] text-[#71717A]">
                 <th className="py-2.5 pr-4 font-medium">Dimension</th>
                 <th className="py-2.5 pr-4 font-medium">VeriSure (ETHDenver 2025)</th>
                 <th className="py-2.5 font-medium">Qlo</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1E242D]">
+            <tbody className="divide-y divide-[#E4E4E7]">
               {VERISURE_COMPARISON.map((row) => (
-                <tr key={row.dim} className="hover:bg-[#161B22]/50 transition-colors">
-                  <td className="py-3 pr-4 font-semibold text-[#F3F4F6]">{row.dim}</td>
-                  <td className="py-3 pr-4 text-[#94A3B8]">{row.verisure}</td>
-                  <td className="py-3 text-[#10B981] font-medium">{row.qlo}</td>
+                <tr key={row.dim} className="hover:bg-[#F4F4F5]/50 transition-colors">
+                  <td className="py-3 pr-4 font-semibold text-[#09090B]">{row.dim}</td>
+                  <td className="py-3 pr-4 text-[#52525B]">{row.verisure}</td>
+                  <td className="py-3 text-[#059669] font-medium">{row.qlo}</td>
                 </tr>
               ))}
             </tbody>
@@ -305,10 +305,10 @@ export default function StoryPage() {
       {/* Deep Cryptographic & Audit Q&A */}
       <section className="space-y-3">
         <div>
-          <h2 className="text-sm font-semibold text-[#F3F4F6]">
+          <h2 className="text-sm font-semibold text-[#09090B]">
             Deep Cryptographic &amp; Security Audit Q&amp;A
           </h2>
-          <p className="text-xs text-[#94A3B8]">
+          <p className="text-xs text-[#52525B]">
             Detailed answers on arithmetic constraints, key lifecycle, and Ethereum Sepolia finality guarantees.
           </p>
         </div>
@@ -322,9 +322,9 @@ export default function StoryPage() {
               badge: "Anti-Replay",
               content: (
                 <>
-                  Each settled claim emits <code className="font-semibold text-[#F3F4F6]">nullifier = Poseidon(policySalt, policyId, recordCommitment)</code>.
+                  Each settled claim emits <code className="font-semibold text-[#09090B]">nullifier = Poseidon(policySalt, policyId, recordCommitment)</code>.
                   Because the hospital cannot invent a fresh nonce per transaction, re-submitting the same encrypted CMS-1500 bill produces the exact same nullifier scalar and reverts deterministically inside{" "}
-                  <code className="font-semibold text-[#F3F4F6]">ClaimsVault.sol</code> without revealing the procedure CPT code or diagnosis.
+                  <code className="font-semibold text-[#09090B]">ClaimsVault.sol</code> without revealing the procedure CPT code or diagnosis.
                 </>
               ),
             },
@@ -345,9 +345,9 @@ export default function StoryPage() {
               badge: "Trusted Setup",
               content: (
                 <>
-                  At runtime, <code className="font-semibold text-[#F3F4F6]">verifyZkeyIntegrity()</code> streams{" "}
-                  <code className="font-semibold text-[#F3F4F6]">/zk/ClaimValidity.zkey</code>, hashes every byte via WebCrypto SHA-256, and verifies it against the ceremony digest embedded in{" "}
-                  <code className="font-semibold text-[#F3F4F6]">DEPLOYMENT.zkeySha256</code> before Web Worker witnesses are generated.
+                  At runtime, <code className="font-semibold text-[#09090B]">verifyZkeyIntegrity()</code> streams{" "}
+                  <code className="font-semibold text-[#09090B]">/zk/ClaimValidity.zkey</code>, hashes every byte via WebCrypto SHA-256, and verifies it against the ceremony digest embedded in{" "}
+                  <code className="font-semibold text-[#09090B]">DEPLOYMENT.zkeySha256</code> before Web Worker witnesses are generated.
                 </>
               ),
             },
@@ -358,7 +358,7 @@ export default function StoryPage() {
               content: (
                 <>
                   If the hospital payout address were an unconstrained parameter, a mempool observer could copy a hospital&apos;s valid Groth16 proof, substitute their own payout address, and drain the claim settlement. Binding{" "}
-                  <code className="font-semibold text-[#F3F4F6]">uint160(msg.sender)</code> directly inside the Groth16 circuit invalidates any copied proof sent from an unauthorized wallet.
+                  <code className="font-semibold text-[#09090B]">uint160(msg.sender)</code> directly inside the Groth16 circuit invalidates any copied proof sent from an unauthorized wallet.
                 </>
               ),
             },

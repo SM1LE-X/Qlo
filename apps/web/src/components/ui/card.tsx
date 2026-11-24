@@ -11,7 +11,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-xl border border-[#1E242D] bg-[#111419] transition-colors duration-150 hover:border-[#2B3340]",
+        "rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] shadow-[0_1px_2px_rgba(9,9,11,0.03)] transition-colors duration-150 hover:border-[#D4D4D8]",
         className
       )}
     >
@@ -28,7 +28,7 @@ export function CardHeader({
   children: ReactNode;
 }) {
   return (
-    <div className={cn("border-b border-[#1E242D] px-5 py-3.5", className)}>
+    <div className={cn("border-b border-[#E4E4E7] px-5 py-3.5", className)}>
       {children}
     </div>
   );
@@ -54,12 +54,12 @@ export function Badge({
   children: ReactNode;
 }) {
   const styles = {
-    neutral: "border-[#2B3340] bg-[#161B22] text-[#94A3B8]",
-    emerald: "border-[#10B981]/30 bg-[#10B981]/10 text-[#10B981]",
-    teal: "border-[#38BDF8]/30 bg-[#38BDF8]/10 text-[#38BDF8]",
-    cobalt: "border-[#38BDF8]/30 bg-[#38BDF8]/10 text-[#38BDF8]",
-    amber: "border-[#F59E0B]/30 bg-[#F59E0B]/10 text-[#F59E0B]",
-    crimson: "border-[#EF4444]/30 bg-[#EF4444]/10 text-[#EF4444]",
+    neutral: "border-[#E4E4E7] bg-[#F4F4F5] text-[#52525B]",
+    emerald: "border-[#059669]/25 bg-[#ECFDF5] text-[#059669]",
+    teal: "border-[#0284C7]/25 bg-[#F0F9FF] text-[#0284C7]",
+    cobalt: "border-[#0284C7]/25 bg-[#F0F9FF] text-[#0284C7]",
+    amber: "border-[#D97706]/25 bg-[#FFFBEB] text-[#B45309]",
+    crimson: "border-[#DC2626]/25 bg-[#FEF2F2] text-[#DC2626]",
   }[variant];
 
   return (

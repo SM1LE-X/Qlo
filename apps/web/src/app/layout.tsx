@@ -43,9 +43,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} dark`}
+      className={`${geistSans.variable} ${geistMono.variable}`}
     >
-      <body className="min-h-screen bg-[#090B0E] text-[#F3F4F6] font-sans antialiased selection:bg-[#10B981]/20 selection:text-[#F3F4F6]">
+      <body className="min-h-screen bg-[#FAFAFA] text-[#09090B] font-sans antialiased selection:bg-[#09090B]/10 selection:text-[#09090B]">
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

@@ -67,11 +67,11 @@ export function HospitalRecordQueueCard({
   return (
     <section
       id="hospital-queue"
-      className="lg:col-span-5 rounded-xl border border-[#1E242D] bg-[#111419] p-5 sm:p-6 space-y-4"
+      className="lg:col-span-5 rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] p-5 sm:p-6 space-y-4"
     >
-      <div className="border-b border-[#1E242D] pb-3.5 space-y-0.5">
-        <h2 className="text-sm font-semibold text-[#F3F4F6]">Shared Patient Records</h2>
-        <p className="text-xs text-[#94A3B8]">
+      <div className="border-b border-[#E4E4E7] pb-3.5 space-y-0.5">
+        <h2 className="text-sm font-semibold text-[#09090B]">Shared Patient Records</h2>
+        <p className="text-xs text-[#52525B]">
           Verify active on-chain consent and unwrap AES-256-GCM medical records locally.
         </p>
       </div>
@@ -81,10 +81,10 @@ export function HospitalRecordQueueCard({
         <div
           className={`rounded-lg border px-3.5 py-2.5 flex items-center justify-between gap-2 text-xs ${
             accessStatus === "granted"
-              ? "border-[#10B981]/25 bg-[#10B981]/10 text-[#10B981]"
+              ? "border-[#059669]/25 bg-[#ECFDF5] text-[#059669]"
               : accessStatus === "missing"
-              ? "border-[#EF4444]/25 bg-[#EF4444]/10 text-[#EF4444]"
-              : "border-[#1E242D] bg-[#0D1014] text-[#94A3B8]"
+              ? "border-[#DC2626]/25 bg-[#FEF2F2] text-[#DC2626]"
+              : "border-[#E4E4E7] bg-[#F4F4F5] text-[#52525B]"
           }`}
         >
           <span className="font-medium">
@@ -104,7 +104,7 @@ export function HospitalRecordQueueCard({
 
       {/* Record Selector */}
       <div>
-        <label htmlFor="vault-select" className="text-xs font-medium text-[#94A3B8]">
+        <label htmlFor="vault-select" className="text-xs font-medium text-[#52525B]">
           Authorized Record Queue
         </label>
         <select
@@ -114,10 +114,10 @@ export function HospitalRecordQueueCard({
             const found = entries.find((x) => x.recordCommitmentHex === e.target.value);
             onSelectEntry(found ?? null);
           }}
-          className="mt-1.5 w-full rounded-lg border border-[#1E242D] bg-[#0D1014] px-3 py-2 text-xs font-medium text-[#F3F4F6] focus:border-[#10B981] focus:outline-none"
+          className="mt-1.5 w-full rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] px-3 py-2 text-xs font-medium text-[#09090B] focus:border-[#059669] focus:outline-none"
         >
           {entries.length === 0 ? (
-            <option value="" className="bg-[#111419] text-[#94A3B8]">
+            <option value="" className="bg-[#FFFFFF] text-[#52525B]">
               No shared records found yet
             </option>
           ) : (
@@ -125,7 +125,7 @@ export function HospitalRecordQueueCard({
               <option
                 key={item.recordCommitmentHex}
                 value={item.recordCommitmentHex}
-                className="bg-[#111419] text-[#F3F4F6]"
+                className="bg-[#FFFFFF] text-[#09090B]"
               >
                 {item.summaryHint || shortHex(item.cid, 12, 6)}
               </option>
@@ -135,17 +135,17 @@ export function HospitalRecordQueueCard({
       </div>
 
       {entries.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-[#1E242D] bg-[#0D1014] p-4 space-y-2.5 text-xs">
-          <div className="flex items-center gap-2 font-medium text-[#F3F4F6]">
-            <Lock className="h-3.5 w-3.5 text-[#38BDF8]" />
+        <div className="rounded-lg border border-dashed border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-2.5 text-xs">
+          <div className="flex items-center gap-2 font-medium text-[#09090B]">
+            <Lock className="h-3.5 w-3.5 text-[#0284C7]" />
             No shared patient record yet
           </div>
-          <p className="text-[#94A3B8] leading-relaxed">
+          <p className="text-[#52525B] leading-relaxed">
             Encrypt a CMS-1500 bill in Records Vault, anchor its 248-bit hash on Sepolia, and grant temporary access to your hospital wallet.
           </p>
           <Link
             href="/patient"
-            className="inline-flex items-center gap-1.5 font-medium text-[#10B981] hover:underline"
+            className="inline-flex items-center gap-1.5 font-medium text-[#059669] hover:underline"
           >
             Open Records Vault
             <ArrowRight className="h-3.5 w-3.5" />
@@ -164,7 +164,7 @@ export function HospitalRecordQueueCard({
       )}
 
       {accessError ? (
-        <div className="rounded-lg border border-[#EF4444]/25 bg-[#EF4444]/10 p-3 text-xs text-[#EF4444] flex items-start gap-2">
+        <div className="rounded-lg border border-[#DC2626]/25 bg-[#FEF2F2] p-3 text-xs text-[#DC2626] flex items-start gap-2">
           <AlertOctagon className="h-4 w-4 shrink-0 mt-0.5" />
           <span className="break-words">{accessError}</span>
         </div>
@@ -173,7 +173,7 @@ export function HospitalRecordQueueCard({
       {matchedProvider &&
       decryptedClaim &&
       decryptedClaim.renderingNpi.trim() !== matchedProvider.licenseId ? (
-        <div className="rounded-lg border border-[#F59E0B]/25 bg-[#F59E0B]/10 p-3 flex items-center justify-between gap-2 text-xs text-[#F59E0B]">
+        <div className="rounded-lg border border-[#F59E0B]/25 bg-[#FFFBEB] p-3 flex items-center justify-between gap-2 text-xs text-[#B45309]">
           <span>
             Bill NPI ({decryptedClaim.renderingNpi}) differs from facility ({matchedProvider.licenseId}).
           </span>
@@ -189,55 +189,55 @@ export function HospitalRecordQueueCard({
 
       {/* Decrypted Clinical Encounter Key-Value Table */}
       {decryptedClaim ? (
-        <div className="rounded-lg border border-[#10B981]/25 bg-[#0D1014] overflow-hidden text-xs">
-          <div className="flex items-center justify-between border-b border-[#1E242D] bg-[#10B981]/10 px-3.5 py-2.5">
-            <span className="font-semibold text-[#10B981] flex items-center gap-1.5">
+        <div className="rounded-lg border border-[#059669]/25 bg-[#F4F4F5] overflow-hidden text-xs">
+          <div className="flex items-center justify-between border-b border-[#E4E4E7] bg-[#ECFDF5] px-3.5 py-2.5">
+            <span className="font-semibold text-[#059669] flex items-center gap-1.5">
               <CheckCircle2 className="h-3.5 w-3.5" />
               Decrypted Clinical Encounter
             </span>
             {completenessValid ? <Badge variant="emerald">CMS-1500 Valid</Badge> : null}
           </div>
 
-          <div className="divide-y divide-[#1E242D] px-3.5">
+          <div className="divide-y divide-[#E4E4E7] px-3.5">
             <div className="flex items-center justify-between py-2">
-              <span className="text-[#64748B]">Diagnosis (ICD-10)</span>
+              <span className="text-[#71717A]">Diagnosis (ICD-10)</span>
               <DecryptedText
                 text={decryptedClaim.icd10Code}
                 encrypted={false}
-                className="font-mono-tabular font-semibold text-[#F3F4F6]"
+                className="font-mono-tabular font-semibold text-[#09090B]"
               />
             </div>
             <div className="flex items-center justify-between py-2">
-              <span className="text-[#64748B]">Procedure (CPT)</span>
+              <span className="text-[#71717A]">Procedure (CPT)</span>
               <DecryptedText
                 text={decryptedClaim.cptCode}
                 encrypted={false}
-                className="font-mono-tabular font-semibold text-[#F3F4F6]"
+                className="font-mono-tabular font-semibold text-[#09090B]"
               />
             </div>
             <div className="flex items-center justify-between py-2">
-              <span className="text-[#64748B]">Claim Payout</span>
-              <span className="font-mono-tabular font-semibold text-[#10B981]">
+              <span className="text-[#71717A]">Claim Payout</span>
+              <span className="font-mono-tabular font-semibold text-[#059669]">
                 {decryptedClaim.claimAmountEth} ETH
               </span>
             </div>
             <div className="flex items-center justify-between py-2">
-              <span className="text-[#64748B]">Policy ID</span>
-              <span className="font-mono-tabular text-[#94A3B8]">
+              <span className="text-[#71717A]">Policy ID</span>
+              <span className="font-mono-tabular text-[#52525B]">
                 {decryptedClaim.insuredPolicyId}
               </span>
             </div>
             <div className="py-2 space-y-0.5">
-              <div className="text-[#64748B]">Prescription</div>
-              <div className="text-[#F3F4F6]">{decryptedClaim.prescription}</div>
+              <div className="text-[#71717A]">Prescription</div>
+              <div className="text-[#09090B]">{decryptedClaim.prescription}</div>
             </div>
           </div>
 
-          <div className="border-t border-[#1E242D] bg-[#111419] px-3.5 py-2.5">
+          <div className="border-t border-[#E4E4E7] bg-[#FFFFFF] px-3.5 py-2.5">
             <button
               type="button"
               onClick={onLogAccessAudit}
-              className="text-[11px] font-medium text-[#38BDF8] hover:underline cursor-pointer"
+              className="text-[11px] font-medium text-[#0284C7] hover:underline cursor-pointer"
             >
               Log read-access audit on-chain →
             </button>
@@ -246,12 +246,12 @@ export function HospitalRecordQueueCard({
       ) : null}
 
       {/* Collapsible Hospital Wallet & Backup Import */}
-      <div className="rounded-lg border border-[#1E242D] bg-[#0D1014] overflow-hidden text-xs">
+      <div className="rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] overflow-hidden text-xs">
         <button
           type="button"
           onClick={() => setConfigOpen((prev) => !prev)}
           aria-expanded={configOpen}
-          className="flex w-full items-center justify-between px-3.5 py-2.5 text-left font-medium text-[#94A3B8] hover:text-[#F3F4F6] hover:bg-[#161B22] cursor-pointer transition-colors"
+          className="flex w-full items-center justify-between px-3.5 py-2.5 text-left font-medium text-[#52525B] hover:text-[#09090B] hover:bg-[#F4F4F5] cursor-pointer transition-colors"
         >
           <span className="font-mono-tabular">
             Hospital Wallet &amp; Backup Import ({shortHex(hospitalAddr, 6, 4)})
@@ -261,7 +261,7 @@ export function HospitalRecordQueueCard({
           />
         </button>
 
-        <div className={configOpen ? "space-y-3 border-t border-[#1E242D] p-3.5" : "hidden"}>
+        <div className={configOpen ? "space-y-3 border-t border-[#E4E4E7] p-3.5" : "hidden"}>
           <div className="grid grid-cols-1 gap-1.5">
             {ACCREDITED_PROVIDERS.map((prov) => {
               const active = prov.address.toLowerCase() === hospitalAddr.toLowerCase();
@@ -272,8 +272,8 @@ export function HospitalRecordQueueCard({
                   onClick={() => onChangeHospitalAddr(prov.address)}
                   className={`rounded-lg border px-3 py-2 text-left text-[11px] font-mono-tabular cursor-pointer transition-colors ${
                     active
-                      ? "border-[#38BDF8]/40 bg-[#38BDF8]/10 text-[#F3F4F6]"
-                      : "border-[#1E242D] bg-[#111419] text-[#94A3B8] hover:border-[#2B3340]"
+                      ? "border-[#0284C7]/40 bg-[#F0F9FF] text-[#09090B]"
+                      : "border-[#E4E4E7] bg-[#FFFFFF] text-[#52525B] hover:border-[#D4D4D8]"
                   }`}
                 >
                   {prov.name} · {shortHex(prov.address, 6, 4)}
@@ -290,14 +290,14 @@ export function HospitalRecordQueueCard({
               aria-label="Proving hospital address"
               value={hospitalAddr}
               onChange={(e) => onChangeHospitalAddr(e.target.value)}
-              className="w-full rounded-lg border border-[#1E242D] bg-[#161B22] px-3 py-2 font-mono-tabular text-[11px] text-[#F3F4F6] focus:border-[#10B981] focus:outline-none"
+              className="w-full rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] px-3 py-2 font-mono-tabular text-[11px] text-[#09090B] focus:border-[#059669] focus:outline-none"
             />
           </div>
           <label
             htmlFor="qlo-bundle-upload"
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#1E242D] bg-[#161B22] px-3 py-2 text-[11px] font-medium text-[#F3F4F6] hover:border-[#2B3340] transition-colors"
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] px-3 py-2 text-[11px] font-medium text-[#09090B] hover:border-[#D4D4D8] transition-colors"
           >
-            <Upload className="h-3.5 w-3.5 text-[#10B981]" />
+            <Upload className="h-3.5 w-3.5 text-[#059669]" />
             Import .qlo.json backup
             <input
               id="qlo-bundle-upload"

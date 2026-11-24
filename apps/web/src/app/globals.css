@@ -6,26 +6,26 @@
 }
 
 :root {
-  --bg: #090b0e;
-  --surface: #111419;
-  --surface-elevated: #161b22;
-  --surface-inset: #0d1014;
-  --border: #1e242d;
-  --border-hover: #2b3340;
-  --text-primary: #f3f4f6;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --accent-emerald: #10b981;
-  --accent-cobalt: #38bdf8;
-  --accent-amber: #f59e0b;
-  --accent-crimson: #ef4444;
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-elevated: #f4f4f5;
+  --surface-inset: #f4f4f5;
+  --border: #e4e4e7;
+  --border-hover: #d4d4d8;
+  --text-primary: #09090b;
+  --text-secondary: #52525b;
+  --text-muted: #71717a;
+  --accent-emerald: #059669;
+  --accent-cobalt: #0284c7;
+  --accent-amber: #d97706;
+  --accent-crimson: #dc2626;
 }
 
 html,
 body {
   background-color: var(--bg);
   color: var(--text-primary);
-  color-scheme: dark;
+  color-scheme: light;
   font-family: var(--font-sans);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   overflow-x: clip;
@@ -36,30 +36,30 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Institutional elevated dark surface */
+/* Minimalist elevated porcelain surface */
 .card-obsidian {
-  background-color: #111419;
-  border-color: #1e242d;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+  background-color: #ffffff;
+  border-color: #e4e4e7;
+  box-shadow: 0 1px 2px rgba(9, 9, 11, 0.04);
 }
 
-/* Subtle dark scrollbar */
+/* Subtle light scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #090b0e;
+  background: #fafafa;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e242d;
+  background: #d4d4d8;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #2b3340;
+  background: #a1a1aa;
 }
 
 @keyframes easyui-orbit-cw {

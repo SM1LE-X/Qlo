@@ -9,10 +9,10 @@ export function CoveredBenefitsSection() {
     <section id="patient-benefits" className="space-y-3 scroll-mt-20">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold text-[#F3F4F6]">
+          <h3 className="text-sm font-semibold text-[#09090B]">
             Covered Clinical Benefits Schedule
           </h3>
-          <p className="text-xs text-[#94A3B8]">
+          <p className="text-xs text-[#52525B]">
             Pre-committed in the Poseidon Depth-6 benefit Merkle tree for private ZK coverage verification.
           </p>
         </div>
@@ -32,16 +32,16 @@ export function CoveredBenefitsSection() {
                 {COVERED_CLINICAL_SCHEDULE.filter((c) => c.category === "Emergency").map((item) => (
                   <div
                     key={item.code}
-                    className="rounded-lg border border-[#1E242D] bg-[#111419] p-3.5 space-y-1"
+                    className="rounded-lg border border-[#E4E4E7] bg-[#FFFFFF] p-3.5 space-y-1"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-[#F3F4F6]">{item.title}</span>
-                      <span className="font-mono-tabular text-[11px] font-semibold text-[#10B981]">
+                      <span className="font-medium text-[#09090B]">{item.title}</span>
+                      <span className="font-mono-tabular text-[11px] font-semibold text-[#059669]">
                         CPT {item.code}
                       </span>
                     </div>
-                    <p className="text-[11px] text-[#94A3B8]">{item.summary}</p>
-                    <div className="text-[10px] font-mono-tabular text-[#38BDF8]">
+                    <p className="text-[11px] text-[#52525B]">{item.summary}</p>
+                    <div className="text-[10px] font-mono-tabular text-[#0284C7]">
                       {item.copayTier} · {item.typicalTurnaround}
                     </div>
                   </div>
@@ -61,16 +61,16 @@ export function CoveredBenefitsSection() {
                 ).map((item) => (
                   <div
                     key={item.code}
-                    className="rounded-lg border border-[#1E242D] bg-[#111419] p-3.5 space-y-1"
+                    className="rounded-lg border border-[#E4E4E7] bg-[#FFFFFF] p-3.5 space-y-1"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-[#F3F4F6]">{item.title}</span>
-                      <span className="font-mono-tabular text-[11px] font-semibold text-[#10B981]">
+                      <span className="font-medium text-[#09090B]">{item.title}</span>
+                      <span className="font-mono-tabular text-[11px] font-semibold text-[#059669]">
                         CPT {item.code}
                       </span>
                     </div>
-                    <p className="text-[11px] text-[#94A3B8]">{item.summary}</p>
-                    <div className="text-[10px] font-mono-tabular text-[#38BDF8]">
+                    <p className="text-[11px] text-[#52525B]">{item.summary}</p>
+                    <div className="text-[10px] font-mono-tabular text-[#0284C7]">
                       {item.copayTier} · {item.typicalTurnaround}
                     </div>
                   </div>
@@ -90,16 +90,16 @@ export function CoveredBenefitsSection() {
                 ).map((item) => (
                   <div
                     key={item.code}
-                    className="rounded-lg border border-[#1E242D] bg-[#111419] p-3.5 space-y-1"
+                    className="rounded-lg border border-[#E4E4E7] bg-[#FFFFFF] p-3.5 space-y-1"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-[#F3F4F6]">{item.title}</span>
-                      <span className="font-mono-tabular text-[11px] font-semibold text-[#10B981]">
+                      <span className="font-medium text-[#09090B]">{item.title}</span>
+                      <span className="font-mono-tabular text-[11px] font-semibold text-[#059669]">
                         CPT {item.code}
                       </span>
                     </div>
-                    <p className="text-[11px] text-[#94A3B8]">{item.summary}</p>
-                    <div className="text-[10px] font-mono-tabular text-[#38BDF8]">
+                    <p className="text-[11px] text-[#52525B]">{item.summary}</p>
+                    <div className="text-[10px] font-mono-tabular text-[#0284C7]">
                       {item.copayTier} · {item.typicalTurnaround}
                     </div>
                   </div>

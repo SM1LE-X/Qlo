@@ -43,17 +43,17 @@ export function MagneticButton({
 
   const variants = {
     primary:
-      "bg-[#F3F4F6] text-[#090B0E] border-[#F3F4F6] hover:bg-white font-semibold",
+      "bg-[#09090B] text-white border-[#09090B] hover:bg-[#18181B] font-semibold",
     emerald:
-      "bg-[#10B981] text-[#090B0E] border-[#10B981] hover:bg-[#34D399] font-semibold",
+      "bg-[#059669] text-white border-[#059669] hover:bg-[#047857] font-semibold",
     amber:
-      "bg-[#F59E0B]/15 text-[#F59E0B] border-[#F59E0B]/35 hover:bg-[#F59E0B]/25 font-medium",
+      "bg-[#FFFBEB] text-[#B45309] border-[#F59E0B]/40 hover:bg-[#FEF3C7] font-medium",
     crimson:
-      "bg-[#EF4444]/12 text-[#EF4444] border-[#EF4444]/30 hover:bg-[#EF4444]/20 font-medium",
+      "bg-[#FEF2F2] text-[#DC2626] border-[#DC2626]/30 hover:bg-[#FEE2E2] font-medium",
     secondary:
-      "bg-[#161B22] text-[#F3F4F6] border-[#2B3340] hover:bg-[#1E242D] hover:border-[#374151] font-medium",
+      "bg-[#FFFFFF] text-[#09090B] border-[#E4E4E7] hover:bg-[#F4F4F5] hover:border-[#D4D4D8] font-medium shadow-[0_1px_2px_rgba(9,9,11,0.03)]",
     ghost:
-      "bg-transparent text-[#94A3B8] border-transparent hover:text-[#F3F4F6] hover:bg-[#161B22] font-medium",
+      "bg-transparent text-[#52525B] border-transparent hover:text-[#09090B] hover:bg-[#F4F4F5] font-medium",
   }[variant];
 
   const sizes = {

@@ -131,12 +131,12 @@ export default function HospitalPage() {
         fetchRelayState(),
       ]);
 
-      if (forceSyncKey || !remoteMirror?.hospitalPubKeys?.[targetAddr.toLowerCase()]) {
+      if (forceSyncKey || remoteMirror?.hospitalPubKeys?.[targetAddr.toLowerCase()] !== kp.publicKeyHex) {
         await postRelayAction({
           action: "publishPubKey",
           hospitalAddress: targetAddr,
           publicKeyHex: kp.publicKeyHex,
-          force: forceSyncKey,
+          force: true,
         });
       }
 
@@ -160,6 +160,9 @@ export default function HospitalPage() {
       );
       setEntries(mergedList);
       setSelectedEntry((prev) => {
+        if (prev && mergedList[0] && mergedList[0].createdAt > prev.createdAt) {
+          return mergedList[0];
+        }
         if (
           prev &&
           mergedList.some(

@@ -5,6 +5,7 @@ import { MotionConfig } from "framer-motion";
 import { useEffect, useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
 import { WagmiProvider } from "wagmi";
+import { RoleProvider } from "@/components/role-context";
 import { wagmiConfig } from "@/lib/wagmi";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -40,7 +41,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <MotionConfig reducedMotion="user">
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          {children}
+          <RoleProvider>{children}</RoleProvider>
           <Toaster
             theme="light"
             position="bottom-right"
@@ -49,7 +50,7 @@ export function Providers({ children }: { children: ReactNode }) {
                 background: "#FFFFFF",
                 border: "1px solid #E4E4E7",
                 color: "#09090B",
-                boxShadow: "0 10px 28px -8px rgba(15, 23, 42, 0.14)",
+                boxShadow: "0 10px 28px -8px rgba(9, 9, 11, 0.12)",
               },
             }}
           />

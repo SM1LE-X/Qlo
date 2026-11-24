@@ -20,8 +20,8 @@ export function FraudGuardrailsCard({
     <div id="hospital-guardrails" className="space-y-4 scroll-mt-20">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <ShieldAlert className="h-4 w-4 text-[#EF4444]" />
-          <h3 className="text-sm font-semibold text-[#F3F4F6]">
+          <ShieldAlert className="h-4 w-4 text-[#DC2626]" />
+          <h3 className="text-sm font-semibold text-[#09090B]">
             Automated Policy &amp; Fraud Verification Suite
           </h3>
         </div>
@@ -46,8 +46,8 @@ export function FraudGuardrailsCard({
               onClick={() => onRunScenario(id)}
               className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
                 active
-                  ? "border-[#EF4444]/40 bg-[#EF4444]/10 text-[#EF4444]"
-                  : "border-[#1E242D] bg-[#0D1014] text-[#94A3B8] hover:border-[#2B3340] hover:text-[#F3F4F6]"
+                  ? "border-[#DC2626]/40 bg-[#FEF2F2] text-[#DC2626]"
+                  : "border-[#E4E4E7] bg-[#F4F4F5] text-[#52525B] hover:border-[#D4D4D8] hover:text-[#09090B]"
               }`}
             >
               {label}
@@ -57,14 +57,14 @@ export function FraudGuardrailsCard({
       </div>
 
       <TransitionPanel activeKey={activeAttack + attackResult.status}>
-        <div className="rounded-lg border border-[#1E242D] bg-[#0D1014] p-4 text-xs space-y-1.5">
-          <div className="font-medium text-[#94A3B8]">
+        <div className="rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] p-4 text-xs space-y-1.5">
+          <div className="font-medium text-[#52525B]">
             Selected Case:{" "}
-            <span className="font-mono-tabular uppercase font-semibold text-[#EF4444]">
+            <span className="font-mono-tabular uppercase font-semibold text-[#DC2626]">
               {activeAttack}
             </span>
           </div>
-          <div className="font-mono-tabular text-[#EF4444] break-all">
+          <div className="font-mono-tabular text-[#DC2626] break-all">
             {attackResult.detail ||
               "Select any guardrail vector above to confirm fail-closed proof or contract rejection."}
           </div>

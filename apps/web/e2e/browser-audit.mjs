@@ -11,6 +11,7 @@ const webDir = path.resolve(__dirname, "..");
 const EDGE_PATH = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 const BASE_URL = "http://127.0.0.1:3000";
 const VAULT_DISK_CACHE = path.join(os.tmpdir(), "qlo-zero-phi-vault.json");
+const CHAIN_DISK_CACHE = path.join(os.tmpdir(), "qlo-relay-chain.json");
 
 async function waitForServer(url, timeoutMs = 20000) {
   const start = Date.now();
@@ -47,6 +48,7 @@ async function main() {
   assert.ok(fs.existsSync(EDGE_PATH), `Edge executable not found at ${EDGE_PATH}`);
   try {
     if (fs.existsSync(VAULT_DISK_CACHE)) fs.unlinkSync(VAULT_DISK_CACHE);
+    if (fs.existsSync(CHAIN_DISK_CACHE)) fs.unlinkSync(CHAIN_DISK_CACHE);
   } catch {
     // non-fatal
   }
