@@ -46,8 +46,22 @@ const nextConfig = {
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   outputFileTracingRoot: path.resolve(__dirname, "../.."),
+  outputFileTracingIncludes: {
+    "/api/slack/**": ["./public/zk/**/*"],
+  },
+  serverExternalPackages: ["snarkjs", "circomlibjs"],
   experimental: {
     optimizePackageImports: ["lucide-react", "framer-motion"],
+  },
+  async redirects() {
+    return [
+      { source: "/patient", destination: "/", permanent: false },
+      { source: "/hospital", destination: "/", permanent: false },
+      { source: "/insurer", destination: "/", permanent: false },
+      { source: "/story", destination: "/", permanent: false },
+      { source: "/slack", destination: "/", permanent: false },
+      { source: "/onboarding", destination: "/", permanent: false },
+    ];
   },
   webpack: (config, { isServer, webpack }) => {
     if (!isServer) {

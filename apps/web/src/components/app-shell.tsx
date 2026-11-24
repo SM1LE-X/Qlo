@@ -23,6 +23,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { activeMeta, mode, canAccess, setActiveRole } = useActiveRole();
   const [commandOpen, setCommandOpen] = useState(false);
 
+  if (pathname === "/") {
+    return <>{children}</>;
+  }
+
   const portalRole = roleForPathname(pathname);
   const showRoleBoundary = Boolean(portalRole && !canAccess(portalRole));
   const portalMeta = portalRole ? ROLE_META[portalRole] : null;

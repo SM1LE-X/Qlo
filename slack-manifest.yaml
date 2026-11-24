@@ -1,0 +1,39 @@
+display_information:
+  name: Qlo
+  description: Private health insurance claims settled directly in Slack with zero medical data exposed.
+  background_color: "#09090B"
+features:
+  app_home:
+    home_tab_enabled: true
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
+  bot_user:
+    display_name: Qlo
+    always_online: true
+  slash_commands:
+    - command: /qlo
+      url: https://qlo-three.vercel.app/api/slack/commands
+      description: Onboard, submit a bill, or check escrow status
+      usage_hint: "[start | submit | status | help]"
+      should_escape: false
+oauth_config:
+  scopes:
+    bot:
+      - commands
+      - chat:write
+      - chat:write.public
+      - channels:read
+      - groups:read
+      - im:write
+      - users:read
+settings:
+  event_subscriptions:
+    request_url: https://qlo-three.vercel.app/api/slack/events
+    bot_events:
+      - app_home_opened
+  interactivity:
+    is_enabled: true
+    request_url: https://qlo-three.vercel.app/api/slack/interact
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
