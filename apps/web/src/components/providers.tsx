@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
 import { WagmiProvider } from "wagmi";
 import { RoleProvider } from "@/components/role-context";
+import { AmbientStatusProvider } from "@/components/ui/ambient-pill";
 import { wagmiConfig } from "@/lib/wagmi";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -41,7 +42,9 @@ export function Providers({ children }: { children: ReactNode }) {
     <MotionConfig reducedMotion="user">
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          <RoleProvider>{children}</RoleProvider>
+          <RoleProvider>
+            <AmbientStatusProvider>{children}</AmbientStatusProvider>
+          </RoleProvider>
           <Toaster
             theme="light"
             position="bottom-right"

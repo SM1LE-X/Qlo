@@ -1,52 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronDown, Download, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 import type { Abi } from "viem";
 import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
-import { Cms1500IntakeCard } from "@/components/patient/cms1500-intake-card";
-import { CoveredBenefitsSection } from "@/components/patient/covered-benefits-section";
-import { PatientConsentPanel } from "@/components/patient/patient-consent-panel";
+import { DropIntake, formatClinicalSummary, getFacilityName, mergeOcrClaim, sanitizeLabel, type DropBillOptions } from "@/components/patient/drop-intake";
 import { PatientOverviewHeader } from "@/components/patient/patient-overview-header";
-import { PatientVaultTable } from "@/components/patient/patient-vault-table";
+import { useAmbientStatus } from "@/components/ui/ambient-pill";
 import { AuditTimeline, type AuditEventItem } from "@/components/ui/audit-timeline";
-import { Badge } from "@/components/ui/card";
 import canonicalFixtures from "@/lib/canonicalFixtures.json";
 import { fetchPatientAuditEvents } from "@/lib/chainEvents";
 import { CONTRACTS, IS_CHAIN_DEPLOYED, explorerTxUrl } from "@/lib/contracts";
-import {
-  encryptClinicalPayload,
-  getOrCreateHospitalKeypair,
-  wrapDekForHospital,
-  type EncryptedRecordResult,
-} from "@/lib/crypto";
-import {
-  SYNTHETIC_CMS1500_PRESETS,
-  generateSampleCms1500BillPng,
-  parseClaimFromTextOrJson,
-  runLocalOcrOnBill,
-  validateCms1500Completeness,
-  type Cms1500Claim,
-} from "@/lib/intake";
+import { encryptClinicalPayload, getOrCreateHospitalKeypair, wrapDekForHospital, type EncryptedRecordResult } from "@/lib/crypto";
+import { runLocalOcrOnBill, validateCms1500Completeness, type Cms1500Claim } from "@/lib/intake";
 import { loadLocalChainMirror, saveLocalChainMirror } from "@/lib/localState";
-import {
-  fetchRelayState,
-  postRelayAction,
-  pushCiphertextToRelay,
-} from "@/lib/relayClient";
-import {
-  computeDeterministicCidV1,
-  listVaultEntries,
-  saveEncryptedRecordToVault,
-  serializeQloBundle,
-  type StoredVaultEntry,
-} from "@/lib/storage";
-import {
-  decodeContractError,
-  ensureSepoliaChain,
-  preflightSimulateAndWrite,
-} from "@/lib/txHelpers";
+import { fetchRelayState, postRelayAction, pushCiphertextToRelay } from "@/lib/relayClient";
+import { computeDeterministicCidV1, listVaultEntries, saveEncryptedRecordToVault, serializeQloBundle, type StoredVaultEntry } from "@/lib/storage";
+import { decodeContractError, ensureSepoliaChain, preflightSimulateAndWrite } from "@/lib/txHelpers";
 import { useWalletRoles } from "@/lib/useWalletRoles";
+import { formatCountdown, shortHex } from "@/lib/utils";
+
+const SUMMARY_STORAGE_KEY = "qlo-clinical-summaries-v1";
+const loadSavedSummaries = (): Record<string, string> => {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(localStorage.getItem(SUMMARY_STORAGE_KEY) || "{}") as Record<string, string>; } catch { return {}; }
+};
+const persistSummary = (commitmentHex: string, summary: string): void => {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(SUMMARY_STORAGE_KEY, JSON.stringify({ ...loadSavedSummaries(), [commitmentHex.toLowerCase()]: summary })); } catch { /* quota */ }
+};
 
 export default function PatientPage() {
   const { address } = useAccount();
@@ -54,309 +37,102 @@ export default function PatientPage() {
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
   const roles = useWalletRoles();
-
-  const [claim, setClaim] = useState<Cms1500Claim>(SYNTHETIC_CMS1500_PRESETS[0]);
-  const [ocrStatus, setOcrStatus] = useState<string>("");
-  const [ocrRunning, setOcrRunning] = useState(false);
+  const { showStatus } = useAmbientStatus();
 
   const [encrypted, setEncrypted] = useState<EncryptedRecordResult | null>(null);
-  const [cid, setCid] = useState<string>("");
-  const [vaultEntry, setVaultEntry] = useState<StoredVaultEntry | null>(null);
   const [vaultItems, setVaultItems] = useState<StoredVaultEntry[]>([]);
-  const [registeredRecordId, setRegisteredRecordId] = useState<string>("");
-
+  const [registeredRecordId, setRegisteredRecordId] = useState("");
   const [targetHospital, setTargetHospital] = useState<string>(canonicalFixtures.accounts.hospital1);
-  const [grantMinutes, setGrantMinutes] = useState<number>(10);
-  const [grantExpiresAt, setGrantExpiresAt] = useState<number>(0);
-  const [pubKeySource, setPubKeySource] = useState<string>("");
-  const [nowSec, setNowSec] = useState<number>(() => Math.floor(Date.now() / 1000));
+  const [grantMinutes, setGrantMinutes] = useState(10);
+  const [grantExpiresAt, setGrantExpiresAt] = useState(0);
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   const [auditItems, setAuditItems] = useState<AuditEventItem[]>([]);
-  const [activeGrantsCount, setActiveGrantsCount] = useState<number>(0);
-  const [settledClaimsCount, setSettledClaimsCount] = useState<number>(0);
   const [activeGrantsMap, setActiveGrantsMap] = useState<Record<string, { expiresAt: number }>>({});
+  const [settledClaimsCount, setSettledClaimsCount] = useState(0);
+  const [summaries, setSummaries] = useState<Record<string, string>>(() => loadSavedSummaries());
   const [busy, setBusy] = useState(false);
-  const [bottomTab, setBottomTab] = useState<"vault" | "audit" | "benefits">("vault");
+  const [pipelineStage, setPipelineStage] = useState<string | null>(null);
+  const [pipelineDetail, setPipelineDetail] = useState("");
+  const [revokingKey, setRevokingKey] = useState<string | null>(null);
+  const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
+  const [sectionTab, setSectionTab] = useState<"records" | "activity">("records");
 
-  const completeness = validateCms1500Completeness(claim);
+  const readRecordId = useCallback(async (commitmentHex: `0x${string}`) => {
+    if (!publicClient) return 0n;
+    return (await publicClient.readContract({ address: CONTRACTS.HealthRecords.address, abi: CONTRACTS.HealthRecords.abi, functionName: "commitmentToRecordId", args: [commitmentHex] })) as bigint;
+  }, [publicClient]);
 
-  const syncOverviewState = async () => {
+  const syncOverviewState = useCallback(async () => {
     const items = await listVaultEntries().catch(() => [] as StoredVaultEntry[]);
     const now = Math.floor(Date.now() / 1000);
+    const maxActiveExpiry = (map: Record<string, { expiresAt: number }>) => Math.max(0, ...Object.values(map).map((g) => (g.expiresAt > now ? g.expiresAt : 0)));
 
     if (IS_CHAIN_DEPLOYED && publicClient) {
-      let onChainSettled = 0;
+      let onChainSettled = roles.totalClaimsSettled;
       try {
-        const settled = (await publicClient.readContract({
-          address: CONTRACTS.ClaimsVault.address,
-          abi: CONTRACTS.ClaimsVault.abi,
-          functionName: "totalClaimsSettled",
-        })) as bigint;
-        onChainSettled = Number(settled);
-      } catch {
-        onChainSettled = roles.totalClaimsSettled;
-      }
+        onChainSettled = Number((await publicClient.readContract({ address: CONTRACTS.ClaimsVault.address, abi: CONTRACTS.ClaimsVault.abi, functionName: "totalClaimsSettled" })) as bigint);
+      } catch { /* fallback to cached role count */ }
 
       const grantsMap: Record<string, { expiresAt: number }> = {};
       const hydratedItems: StoredVaultEntry[] = [];
-
       for (const item of items) {
         let recIdStr = item.recordId || "";
         try {
-          const recId = (await publicClient.readContract({
-            address: CONTRACTS.HealthRecords.address,
-            abi: CONTRACTS.HealthRecords.abi,
-            functionName: "commitmentToRecordId",
-            args: [item.recordCommitmentHex],
-          })) as bigint;
+          const recId = await readRecordId(item.recordCommitmentHex);
           if (recId > 0n) {
             recIdStr = recId.toString();
             const hospTarget = item.hospitalAddress || targetHospital;
-            const [exp] = (await publicClient.readContract({
-              address: CONTRACTS.HealthRecords.address,
-              abi: CONTRACTS.HealthRecords.abi,
-              functionName: "getGrant",
-              args: [recId, hospTarget as `0x${string}`],
-            })) as [bigint, `0x${string}`];
-            if (exp > 0n) {
-              grantsMap[`${recIdStr}:${hospTarget.toLowerCase()}`] = {
-                expiresAt: Number(exp),
-              };
-            }
+            const [exp] = (await publicClient.readContract({ address: CONTRACTS.HealthRecords.address, abi: CONTRACTS.HealthRecords.abi, functionName: "getGrant", args: [recId, hospTarget as `0x${string}`] })) as [bigint, `0x${string}`];
+            if (exp > 0n) grantsMap[`${recIdStr}:${hospTarget.toLowerCase()}`] = { expiresAt: Number(exp) };
           }
-        } catch {
-          // Non-fatal on RPC jitter
-        }
-
-        const updatedItem = recIdStr && recIdStr !== item.recordId
-          ? { ...item, recordId: recIdStr }
-          : item;
-        if (updatedItem !== item) {
-          await saveEncryptedRecordToVault(updatedItem).catch(() => undefined);
-        }
-        hydratedItems.push(updatedItem);
+        } catch { /* non-fatal on RPC jitter */ }
+        const updated = recIdStr && recIdStr !== item.recordId ? { ...item, recordId: recIdStr } : item;
+        if (updated !== item) await saveEncryptedRecordToVault(updated).catch(() => undefined);
+        hydratedItems.push(updated);
       }
 
       const remoteRelay = await fetchRelayState();
-      const mergedGrants: Record<string, { expiresAt: number }> = {
-        ...(remoteRelay?.grants ?? {}),
-        ...grantsMap,
-      };
-
+      const mergedGrants: Record<string, { expiresAt: number }> = { ...(remoteRelay?.grants ?? {}), ...grantsMap };
       setVaultItems(hydratedItems);
       setActiveGrantsMap(mergedGrants);
-      setActiveGrantsCount(
-        Object.values(mergedGrants).filter((g) => g.expiresAt > now).length
-      );
       setSettledClaimsCount(onChainSettled + (remoteRelay?.settledClaims?.length ?? 0));
-
-      return { mirror: remoteRelay, items: hydratedItems, grantsMap: mergedGrants };
+      setGrantExpiresAt(maxActiveExpiry(mergedGrants));
+      return { mirror: remoteRelay, items: hydratedItems };
     }
 
-    const remote = await fetchRelayState();
-    const mirror = remote ?? loadLocalChainMirror();
+    const mirror = (await fetchRelayState()) ?? loadLocalChainMirror();
     setActiveGrantsMap(mirror.grants);
-    setActiveGrantsCount(Object.values(mirror.grants).filter((g) => g.expiresAt > now).length);
     setSettledClaimsCount(mirror.settledClaims.length);
     setVaultItems(items);
-    return { mirror, items, grantsMap: mirror.grants };
-  };
+    setGrantExpiresAt(maxActiveExpiry(mirror.grants));
+    return { mirror, items };
+  }, [publicClient, readRecordId, roles.totalClaimsSettled, targetHospital]);
 
   useEffect(() => {
-    syncOverviewState().then(({ mirror, items, grantsMap }) => {
-      if (IS_CHAIN_DEPLOYED && publicClient) {
-        fetchPatientAuditEvents(publicClient)
-          .then(setAuditItems)
-          .catch(() => undefined);
-        const latestRegistered = items.find((i) => i.recordId);
-        if (latestRegistered) {
-          setVaultEntry(latestRegistered);
-          setCid(latestRegistered.cid);
-          setRegisteredRecordId(latestRegistered.recordId ?? "");
-          const hospTarget = (latestRegistered.hospitalAddress || targetHospital).toLowerCase();
-          const g = grantsMap[`${latestRegistered.recordId}:${hospTarget}`];
-          if (g && g.expiresAt > Math.floor(Date.now() / 1000)) {
-            setGrantExpiresAt(g.expiresAt);
-          }
-          const dekKey = `qlo-dek-${latestRegistered.recordCommitmentHex.toLowerCase()}`;
-          const dekJson = localStorage.getItem(dekKey) ?? sessionStorage.getItem(dekKey);
-          if (dekJson) {
-            const dekBytes = new Uint8Array(JSON.parse(dekJson) as number[]);
-            setEncrypted({
-              envelope: latestRegistered.envelope,
-              envelopeBytes: new TextEncoder().encode(JSON.stringify(latestRegistered.envelope)),
-              dekRawBytes: dekBytes,
-              recordCommitment: BigInt(latestRegistered.recordCommitmentHex),
-              recordCommitmentHex: latestRegistered.recordCommitmentHex,
-            });
-          }
-        }
-        return;
-      }
-
-      if (!mirror) return;
-      setAuditItems(mirror.auditLogs);
-
-      if (mirror.records.length > 0) {
-        const latestRec = mirror.records[mirror.records.length - 1];
-        setRegisteredRecordId(latestRec.recordId);
-        setCid(latestRec.cid);
-
-        const grantKey = Object.keys(mirror.grants).find((k) =>
-          k.startsWith(`${latestRec.recordId}:`)
-        );
-        if (grantKey) {
-          const g = mirror.grants[grantKey];
-          if (g.expiresAt > Math.floor(Date.now() / 1000)) {
-            setGrantExpiresAt(g.expiresAt);
-            const hosp = grantKey.split(":")[1];
-            if (hosp) setTargetHospital(hosp);
-          }
-        }
-
-        const match = items.find(
-          (x) => x.recordCommitmentHex.toLowerCase() === latestRec.recordCommitmentHex.toLowerCase()
-        );
-        if (match) {
-          setVaultEntry(match);
-          const dekKey = `qlo-dek-${match.recordCommitmentHex.toLowerCase()}`;
-          const dekJson = localStorage.getItem(dekKey) ?? sessionStorage.getItem(dekKey);
-          if (dekJson) {
-            const dekBytes = new Uint8Array(JSON.parse(dekJson) as number[]);
-            setEncrypted({
-              envelope: match.envelope,
-              envelopeBytes: new TextEncoder().encode(JSON.stringify(match.envelope)),
-              dekRawBytes: dekBytes,
-              recordCommitment: BigInt(match.recordCommitmentHex),
-              recordCommitmentHex: match.recordCommitmentHex,
-            });
-          }
-        }
-      }
+    void syncOverviewState().then(({ mirror, items }) => {
+      if (IS_CHAIN_DEPLOYED && publicClient) fetchPatientAuditEvents(publicClient).then(setAuditItems).catch(() => undefined);
+      else if (mirror) setAuditItems(mirror.auditLogs);
+      const latest = items.find((i) => i.recordId) ?? items[0];
+      if (!latest) return;
+      setRegisteredRecordId(latest.recordId ?? "");
+      const dekKey = `qlo-dek-${latest.recordCommitmentHex.toLowerCase()}`;
+      const dekJson = localStorage.getItem(dekKey) ?? sessionStorage.getItem(dekKey);
+      if (dekJson) setEncrypted({ envelope: latest.envelope, envelopeBytes: new TextEncoder().encode(JSON.stringify(latest.envelope)), dekRawBytes: new Uint8Array(JSON.parse(dekJson) as number[]), recordCommitment: BigInt(latest.recordCommitmentHex), recordCommitmentHex: latest.recordCommitmentHex });
     });
-
     const id = setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publicClient]);
+  }, [publicClient, syncOverviewState]);
 
   useEffect(() => {
     if (!IS_CHAIN_DEPLOYED || !address || grantExpiresAt > 0) return;
-    const isAccredited = canonicalFixtures.hospitals.some(
-      (h) => h.address.toLowerCase() === address.toLowerCase()
-    );
-    if (isAccredited) {
-      setTargetHospital(address);
-    }
+    if (canonicalFixtures.hospitals.some((h) => h.address.toLowerCase() === address.toLowerCase())) setTargetHospital(address);
   }, [address, grantExpiresAt]);
 
   const secondsRemaining = Math.max(0, grantExpiresAt - nowSec);
+  const activeCount = useMemo(() => Object.values(activeGrantsMap).filter((g) => g.expiresAt > nowSec).length, [activeGrantsMap, nowSec]);
 
-  const handleOcrFile = async (file: Blob, label: string) => {
-    setOcrRunning(true);
-    setOcrStatus(`Running local Tesseract WASM OCR on ${label}...`);
-    try {
-      const { parsed } = await runLocalOcrOnBill(file, (status, pct) => {
-        setOcrStatus(`${status} (${pct}%)`);
-      });
-      setClaim((prev) => ({ ...prev, ...parsed }));
-      toast.success("Client-side OCR extracted CMS-1500 fields (0 bytes left your device)");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "OCR failed");
-    } finally {
-      setOcrRunning(false);
-      setOcrStatus("");
-    }
-  };
-
-  const handleTestSampleBillOcr = async () => {
-    const blob = await generateSampleCms1500BillPng();
-    await handleOcrFile(blob, "sample-cms1500.png");
-  };
-
-  const handleTextFileUpload = async (file: File) => {
-    const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB client intake cap
-    const ALLOWED_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".txt", ".json", ".edi"];
-    const ALLOWED_MIMES = new Set([
-      "image/png",
-      "image/jpeg",
-      "image/webp",
-      "text/plain",
-      "application/json",
-      "application/edi-x12",
-      "",
-    ]);
-
-    if (file.size > MAX_UPLOAD_BYTES) {
-      toast.error("File exceeds 5 MB maximum upload limit.");
-      return;
-    }
-    const ext = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] ?? "";
-    if (!ALLOWED_EXTENSIONS.includes(ext)) {
-      toast.error("Unsupported file extension. Upload PNG, JPG, WEBP, TXT, JSON, or EDI.");
-      return;
-    }
-    if (!ALLOWED_MIMES.has(file.type.toLowerCase())) {
-      toast.error(`Unsupported file MIME type: ${file.type}`);
-      return;
-    }
-
-    if (file.type.startsWith("image/")) {
-      await handleOcrFile(file, file.name);
-      return;
-    }
-    const text = await file.text();
-    const parsed = parseClaimFromTextOrJson(text);
-    setClaim((prev) => ({ ...prev, ...parsed }));
-    toast.success(`Parsed ${file.name} locally in browser`);
-  };
-
-  const handleEncryptLocally = async () => {
-    if (!completeness.valid) {
-      toast.error("Fix failing CMS-1500 completeness checks before encrypting.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const enc = await encryptClinicalPayload(claim);
-      const computedCid = await computeDeterministicCidV1(enc.envelopeBytes);
-
-      const entry: StoredVaultEntry = {
-        cid: computedCid,
-        recordCommitmentHex: enc.recordCommitmentHex,
-        envelope: enc.envelope,
-        createdAt: new Date().toISOString(),
-        patientAddress: address || canonicalFixtures.accounts.patient,
-        hospitalAddress: targetHospital,
-        summaryHint: `${claim.caseLabel} (${claim.claimAmountEth} ETH)`,
-      };
-      await saveEncryptedRecordToVault(entry);
-
-      const dekKey = `qlo-dek-${enc.recordCommitmentHex.toLowerCase()}`;
-      const dekSerialized = JSON.stringify(Array.from(enc.dekRawBytes));
-      sessionStorage.setItem(dekKey, dekSerialized);
-      localStorage.setItem(dekKey, dekSerialized);
-
-      setEncrypted(enc);
-      setCid(computedCid);
-      setVaultEntry(entry);
-      setRegisteredRecordId("");
-      setGrantExpiresAt(0);
-      await syncOverviewState();
-      toast.success("Encrypted locally with AES-256-GCM & saved to IndexedDB CID store");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Encryption failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const downloadBundleEntry = (entry: StoredVaultEntry, overrideId?: string) => {
-    const json = serializeQloBundle({
-      ...entry,
-      recordId: overrideId || entry.recordId,
-    });
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
+  const downloadBundleEntry = (entry: StoredVaultEntry) => {
+    const url = URL.createObjectURL(new Blob([serializeQloBundle(entry)], { type: "application/json" }));
     const a = document.createElement("a");
     a.href = url;
     a.download = `qlo-record-${entry.recordCommitmentHex.slice(2, 10)}.qlo.json`;
@@ -364,422 +140,261 @@ export default function PatientPage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleRegisterOnChain = async () => {
-    if (!encrypted || !cid) return;
+  const handleDropBill = async (claimInput: Cms1500Claim, options: DropBillOptions) => {
     setBusy(true);
+    setPipelineDetail("");
+    const useOnChain = Boolean(IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain);
+
     try {
-      if (IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain) {
+      let finalClaim = claimInput;
+      if (options.runOcr && (options.fileBlob || options.pngUrl)) {
+        setPipelineStage("Reading bill…");
+        showStatus("Reading bill…", "working");
+        let blob = options.fileBlob;
+        if (!blob && options.pngUrl) {
+          const res = await fetch(options.pngUrl);
+          if (!res.ok) throw new Error("Unable to load bill image.");
+          blob = await res.blob();
+        }
+        if (blob) {
+          const { parsed } = await runLocalOcrOnBill(blob, (_s, pct) => setPipelineDetail(`${pct}%`));
+          finalClaim = mergeOcrClaim(claimInput, parsed, options.fromRecentVisit, options.displayTitle);
+        }
+      }
+
+      const completeness = validateCms1500Completeness(finalClaim);
+      if (!completeness.valid) {
+        const failed = completeness.checks.find((c) => !c.passed);
+        throw new Error(failed ? `Missing ${failed.label} (${failed.detail}).` : "Incomplete medical bill fields.");
+      }
+
+      setPipelineStage("Encrypting locally…");
+      setPipelineDetail("");
+      showStatus("Encrypting locally…", "working");
+
+      const enc = await encryptClinicalPayload(finalClaim);
+      const computedCid = await computeDeterministicCidV1(enc.envelopeBytes);
+      const summary = formatClinicalSummary(finalClaim, options.displayTitle);
+      const cleanTitle = sanitizeLabel(options.displayTitle || finalClaim.caseLabel);
+
+      let entry: StoredVaultEntry = { cid: computedCid, recordCommitmentHex: enc.recordCommitmentHex, envelope: enc.envelope, createdAt: new Date().toISOString(), patientAddress: address || canonicalFixtures.accounts.patient, hospitalAddress: targetHospital, summaryHint: `${cleanTitle} (${finalClaim.claimAmountEth} ETH)` };
+      await saveEncryptedRecordToVault(entry);
+      persistSummary(enc.recordCommitmentHex, summary);
+      setSummaries((prev) => ({ ...prev, [enc.recordCommitmentHex.toLowerCase()]: summary }));
+
+      const dekKey = `qlo-dek-${enc.recordCommitmentHex.toLowerCase()}`;
+      const dekSerialized = JSON.stringify(Array.from(enc.dekRawBytes));
+      sessionStorage.setItem(dekKey, dekSerialized);
+      localStorage.setItem(dekKey, dekSerialized);
+      setEncrypted(enc);
+
+      setPipelineStage("Anchoring fingerprint…");
+      showStatus("Anchoring fingerprint…", "working");
+
+      let recId = "";
+      if (useOnChain && publicClient && address) {
         await ensureSepoliaChain(roles.chainId, switchChainAsync);
-
-        const existingRecId = (await publicClient.readContract({
-          address: CONTRACTS.HealthRecords.address,
-          abi: CONTRACTS.HealthRecords.abi,
-          functionName: "commitmentToRecordId",
-          args: [encrypted.recordCommitmentHex],
-        })) as bigint;
-
-        let idStr = "";
-        let txHash: `0x${string}` | undefined;
-
+        const existingRecId = await readRecordId(enc.recordCommitmentHex);
         if (existingRecId > 0n) {
-          idStr = existingRecId.toString();
-          toast.success(`Record #${idStr} is already anchored on Ethereum Sepolia`);
+          recId = existingRecId.toString();
         } else {
-          const { hash } = await preflightSimulateAndWrite({
-            publicClient,
-            account: address,
-            address: CONTRACTS.HealthRecords.address,
-            abi: CONTRACTS.HealthRecords.abi as Abi,
-            functionName: "registerRecord",
-            args: [encrypted.recordCommitmentHex, cid],
-            writeContractAsync,
-          });
-          txHash = hash;
-          const recId = (await publicClient.readContract({
-            address: CONTRACTS.HealthRecords.address,
-            abi: CONTRACTS.HealthRecords.abi,
-            functionName: "commitmentToRecordId",
-            args: [encrypted.recordCommitmentHex],
-          })) as bigint;
-          idStr = recId.toString();
-          toast.success(`Registered record #${idStr} on Ethereum Sepolia`);
+          const { hash } = await preflightSimulateAndWrite({ publicClient, account: address, address: CONTRACTS.HealthRecords.address, abi: CONTRACTS.HealthRecords.abi as Abi, functionName: "registerRecord", args: [enc.recordCommitmentHex, computedCid], writeContractAsync });
+          recId = (await readRecordId(enc.recordCommitmentHex)).toString();
+          setAuditItems((prev) => [{ id: `reg-${Date.now()}`, kind: "registered", title: `Record #${recId} Anchored`, detail: `CID ${shortHex(computedCid, 10, 6)}`, timestamp: new Date().toLocaleTimeString(), txHash: hash, explorerUrl: explorerTxUrl(hash) }, ...prev]);
         }
-
-        setRegisteredRecordId(idStr);
-        if (vaultEntry) {
-          const updated = { ...vaultEntry, recordId: idStr };
-          setVaultEntry(updated);
-          await saveEncryptedRecordToVault(updated);
-          await pushCiphertextToRelay(updated);
-        }
-        if (txHash) {
-          setAuditItems((prev) => [
-            {
-              id: `reg-${Date.now()}`,
-              kind: "registered",
-              title: `Record #${idStr} Registered On-Chain`,
-              detail: `CIDv1 ${cid} | Commitment ${encrypted.recordCommitmentHex}`,
-              timestamp: new Date().toLocaleTimeString(),
-              txHash,
-              explorerUrl: explorerTxUrl(txHash),
-            },
-            ...prev,
-          ]);
-        }
-        await Promise.all([syncOverviewState(), roles.refetch()]);
       } else {
-        const updatedMirror = await postRelayAction({
-          action: "registerRecord",
-          recordCommitmentHex: encrypted.recordCommitmentHex,
-          cid,
-          patient: address || canonicalFixtures.accounts.patient,
-        });
+        const updatedMirror = await postRelayAction({ action: "registerRecord", recordCommitmentHex: enc.recordCommitmentHex, cid: computedCid, patient: address || canonicalFixtures.accounts.patient });
         const mirror = updatedMirror ?? loadLocalChainMirror();
-        const existing = mirror.records.find(
-          (r) => r.recordCommitmentHex.toLowerCase() === encrypted.recordCommitmentHex.toLowerCase()
-        );
-        const recId = existing ? existing.recordId : String(mirror.nextRecordId);
+        const existing = mirror.records.find((r) => r.recordCommitmentHex.toLowerCase() === enc.recordCommitmentHex.toLowerCase());
+        recId = existing ? existing.recordId : String(mirror.nextRecordId);
         if (!updatedMirror) {
           if (!existing) {
             mirror.nextRecordId += 1;
-            mirror.records.push({
-              recordId: recId,
-              patient: address || canonicalFixtures.accounts.patient,
-              recordCommitmentHex: encrypted.recordCommitmentHex,
-              cid,
-              createdAt: Math.floor(Date.now() / 1000),
-            });
+            mirror.records.push({ recordId: recId, patient: address || canonicalFixtures.accounts.patient, recordCommitmentHex: enc.recordCommitmentHex, cid: computedCid, createdAt: Math.floor(Date.now() / 1000) });
           }
-          const entry: AuditEventItem = {
-            id: `reg-${Date.now()}`,
-            kind: "registered",
-            title: `Record #${recId} Registered (Local Sandbox)`,
-            detail: `CIDv1 ${cid} | 248-bit Commit ${encrypted.recordCommitmentHex}`,
-            timestamp: new Date().toLocaleTimeString(),
-          };
-          mirror.auditLogs = [entry, ...mirror.auditLogs];
+          mirror.auditLogs = [{ id: `reg-${Date.now()}`, kind: "registered", title: `Record #${recId} Anchored`, detail: `CID ${shortHex(computedCid, 10, 6)}`, timestamp: new Date().toLocaleTimeString() }, ...mirror.auditLogs];
           saveLocalChainMirror(mirror);
         }
-        setRegisteredRecordId(recId);
-        if (vaultEntry) {
-          const updated = { ...vaultEntry, recordId: recId };
-          setVaultEntry(updated);
-          await saveEncryptedRecordToVault(updated);
-          await pushCiphertextToRelay(updated);
-        }
-        window.dispatchEvent(new Event("storage"));
         setAuditItems(mirror.auditLogs);
-        await syncOverviewState();
-        toast.success(`Registered encrypted record #${recId} & published Zero-PHI ciphertext bundle`);
       }
-    } catch (err) {
-      toast.error(decodeContractError(err));
-    } finally {
-      setBusy(false);
-    }
-  };
 
-  const handleGrantAccess = async () => {
-    if (!encrypted || !registeredRecordId) {
-      toast.error("Encrypt and register the record first.");
-      return;
-    }
-    setBusy(true);
-    try {
+      entry = { ...entry, recordId: recId, hospitalAddress: targetHospital };
+      setRegisteredRecordId(recId);
+      await saveEncryptedRecordToVault(entry);
+      await pushCiphertextToRelay(entry);
+
+      setPipelineStage("Authorizing provider…");
+      showStatus("Authorizing provider…", "working");
+
       let hospitalPubHex = "";
       if (IS_CHAIN_DEPLOYED && publicClient) {
-        const onChainPub = (await publicClient.readContract({
-          address: CONTRACTS.HospitalRegistry.address,
-          abi: CONTRACTS.HospitalRegistry.abi,
-          functionName: "hospitalEncryptionPubKey",
-          args: [targetHospital as `0x${string}`],
-        })) as `0x${string}`;
-        if (onChainPub && onChainPub.length >= 132) {
-          hospitalPubHex = onChainPub;
-          setPubKeySource("On-Chain HospitalRegistry");
-        }
+        const onChainPub = (await publicClient.readContract({ address: CONTRACTS.HospitalRegistry.address, abi: CONTRACTS.HospitalRegistry.abi, functionName: "hospitalEncryptionPubKey", args: [targetHospital as `0x${string}`] })) as `0x${string}`;
+        if (onChainPub && onChainPub.length >= 132) hospitalPubHex = onChainPub;
       }
       if (!hospitalPubHex) {
-        const relayState = await fetchRelayState();
-        const remoteKey = relayState?.hospitalPubKeys?.[targetHospital.toLowerCase()];
-        if (remoteKey && remoteKey.length >= 132) {
-          hospitalPubHex = remoteKey;
-          setPubKeySource("Clearinghouse Directory ECDH");
-        }
+        const remoteKey = (await fetchRelayState())?.hospitalPubKeys?.[targetHospital.toLowerCase()];
+        if (remoteKey && remoteKey.length >= 132) hospitalPubHex = remoteKey;
       }
-      if (!hospitalPubHex) {
-        const kp = await getOrCreateHospitalKeypair(targetHospital);
-        hospitalPubHex = kp.publicKeyHex;
-        setPubKeySource("Local ECDH Keypair");
-      }
+      if (!hospitalPubHex) hospitalPubHex = (await getOrCreateHospitalKeypair(targetHospital)).publicKeyHex;
 
-      const encryptedDekHex = await wrapDekForHospital(encrypted.dekRawBytes, hospitalPubHex);
-      const durationSeconds = BigInt(grantMinutes * 60);
+      const encryptedDekHex = await wrapDekForHospital(enc.dekRawBytes, hospitalPubHex);
       const expiresAt = Math.floor(Date.now() / 1000) + grantMinutes * 60;
+      const facilityName = getFacilityName(targetHospital);
+      const grantPayload = { action: "grant", recordId: recId, hospitalAddress: targetHospital, expiresAt, grantMinutes, encryptedDekHex, recordCommitmentHex: enc.recordCommitmentHex, hospitalPubKeyHex: hospitalPubHex };
 
-      if (IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain) {
+      if (useOnChain && publicClient && address) {
         await ensureSepoliaChain(roles.chainId, switchChainAsync);
-
-        if (vaultEntry) {
-          const entryWithTarget: StoredVaultEntry = {
-            ...vaultEntry,
-            recordId: registeredRecordId,
-            hospitalAddress: targetHospital,
-          };
-          setVaultEntry(entryWithTarget);
-          await saveEncryptedRecordToVault(entryWithTarget);
-          await pushCiphertextToRelay(entryWithTarget);
-        }
-
-        const { hash } = await preflightSimulateAndWrite({
-          publicClient,
-          account: address,
-          address: CONTRACTS.HealthRecords.address,
-          abi: CONTRACTS.HealthRecords.abi as Abi,
-          functionName: "grantAccess",
-          args: [
-            BigInt(registeredRecordId),
-            targetHospital as `0x${string}`,
-            durationSeconds,
-            encryptedDekHex,
-          ],
-          writeContractAsync,
-        });
+        const { hash } = await preflightSimulateAndWrite({ publicClient, account: address, address: CONTRACTS.HealthRecords.address, abi: CONTRACTS.HealthRecords.abi as Abi, functionName: "grantAccess", args: [BigInt(recId), targetHospital as `0x${string}`, BigInt(grantMinutes * 60), encryptedDekHex], writeContractAsync });
+        await postRelayAction(grantPayload);
         setGrantExpiresAt(expiresAt);
-        toast.success(`Granted ${grantMinutes}-minute ECDH-wrapped DEK access on Ethereum Sepolia`);
-        setAuditItems((prev) => [
-          {
-            id: `grant-${Date.now()}`,
-            kind: "granted",
-            title: `Access Granted (${grantMinutes}m) — Record #${registeredRecordId}`,
-            detail: `Hospital ${targetHospital} | Wrapped DEK (${(encryptedDekHex.length - 2) / 2} bytes)`,
-            timestamp: new Date().toLocaleTimeString(),
-            txHash: hash,
-            explorerUrl: explorerTxUrl(hash),
-          },
-          ...prev,
-        ]);
+        setAuditItems((prev) => [{ id: `grant-${Date.now()}`, kind: "granted", title: `Shared with ${facilityName} (${grantMinutes}m)`, detail: `Record #${recId}`, timestamp: new Date().toLocaleTimeString(), txHash: hash, explorerUrl: explorerTxUrl(hash) }, ...prev]);
         await Promise.all([syncOverviewState(), roles.refetch()]);
       } else {
-        if (vaultEntry) {
-          const entryWithTarget: StoredVaultEntry = {
-            ...vaultEntry,
-            recordId: registeredRecordId,
-            hospitalAddress: targetHospital,
-          };
-          setVaultEntry(entryWithTarget);
-          await saveEncryptedRecordToVault(entryWithTarget);
-          await pushCiphertextToRelay(entryWithTarget);
-        }
-
-        const updatedMirror = await postRelayAction({
-          action: "grant",
-          recordId: registeredRecordId,
-          hospitalAddress: targetHospital,
-          expiresAt,
-          grantMinutes,
-          encryptedDekHex,
-          recordCommitmentHex: encrypted.recordCommitmentHex,
-          hospitalPubKeyHex: hospitalPubHex,
-        });
-
+        const updatedMirror = await postRelayAction(grantPayload);
         const mirror = updatedMirror ?? loadLocalChainMirror();
         if (!updatedMirror) {
           mirror.hospitalPubKeys[targetHospital.toLowerCase()] = hospitalPubHex;
-          mirror.grants[`${registeredRecordId}:${targetHospital.toLowerCase()}`] = {
-            expiresAt,
-            encryptedDekHex,
-          };
-          const logEntry: AuditEventItem = {
-            id: `grant-${Date.now()}`,
-            kind: "granted",
-            title: `Access Granted (${grantMinutes}m) — Record #${registeredRecordId}`,
-            detail: `Hospital ${targetHospital} | ECDH P-256 Wrapped DEK (${(encryptedDekHex.length - 2) / 2} bytes)`,
-            timestamp: new Date().toLocaleTimeString(),
-          };
-          mirror.auditLogs = [logEntry, ...mirror.auditLogs];
+          mirror.grants[`${recId}:${targetHospital.toLowerCase()}`] = { expiresAt, encryptedDekHex };
+          mirror.auditLogs = [{ id: `grant-${Date.now()}`, kind: "granted", title: `Shared with ${facilityName} (${grantMinutes}m)`, detail: `Record #${recId}`, timestamp: new Date().toLocaleTimeString() }, ...mirror.auditLogs];
           saveLocalChainMirror(mirror);
         }
-
         window.dispatchEvent(new Event("storage"));
         setGrantExpiresAt(expiresAt);
         setAuditItems(mirror.auditLogs);
         await syncOverviewState();
-        toast.success(`Granted ${grantMinutes}-minute ECDH-wrapped access to Hospital`);
       }
+      showStatus(`Shared with ${facilityName} (${grantMinutes}m)`, "done");
     } catch (err) {
-      toast.error(decodeContractError(err));
+      const msg = decodeContractError(err);
+      showStatus(msg, "error");
+      toast.error(msg);
     } finally {
       setBusy(false);
+      setPipelineStage(null);
+      setPipelineDetail("");
     }
   };
 
-  const handleRevokeAccess = async () => {
-    if (!registeredRecordId) return;
-    setBusy(true);
+  const handleRevoke = async (entry: StoredVaultEntry) => {
+    if (!entry.recordId) return;
+    const hospAddr = entry.hospitalAddress || targetHospital;
+    const facilityName = getFacilityName(hospAddr);
+    setRevokingKey(entry.recordCommitmentHex);
+    showStatus("Revoking access…", "working");
+
     try {
-      if (IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain) {
+      const useOnChain = Boolean(IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain);
+      if (useOnChain && publicClient && address) {
         await ensureSepoliaChain(roles.chainId, switchChainAsync);
-        const { hash } = await preflightSimulateAndWrite({
-          publicClient,
-          account: address,
-          address: CONTRACTS.HealthRecords.address,
-          abi: CONTRACTS.HealthRecords.abi as Abi,
-          functionName: "revokeAccess",
-          args: [BigInt(registeredRecordId), targetHospital as `0x${string}`],
-          writeContractAsync,
-        });
-        setGrantExpiresAt(0);
-        toast.success("Access revoked on Ethereum Sepolia — Hospital settlement now blocked!");
-        setAuditItems((prev) => [
-          {
-            id: `rev-${Date.now()}`,
-            kind: "revoked",
-            title: `Access Revoked — Record #${registeredRecordId}`,
-            detail: `Hospital ${targetHospital} cleared & DEK deleted on-chain`,
-            timestamp: new Date().toLocaleTimeString(),
-            txHash: hash,
-            explorerUrl: explorerTxUrl(hash),
-          },
-          ...prev,
-        ]);
+        const { hash } = await preflightSimulateAndWrite({ publicClient, account: address, address: CONTRACTS.HealthRecords.address, abi: CONTRACTS.HealthRecords.abi as Abi, functionName: "revokeAccess", args: [BigInt(entry.recordId), hospAddr as `0x${string}`], writeContractAsync });
+        await postRelayAction({ action: "revoke", recordId: entry.recordId, hospitalAddress: hospAddr });
+        setAuditItems((prev) => [{ id: `rev-${Date.now()}`, kind: "revoked", title: `Revoked ${facilityName} — Record #${entry.recordId}`, detail: "Access cleared", timestamp: new Date().toLocaleTimeString(), txHash: hash, explorerUrl: explorerTxUrl(hash) }, ...prev]);
         await Promise.all([syncOverviewState(), roles.refetch()]);
       } else {
-        const updatedMirror = await postRelayAction({
-          action: "revoke",
-          recordId: registeredRecordId,
-          hospitalAddress: targetHospital,
-        });
+        const updatedMirror = await postRelayAction({ action: "revoke", recordId: entry.recordId, hospitalAddress: hospAddr });
         const mirror = updatedMirror ?? loadLocalChainMirror();
         if (!updatedMirror) {
-          delete mirror.grants[`${registeredRecordId}:${targetHospital.toLowerCase()}`];
-          const logEntry: AuditEventItem = {
-            id: `rev-${Date.now()}`,
-            kind: "revoked",
-            title: `Access Revoked — Record #${registeredRecordId}`,
-            detail: `Hospital ${targetHospital} blocked; wrapped DEK deleted`,
-            timestamp: new Date().toLocaleTimeString(),
-          };
-          mirror.auditLogs = [logEntry, ...mirror.auditLogs];
+          delete mirror.grants[`${entry.recordId}:${hospAddr.toLowerCase()}`];
+          mirror.auditLogs = [{ id: `rev-${Date.now()}`, kind: "revoked", title: `Revoked ${facilityName} — Record #${entry.recordId}`, detail: "Access cleared", timestamp: new Date().toLocaleTimeString() }, ...mirror.auditLogs];
           saveLocalChainMirror(mirror);
         }
         window.dispatchEvent(new Event("storage"));
-        setGrantExpiresAt(0);
         setAuditItems(mirror.auditLogs);
         await syncOverviewState();
-        toast.success("Access revoked! Hospital decryption & settlement are now blocked.");
       }
+      showStatus(`Revoked ${facilityName}`, "done");
     } catch (err) {
-      toast.error(decodeContractError(err));
+      const msg = decodeContractError(err);
+      showStatus(msg, "error");
+      toast.error(msg);
     } finally {
-      setBusy(false);
+      setRevokingKey(null);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <PatientOverviewHeader
-        isPatientRole={roles.isPatient}
-        isChainDeployed={IS_CHAIN_DEPLOYED}
-        secondsRemaining={secondsRemaining}
-        hasEncrypted={Boolean(encrypted)}
-        hasRegistered={Boolean(registeredRecordId)}
-      />
+    <div className="mx-auto max-w-4xl space-y-6">
+      <PatientOverviewHeader isPatientRole={roles.isPatient} isChainDeployed={IS_CHAIN_DEPLOYED} secondsRemaining={secondsRemaining} hasEncrypted={Boolean(encrypted)} hasRegistered={Boolean(registeredRecordId)} />
+      <DropIntake targetHospital={targetHospital} onChangeTargetHospital={setTargetHospital} grantMinutes={grantMinutes} onChangeGrantMinutes={setGrantMinutes} busy={busy} stage={pipelineStage} stageDetail={pipelineDetail} onDropBill={handleDropBill} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <Cms1500IntakeCard
-          claim={claim}
-          onChangeClaim={setClaim}
-          completeness={completeness}
-          ocrRunning={ocrRunning}
-          ocrStatus={ocrStatus}
-          onRunSampleOcr={handleTestSampleBillOcr}
-          onFileSelected={handleTextFileUpload}
-        />
-
-        <PatientConsentPanel
-          claim={claim}
-          encrypted={encrypted}
-          cid={cid}
-          registeredRecordId={registeredRecordId}
-          secondsRemaining={secondsRemaining}
-          targetHospital={targetHospital}
-          onChangeTargetHospital={setTargetHospital}
-          connectedAddress={address}
-          grantMinutes={grantMinutes}
-          onChangeGrantMinutes={setGrantMinutes}
-          busy={busy}
-          completenessValid={completeness.valid}
-          vaultEntry={vaultEntry}
-          canSignChainTx={!roles.wrongChain}
-          onEncryptLocally={handleEncryptLocally}
-          onDownloadBundle={downloadBundleEntry}
-          onRegisterOnChain={handleRegisterOnChain}
-          onGrantAccess={handleGrantAccess}
-          onRevokeAccess={handleRevokeAccess}
-        />
-      </div>
-
-      <section className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] overflow-hidden">
-        <div
-          role="tablist"
-          aria-label="Patient vault records, audit log, and benefits"
-          className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E4E4E7] bg-[#F4F4F5] px-4 py-2.5"
-        >
-          <div className="inline-flex items-center gap-1 rounded-lg border border-[#E4E4E7] bg-[#FFFFFF] p-0.5">
-            {(
-              [
-                ["vault", `Encrypted Vault (${vaultItems.length})`],
-                ["audit", `Consent Log (${auditItems.length})`],
-                ["benefits", "Covered CPTs"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                role="tab"
-                type="button"
-                aria-selected={bottomTab === id}
-                onClick={() => setBottomTab(id)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
-                  bottomTab === id
-                    ? "bg-[#F4F4F5] text-[#09090B] border border-[#D4D4D8]"
-                    : "text-[#52525B] hover:text-[#09090B] border border-transparent"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+      <section className="overflow-hidden rounded-2xl border border-[#E4E4E7] bg-[#FFFFFF]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E4E4E7] px-5 py-3.5">
+          <div className="flex items-center gap-4">
+            <button type="button" onClick={() => setSectionTab("records")} className={`text-sm font-semibold transition-colors cursor-pointer ${sectionTab === "records" ? "text-[#09090B]" : "text-[#71717A] hover:text-[#09090B]"}`}>
+              Shared Records<span className="ml-1.5 font-mono-tabular text-xs font-normal text-[#71717A]">{vaultItems.length}</span>
+            </button>
+            <button type="button" onClick={() => setSectionTab("activity")} className={`text-xs font-medium transition-colors cursor-pointer ${sectionTab === "activity" ? "text-[#09090B]" : "text-[#71717A] hover:text-[#09090B]"}`}>
+              Activity{auditItems.length > 0 ? <span className="ml-1 font-mono-tabular text-[#71717A]">({auditItems.length})</span> : null}
+            </button>
           </div>
-
-          <div className="flex items-center gap-2 text-[11px] font-mono-tabular text-[#71717A]">
-            <span>{activeGrantsCount} active grants</span>
-            <span>·</span>
-            <span>{settledClaimsCount} settled</span>
-            {pubKeySource ? <span className="text-[#52525B]">· {pubKeySource}</span> : null}
+          <div className="flex items-center gap-2 font-mono-tabular text-xs text-[#71717A]">
+            <span>{activeCount} active</span><span>·</span><span>{settledClaimsCount} settled</span>
           </div>
         </div>
 
-        <div className="p-5">
-          {bottomTab === "vault" ? (
-            <PatientVaultTable
-              vaultItems={vaultItems}
-              targetHospital={targetHospital}
-              activeGrantsMap={activeGrantsMap}
-              nowSec={nowSec}
-              onDownloadBundle={(item) => downloadBundleEntry(item)}
-            />
-          ) : bottomTab === "audit" ? (
-            <div id="patient-audit" className="space-y-4 scroll-mt-20">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-[#09090B]">Access &amp; Consent Activity Log</h3>
-                <Badge variant="neutral">On-Chain Events</Badge>
-              </div>
-              <AuditTimeline items={auditItems} />
-            </div>
+        {sectionTab === "records" ? (
+          vaultItems.length === 0 ? (
+            <div className="px-5 py-10 text-center text-xs text-[#71717A]">No shared records yet. Drop a bill above to encrypt and share.</div>
           ) : (
-            <CoveredBenefitsSection />
-          )}
-        </div>
+            <ul className="divide-y divide-[#E4E4E7]">
+              {vaultItems.map((item) => {
+                const hospAddr = item.hospitalAddress || targetHospital;
+                const facility = getFacilityName(hospAddr);
+                const grant = item.recordId ? activeGrantsMap[`${item.recordId}:${hospAddr.toLowerCase()}`] : undefined;
+                const remaining = grant ? Math.max(0, grant.expiresAt - nowSec) : 0;
+                const isActive = remaining > 0;
+                const { mins, secs } = formatCountdown(remaining);
+                const expanded = Boolean(expandedKeys[item.recordCommitmentHex]);
+                const isRevoking = revokingKey === item.recordCommitmentHex;
+                const summary = summaries[item.recordCommitmentHex.toLowerCase()] || sanitizeLabel(item.summaryHint);
+
+                return (
+                  <li key={item.recordCommitmentHex} className="px-5 py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-[#09090B]">{facility}</span>
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-mono-tabular text-[11px] font-medium ${isActive ? "bg-[#ECFDF5] text-[#059669]" : "bg-[#F4F4F5] text-[#71717A]"}`}>
+                            {isActive ? `Active · ${mins}:${String(secs).padStart(2, "0")}` : "Not Shared"}
+                          </span>
+                        </div>
+                        <p className="truncate text-xs text-[#52525B]">{sanitizeLabel(item.summaryHint)}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isActive && item.recordId ? (
+                          <button type="button" disabled={isRevoking || busy} onClick={() => void handleRevoke(item)} className="inline-flex items-center gap-1 rounded-lg border border-[#E4E4E7] bg-[#FFFFFF] px-2.5 py-1.5 text-xs font-medium text-[#DC2626] transition-colors hover:border-[#DC2626]/40 hover:bg-[#FEF2F2] disabled:opacity-50 cursor-pointer">
+                            <ShieldOff className="h-3.5 w-3.5" aria-hidden="true" />{isRevoking ? "Revoking…" : "Revoke"}
+                          </button>
+                        ) : null}
+                        <button type="button" aria-expanded={expanded} onClick={() => setExpandedKeys((prev) => ({ ...prev, [item.recordCommitmentHex]: !prev[item.recordCommitmentHex] }))} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[#52525B] transition-colors hover:bg-[#F4F4F5] hover:text-[#09090B] cursor-pointer">
+                          <span>Details</span>
+                          <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-150 ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {expanded ? (
+                      <div className="mt-3 rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-3.5 text-xs">
+                        <dl className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                          <div><dt className="text-[11px] text-[#71717A]">Commitment (248-bit)</dt><dd title={item.recordCommitmentHex} className="mt-0.5 font-mono-tabular text-[#09090B]">{shortHex(item.recordCommitmentHex, 10, 8)}</dd></div>
+                          <div><dt className="text-[11px] text-[#71717A]">CIDv1</dt><dd title={item.cid} className="mt-0.5 font-mono-tabular text-[#09090B]">{shortHex(item.cid, 12, 8)}</dd></div>
+                          <div className="sm:col-span-2"><dt className="text-[11px] text-[#71717A]">Clinical summary</dt><dd className="mt-0.5 text-[#27272A]">{summary}</dd></div>
+                        </dl>
+                        <div className="mt-3 flex items-center justify-end border-t border-[#E4E4E7] pt-2.5">
+                          <button type="button" onClick={() => downloadBundleEntry(item)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#E4E4E7] bg-[#FFFFFF] px-2.5 py-1 text-xs font-medium text-[#09090B] transition-colors hover:bg-[#F4F4F5] cursor-pointer">
+                            <Download className="h-3.5 w-3.5" aria-hidden="true" />Backup
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )
+        ) : (
+          <div className="p-5"><AuditTimeline items={auditItems} /></div>
+        )}
       </section>
     </div>
   );

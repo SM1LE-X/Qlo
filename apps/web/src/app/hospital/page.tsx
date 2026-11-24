@@ -1,50 +1,99 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import type { Abi } from "viem";
+import type { Abi, PublicClient } from "viem";
 import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
-import { EnterpriseVerificationDock } from "@/components/hospital/enterprise-verification-dock";
+import { ClaimsQueue, type ClaimRowState } from "@/components/hospital/claims-queue";
 import { HospitalOverviewHeader } from "@/components/hospital/hospital-overview-header";
-import { HospitalProverCard } from "@/components/hospital/hospital-prover-card";
-import { HospitalRecordQueueCard } from "@/components/hospital/hospital-record-queue-card";
+import { useAmbientStatus } from "@/components/ui/ambient-pill";
 import canonicalFixtures from "@/lib/canonicalFixtures.json";
-import { CONTRACTS, IS_CHAIN_DEPLOYED, explorerTxUrl } from "@/lib/contracts";
-import {
-  decryptClinicalPayload,
-  getOrCreateHospitalKeypair,
-  unwrapDekForHospital,
-} from "@/lib/crypto";
-import {
-  executeHospitalGuardrailCheck,
-  type AttackId,
-} from "@/lib/hospitalGuardrails";
-import { validateCms1500Completeness, type Cms1500Claim } from "@/lib/intake";
-import { loadLocalChainMirror, saveLocalChainMirror } from "@/lib/localState";
-import {
-  buildCircuitInputFromClaim,
-  generateClaimProof,
-  type ProveStage,
-  type ProverOutput,
-} from "@/lib/prover";
-import {
-  fetchHospitalRelayVault,
-  fetchRelayState,
-  postRelayAction,
-} from "@/lib/relayClient";
-import {
-  importAndVerifyQloBundle,
-  listVaultEntries,
-  saveEncryptedRecordToVault,
-  type StoredVaultEntry,
-} from "@/lib/storage";
-import {
-  decodeContractError,
-  ensureSepoliaChain,
-  preflightSimulateAndWrite,
-} from "@/lib/txHelpers";
+import { CONTRACTS, IS_CHAIN_DEPLOYED } from "@/lib/contracts";
+import { decryptClinicalPayload, getOrCreateHospitalKeypair, unwrapDekForHospital } from "@/lib/crypto";
+import { type Cms1500Claim } from "@/lib/intake";
+import { loadLocalChainMirror, saveLocalChainMirror, type LocalChainMirror } from "@/lib/localState";
+import { buildCircuitInputFromClaim, generateClaimProof } from "@/lib/prover";
+import { fetchHospitalRelayVault, fetchRelayState, postRelayAction } from "@/lib/relayClient";
+import { importAndVerifyQloBundle, listVaultEntries, saveEncryptedRecordToVault, type StoredVaultEntry } from "@/lib/storage";
+import { decodeContractError, ensureSepoliaChain, preflightSimulateAndWrite } from "@/lib/txHelpers";
 import { useWalletRoles } from "@/lib/useWalletRoles";
 import { formatWeiToEth, parseEthToWei } from "@/lib/utils";
+
+const POLICY_COMMIT = canonicalFixtures.activePolicy.commitment;
+const REVOKED_PATCH: Partial<ClaimRowState> = { status: "revoked", decryptedClaim: null, proverOutput: null, proofMs: null };
+
+function readContractSafe<T>(pc: PublicClient, contract: keyof typeof CONTRACTS, functionName: string, args?: readonly unknown[]): Promise<T> {
+  return pc.readContract({ address: CONTRACTS[contract].address, abi: CONTRACTS[contract].abi, functionName, ...(args ? { args } : {}) } as Parameters<PublicClient["readContract"]>[0]) as Promise<T>;
+}
+
+function classifyExclusion(claim: Cms1500Claim, priorSpentWei: bigint): string {
+  if (!canonicalFixtures.coveredCpts.includes(Number(claim.cptCode.trim()))) return "Excluded CPT";
+  if (claim.useExpiredPolicy) return "Expired policy";
+  try {
+    const amt = parseEthToWei(claim.claimAmountEth || "0");
+    if (amt <= 0n) return "Invalid amount";
+    if (priorSpentWei + amt > BigInt(canonicalFixtures.activePolicy.annualLimitWei)) return "Exceeds annual cap";
+  } catch {
+    return "Invalid amount";
+  }
+  return "Policy excluded";
+}
+
+function buildInitialRows(entries: StoredVaultEntry[], prevRows: ClaimRowState[], mirror: LocalChainMirror, forceReprove: boolean): ClaimRowState[] {
+  const prevMap = new Map(prevRows.map((r) => [r.entry.recordCommitmentHex.toLowerCase(), r]));
+  return entries.map((entry) => {
+    const key = entry.recordCommitmentHex.toLowerCase();
+    const prev = prevMap.get(key);
+    const settled = mirror.settledClaims.find((c) => c.recordCommitmentHex.toLowerCase() === key);
+    if (settled) {
+      return { entry, recordId: entry.recordId || prev?.recordId || "", status: "settled", decryptedClaim: prev?.decryptedClaim ?? null, proverOutput: prev?.proverOutput ?? null, amountEth: formatWeiToEth(settled.amountWei, 4), proofMs: prev?.proofMs ?? null, settledTxHash: settled.txHash, isOnChainTx: Boolean(prev?.isOnChainTx) };
+    }
+    if (prev?.status === "settled") return { ...prev, entry };
+    return { entry, recordId: entry.recordId || prev?.recordId || "", status: prev?.status === "ready" && !forceReprove ? "ready" : "checking", decryptedClaim: prev?.decryptedClaim ?? null, proverOutput: !forceReprove ? prev?.proverOutput ?? null : null, amountEth: prev?.amountEth ?? null, proofMs: !forceReprove ? prev?.proofMs ?? null : null, settledTxHash: null, isOnChainTx: false };
+  });
+}
+
+async function resolveActiveGrant(entry: StoredVaultEntry, targetAddr: string, mirror: LocalChainMirror, pc?: PublicClient) {
+  const key = entry.recordCommitmentHex.toLowerCase();
+  let recordId = entry.recordId || "";
+  if (IS_CHAIN_DEPLOYED && pc) {
+    try {
+      const recId = await readContractSafe<bigint>(pc, "HealthRecords", "commitmentToRecordId", [entry.recordCommitmentHex]);
+      if (recId > 0n) {
+        recordId = recId.toString();
+        const [expiresAt, dek] = await readContractSafe<[bigint, `0x${string}`]>(pc, "HealthRecords", "getGrant", [recId, targetAddr as `0x${string}`]);
+        const active = expiresAt > BigInt(Math.floor(Date.now() / 1000)) && Boolean(dek && dek !== "0x");
+        return { grantActive: active, encryptedDekHex: active ? dek : "", recordId };
+      }
+    } catch {
+      // Fall through to relay mirror when record is off-chain
+    }
+  }
+  const rec = mirror.records.find((r) => r.recordCommitmentHex.toLowerCase() === key);
+  if (!rec) return { grantActive: false, encryptedDekHex: "", recordId };
+  const grant = mirror.grants[`${rec.recordId}:${targetAddr.toLowerCase()}`];
+  const active = Boolean(grant && grant.expiresAt > Math.floor(Date.now() / 1000) && grant.encryptedDekHex);
+  return { grantActive: active, encryptedDekHex: active && grant ? grant.encryptedDekHex : "", recordId: rec.recordId };
+}
+
+function settleInLocalMirror(row: ClaimRowState, hospitalAddr: string, txHash: string) {
+  const { pubSignals, rawCalldataHex } = row.proverOutput!.solidity;
+  const [policyStr, nullifierStr, amount] = [pubSignals[1].toString(), pubSignals[2].toString(), pubSignals[3]];
+  const mirror = loadLocalChainMirror();
+  const key = row.entry.recordCommitmentHex.toLowerCase();
+  const recId = mirror.records.find((r) => r.recordCommitmentHex.toLowerCase() === key)?.recordId;
+  const grant = recId ? mirror.grants[`${recId}:${hospitalAddr.toLowerCase()}`] : null;
+  if (!grant || grant.expiresAt <= Math.floor(Date.now() / 1000)) throw new Error("ClaimsVault.PatientAccessNotActive()");
+  if (mirror.nullifierUsed[nullifierStr]) throw new Error("ClaimsVault.NullifierAlreadyUsed()");
+  if (BigInt(mirror.insurerEscrowWei) < amount) throw new Error("ClaimsVault.InsufficientEscrow()");
+  saveLocalChainMirror({
+    ...mirror,
+    nullifierUsed: { ...mirror.nullifierUsed, [nullifierStr]: true },
+    policySpentWei: { ...mirror.policySpentWei, [policyStr]: (BigInt(mirror.policySpentWei[policyStr] ?? "0") + amount).toString() },
+    insurerEscrowWei: (BigInt(mirror.insurerEscrowWei) - amount).toString(),
+    settledClaims: [{ txHash, nullifier: nullifierStr, policyCommitment: policyStr, recordCommitmentHex: row.entry.recordCommitmentHex, hospital: hospitalAddr, amountWei: amount.toString(), settledAt: Math.floor(Date.now() / 1000), rawCalldataHex, pubSignals: row.proverOutput!.publicSignals }, ...mirror.settledClaims],
+  });
+}
 
 export default function HospitalPage() {
   const { address } = useAccount();
@@ -52,277 +101,199 @@ export default function HospitalPage() {
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
   const roles = useWalletRoles();
+  const { showStatus } = useAmbientStatus();
 
-  const [entries, setEntries] = useState<StoredVaultEntry[]>([]);
-  const [selectedEntry, setSelectedEntry] = useState<StoredVaultEntry | null>(null);
   const [hospitalAddr, setHospitalAddr] = useState<string>(canonicalFixtures.accounts.hospital1);
   const [hospitalPubKeyHex, setHospitalPubKeyHex] = useState<string>("");
-
-  const [decryptedClaim, setDecryptedClaim] = useState<Cms1500Claim | null>(null);
-  const [accessError, setAccessError] = useState<string>("");
-
-  const [proveStage, setProveStage] = useState<ProveStage>("idle");
-  const [proverOutput, setProverOutput] = useState<ProverOutput | null>(null);
-  const [terminalLines, setTerminalLines] = useState<
-    { text: string; tone?: "info" | "ok" | "warn" | "err" }[]
-  >([
-    { text: "Qlo Groth16 Web Worker standby (4,349 R1CS constraints, BN254)", tone: "info" },
-  ]);
-
-  const [settledTx, setSettledTx] = useState<string>("");
-  const [settledAmountEth, setSettledAmountEth] = useState<string>("0.01");
+  const [rows, setRows] = useState<ClaimRowState[]>([]);
   const [providerRevenueEth, setProviderRevenueEth] = useState<number>(0);
   const [settledClaimsCount, setSettledClaimsCount] = useState<number>(0);
-
-  const [activeAttack, setActiveAttack] = useState<AttackId>("replay");
-  const [attackResult, setAttackResult] = useState<{ status: "idle" | "blocked"; detail: string }>({
-    status: "idle",
-    detail: "",
-  });
-  const [standardsTab, setStandardsTab] = useState<"fhir" | "x12">("fhir");
   const [refreshingInbox, setRefreshingInbox] = useState(false);
   const [txBusy, setTxBusy] = useState(false);
   const [onChainKeyRegistered, setOnChainKeyRegistered] = useState(false);
-  const [accessStatus, setAccessStatus] = useState<"unknown" | "checking" | "granted" | "missing">("unknown");
-  const [accessExpiresAt, setAccessExpiresAt] = useState(0);
 
-  const matchedProvider =
-    canonicalFixtures.hospitals.find(
-      (h) => h.address.toLowerCase() === hospitalAddr.toLowerCase()
-    ) ?? null;
+  const rowsRef = useRef<ClaimRowState[]>([]);
+  rowsRef.current = rows;
+  const runIdRef = useRef(0);
+  const matchedProvider = canonicalFixtures.hospitals.find((h) => h.address.toLowerCase() === hospitalAddr.toLowerCase()) ?? null;
 
-  const syncMetrics = async (customMirror?: ReturnType<typeof loadLocalChainMirror> | null) => {
+  const patchRow = useCallback((commitmentHex: string, patch: Partial<ClaimRowState>) => {
+    const target = commitmentHex.toLowerCase();
+    setRows((prev) => prev.map((row) => (row.entry.recordCommitmentHex.toLowerCase() === target ? { ...row, ...patch } : row)));
+  }, []);
+
+  const syncMetrics = useCallback(async (customMirror?: LocalChainMirror | null) => {
     if (IS_CHAIN_DEPLOYED && publicClient) {
       try {
         const [payoutWei, count] = await Promise.all([
-          publicClient.readContract({
-            address: CONTRACTS.ClaimsVault.address,
-            abi: CONTRACTS.ClaimsVault.abi,
-            functionName: "totalPayoutWei",
-          }) as Promise<bigint>,
-          publicClient.readContract({
-            address: CONTRACTS.ClaimsVault.address,
-            abi: CONTRACTS.ClaimsVault.abi,
-            functionName: "totalClaimsSettled",
-          }) as Promise<bigint>,
+          readContractSafe<bigint>(publicClient, "ClaimsVault", "totalPayoutWei"),
+          readContractSafe<bigint>(publicClient, "ClaimsVault", "totalClaimsSettled"),
         ]);
         setProviderRevenueEth(Number(formatWeiToEth(payoutWei, 4)));
         setSettledClaimsCount(Number(count));
         return;
       } catch {
-        // Fallback to cached state if RPC throttles
+        // Fall back to mirror
       }
     }
     const mirror = customMirror ?? loadLocalChainMirror();
     const totalWei = mirror.settledClaims.reduce((acc, c) => acc + BigInt(c.amountWei), 0n);
     setProviderRevenueEth(Number(formatWeiToEth(totalWei, 4)));
     setSettledClaimsCount(mirror.settledClaims.length);
-  };
+  }, [publicClient]);
 
-  const refreshHospitalInbox = async (targetAddr = hospitalAddr, forceSyncKey = false) => {
+  const runAutonomousPipeline = useCallback(async (entries: StoredVaultEntry[], targetAddr: string, mirror: LocalChainMirror, forceReprove = false) => {
+    const currentRun = ++runIdRef.current;
+    const isStale = () => runIdRef.current !== currentRun;
+    const kp = await getOrCreateHospitalKeypair(targetAddr);
+    if (isStale()) return;
+
+    const initialRows = buildInitialRows(entries, rowsRef.current, mirror, forceReprove);
+    setRows(initialRows);
+    const providerForTarget = canonicalFixtures.hospitals.find((h) => h.address.toLowerCase() === targetAddr.toLowerCase()) ?? null;
+
+    for (const item of initialRows) {
+      if (isStale()) continue;
+      const key = item.entry.recordCommitmentHex.toLowerCase();
+      const { grantActive, encryptedDekHex, recordId } = await resolveActiveGrant(item.entry, targetAddr, mirror, publicClient);
+      if (isStale()) return;
+
+      if (!grantActive || !encryptedDekHex) {
+        patchRow(key, { ...REVOKED_PATCH, recordId: recordId || item.recordId });
+        continue;
+      }
+      if (item.status === "settled") continue;
+      if (item.status === "ready" && item.proverOutput && item.decryptedClaim && !forceReprove) {
+        if (recordId && recordId !== item.recordId) patchRow(key, { recordId });
+        continue;
+      }
+
+      const label = recordId ? `Record #${recordId}` : "Record";
+      patchRow(key, { recordId: recordId || item.recordId, status: "unwrapping" });
+      showStatus(`Unwrapping ${label}…`, "working");
+
+      let plain: Cms1500Claim;
+      try {
+        const rawDek = await unwrapDekForHospital(encryptedDekHex, kp.privateJwk);
+        plain = await decryptClinicalPayload<Cms1500Claim>(item.entry.envelope, rawDek);
+      } catch {
+        if (!isStale()) patchRow(key, { ...REVOKED_PATCH, recordId: recordId || item.recordId });
+        continue;
+      }
+      if (isStale()) return;
+
+      const claim: Cms1500Claim = providerForTarget && plain.renderingNpi.trim() !== providerForTarget.licenseId ? { ...plain, renderingNpi: providerForTarget.licenseId } : plain;
+      let priorSpentWei = BigInt(mirror.policySpentWei[POLICY_COMMIT] ?? "0");
+      let claimTimestampOverride: bigint | undefined;
+      if (IS_CHAIN_DEPLOYED && publicClient) {
+        try {
+          const [spent, block] = await Promise.all([
+            readContractSafe<bigint>(publicClient, "ClaimsVault", "policySpent", [BigInt(POLICY_COMMIT)]),
+            publicClient.getBlock({ blockTag: "latest" }),
+          ]);
+          priorSpentWei = spent;
+          claimTimestampOverride = block.timestamp;
+        } catch {
+          // Keep mirror fallback
+        }
+      }
+      if (isStale()) return;
+
+      const input = await buildCircuitInputFromClaim({ claim, recordCommitment: BigInt(item.entry.recordCommitmentHex), hospitalAddress: targetAddr, priorPolicySpentWei: priorSpentWei, claimTimestampOverride });
+      if (isStale()) return;
+
+      let used = Boolean(mirror.nullifierUsed[input.nullifier]);
+      if (!used && IS_CHAIN_DEPLOYED && publicClient) {
+        used = await readContractSafe<boolean>(publicClient, "ClaimsVault", "nullifierUsed", [BigInt(input.nullifier)]).catch(() => false);
+      }
+      if (isStale()) return;
+
+      const amtFmt = Number(claim.claimAmountEth || 0).toFixed(4);
+      if (used) {
+        patchRow(key, { recordId: recordId || item.recordId, status: "settled", decryptedClaim: claim, amountEth: amtFmt });
+        continue;
+      }
+
+      patchRow(key, { recordId: recordId || item.recordId, status: "proving", decryptedClaim: claim, amountEth: amtFmt });
+      showStatus(`Proving ${label}…`, "working");
+
+      try {
+        const out = await generateClaimProof(input);
+        if (isStale()) return;
+        patchRow(key, { recordId: recordId || item.recordId, status: "ready", decryptedClaim: claim, proverOutput: out, amountEth: formatWeiToEth(out.solidity.pubSignals[3], 4), proofMs: out.elapsedMs, reason: undefined });
+        showStatus(`Proof ready (${out.elapsedMs}ms)`, "done", label);
+      } catch {
+        if (isStale()) return;
+        const reason = classifyExclusion(claim, priorSpentWei);
+        patchRow(key, { recordId: recordId || item.recordId, status: "excluded", decryptedClaim: claim, proverOutput: null, proofMs: null, reason });
+        showStatus(`Excluded · ${label}`, "error", reason);
+      }
+    }
+  }, [patchRow, publicClient, showStatus]);
+
+  const refreshHospitalInbox = useCallback(async (targetAddr = hospitalAddr, forceReprove = false) => {
     setRefreshingInbox(true);
     try {
       const kp = await getOrCreateHospitalKeypair(targetAddr);
       setHospitalPubKeyHex(kp.publicKeyHex);
-
       const [localItems, relayedItems, remoteMirror] = await Promise.all([
         listVaultEntries().catch(() => [] as StoredVaultEntry[]),
         fetchHospitalRelayVault(targetAddr),
         fetchRelayState(),
       ]);
-
-      if (forceSyncKey || remoteMirror?.hospitalPubKeys?.[targetAddr.toLowerCase()] !== kp.publicKeyHex) {
-        await postRelayAction({
-          action: "publishPubKey",
-          hospitalAddress: targetAddr,
-          publicKeyHex: kp.publicKeyHex,
-          force: true,
-        });
+      if (remoteMirror?.hospitalPubKeys?.[targetAddr.toLowerCase()] !== kp.publicKeyHex) {
+        await postRelayAction({ action: "publishPubKey", hospitalAddress: targetAddr, publicKeyHex: kp.publicKeyHex, force: true });
       }
-
-      const mergedByCommit = new Map<string, StoredVaultEntry>();
-      for (const item of localItems) {
-        mergedByCommit.set(item.recordCommitmentHex.toLowerCase(), item);
-      }
+      const merged = new Map<string, StoredVaultEntry>();
+      for (const item of localItems) merged.set(item.recordCommitmentHex.toLowerCase(), item);
       for (const rel of relayedItems) {
         const key = rel.recordCommitmentHex.toLowerCase();
-        const existing = mergedByCommit.get(key);
+        const existing = merged.get(key);
         if (!existing) {
-          mergedByCommit.set(key, rel);
+          merged.set(key, rel);
           await saveEncryptedRecordToVault(rel).catch(() => undefined);
         } else if (!existing.recordId && rel.recordId) {
-          mergedByCommit.set(key, { ...existing, recordId: rel.recordId });
+          merged.set(key, { ...existing, recordId: rel.recordId });
         }
       }
-
-      const mergedList = Array.from(mergedByCommit.values()).sort((a, b) =>
-        b.createdAt.localeCompare(a.createdAt)
-      );
-      setEntries(mergedList);
-      setSelectedEntry((prev) => {
-        if (prev && mergedList[0] && mergedList[0].createdAt > prev.createdAt) {
-          return mergedList[0];
-        }
-        if (
-          prev &&
-          mergedList.some(
-            (x) => x.recordCommitmentHex.toLowerCase() === prev.recordCommitmentHex.toLowerCase()
-          )
-        ) {
-          return (
-            mergedList.find(
-              (x) =>
-                x.recordCommitmentHex.toLowerCase() === prev.recordCommitmentHex.toLowerCase()
-            ) ?? mergedList[0] ?? null
-          );
-        }
-        return mergedList[0] ?? null;
-      });
-
+      const sorted = Array.from(merged.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       if (IS_CHAIN_DEPLOYED && publicClient) {
-        try {
-          const onChainPub = (await publicClient.readContract({
-            address: CONTRACTS.HospitalRegistry.address,
-            abi: CONTRACTS.HospitalRegistry.abi,
-            functionName: "hospitalEncryptionPubKey",
-            args: [targetAddr as `0x${string}`],
-          })) as `0x${string}`;
-          setOnChainKeyRegistered(Boolean(onChainPub && onChainPub.length >= 132));
-        } catch {
-          setOnChainKeyRegistered(false);
-        }
+        const pub = await readContractSafe<`0x${string}`>(publicClient, "HospitalRegistry", "hospitalEncryptionPubKey", [targetAddr as `0x${string}`]).catch(() => "0x" as `0x${string}`);
+        setOnChainKeyRegistered(Boolean(pub && pub.length >= 132));
       } else {
         setOnChainKeyRegistered(false);
       }
-
-      await syncMetrics(IS_CHAIN_DEPLOYED ? null : remoteMirror);
+      const mirror = remoteMirror ?? loadLocalChainMirror();
+      await syncMetrics(IS_CHAIN_DEPLOYED ? null : mirror);
+      await runAutonomousPipeline(sorted, targetAddr, mirror, forceReprove);
     } finally {
       setRefreshingInbox(false);
     }
-  };
+  }, [hospitalAddr, publicClient, runAutonomousPipeline, syncMetrics]);
 
-  useEffect(() => {
-    refreshHospitalInbox(hospitalAddr, false).catch(() => undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hospitalAddr]);
-
-  useEffect(() => {
-    if (address) setHospitalAddr(address);
-  }, [address]);
-
-  useEffect(() => {
-    let active = true;
-    if (!selectedEntry) {
-      setAccessStatus("unknown");
-      setAccessExpiresAt(0);
-      return;
-    }
-
-    const checkGrantStatus = async () => {
-      setAccessStatus("checking");
-      if (IS_CHAIN_DEPLOYED && publicClient) {
-        try {
-          const recId = (await publicClient.readContract({
-            address: CONTRACTS.HealthRecords.address,
-            abi: CONTRACTS.HealthRecords.abi,
-            functionName: "commitmentToRecordId",
-            args: [selectedEntry.recordCommitmentHex],
-          })) as bigint;
-          if (!active) return;
-          if (recId > 0n) {
-            const [exp, dekBytes] = (await publicClient.readContract({
-              address: CONTRACTS.HealthRecords.address,
-              abi: CONTRACTS.HealthRecords.abi,
-              functionName: "getGrant",
-              args: [recId, hospitalAddr as `0x${string}`],
-            })) as [bigint, `0x${string}`];
-            if (!active) return;
-            if (exp > 0n && dekBytes && dekBytes !== "0x") {
-              setAccessStatus("granted");
-              setAccessExpiresAt(Number(exp));
-            } else {
-              setAccessStatus("missing");
-              setAccessExpiresAt(0);
-            }
-            return;
-          }
-        } catch {
-          // Fall through to relay check when record is off-chain
-        }
-      }
-
-      const remote = await fetchRelayState();
-      if (!active) return;
-      const mirror = remote ?? loadLocalChainMirror();
-      const rec = mirror.records.find(
-        (r) =>
-          r.recordCommitmentHex.toLowerCase() ===
-          selectedEntry.recordCommitmentHex.toLowerCase()
-      );
-      if (!rec) {
-        setAccessStatus("missing");
-        setAccessExpiresAt(0);
-        return;
-      }
-      const grant = mirror.grants[`${rec.recordId}:${hospitalAddr.toLowerCase()}`];
-      const now = Math.floor(Date.now() / 1000);
-      if (grant && grant.expiresAt > now) {
-        setAccessStatus("granted");
-        setAccessExpiresAt(grant.expiresAt);
-      } else {
-        setAccessStatus("missing");
-        setAccessExpiresAt(0);
-      }
-    };
-
-    checkGrantStatus().catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [selectedEntry, hospitalAddr, publicClient, settledTx]);
-
-  const appendLog = (text: string, tone: "info" | "ok" | "warn" | "err" = "info") => {
-    setTerminalLines((prev) => [...prev, { text, tone }]);
-  };
+  useEffect(() => { refreshHospitalInbox(hospitalAddr, false).catch(() => undefined); }, [hospitalAddr, refreshHospitalInbox]);
+  useEffect(() => { if (address) setHospitalAddr(address); }, [address]);
 
   const handleRegisterHospitalPubKey = async () => {
     if (!hospitalPubKeyHex || txBusy) return;
     setTxBusy(true);
     try {
-      await postRelayAction({
-        action: "publishPubKey",
-        hospitalAddress: hospitalAddr,
-        publicKeyHex: hospitalPubKeyHex,
-        force: true,
-      });
-
+      await postRelayAction({ action: "publishPubKey", hospitalAddress: hospitalAddr, publicKeyHex: hospitalPubKeyHex, force: true });
       if (IS_CHAIN_DEPLOYED) {
-        if (!address || !publicClient) {
-          throw new Error("Connect Hospital MetaMask wallet first");
-        }
+        if (!address || !publicClient) throw new Error("Connect Hospital wallet first");
         await ensureSepoliaChain(roles.chainId, switchChainAsync);
-        const { hash } = await preflightSimulateAndWrite({
-          publicClient,
-          account: address,
-          address: CONTRACTS.HospitalRegistry.address,
-          abi: CONTRACTS.HospitalRegistry.abi as Abi,
-          functionName: "registerEncryptionPubKey",
-          args: [hospitalPubKeyHex as `0x${string}`],
-          writeContractAsync,
-        });
+        await preflightSimulateAndWrite({ publicClient, account: address, address: CONTRACTS.HospitalRegistry.address, abi: CONTRACTS.HospitalRegistry.abi as Abi, functionName: "registerEncryptionPubKey", args: [hospitalPubKeyHex as `0x${string}`], writeContractAsync });
         setOnChainKeyRegistered(true);
-        appendLog(`Registered ECDH pubkey on Ethereum Sepolia: ${hash}`, "ok");
-        toast.success("Registered ECDH P-256 public key in HospitalRegistry");
+        showStatus("Encryption key registered", "done", "Sepolia");
         await roles.refetch();
       } else {
-        const mirror = loadLocalChainMirror();
-        mirror.hospitalPubKeys[hospitalAddr.toLowerCase()] = hospitalPubKeyHex;
-        saveLocalChainMirror(mirror);
-        toast.success("Synced Hospital ECDH P-256 public key to clearinghouse directory");
+        const m = loadLocalChainMirror();
+        saveLocalChainMirror({ ...m, hospitalPubKeys: { ...m.hospitalPubKeys, [hospitalAddr.toLowerCase()]: hospitalPubKeyHex } });
+        showStatus("Encryption key synced", "done");
       }
     } catch (err) {
       const msg = decodeContractError(err);
-      appendLog(msg, "err");
+      showStatus("Key registration failed", "error", msg);
       toast.error(msg);
     } finally {
       setTxBusy(false);
@@ -330,394 +301,82 @@ export default function HospitalPage() {
   };
 
   const handleImportBundle = async (file: File) => {
-    const MAX_BUNDLE_BYTES = 512 * 1024; // 512 KB ceiling for encrypted bundles
-    if (file.size > MAX_BUNDLE_BYTES) {
-      toast.error("Encrypted bundle exceeds 512 KB maximum size.");
-      return;
-    }
-    if (!file.name.toLowerCase().endsWith(".json")) {
-      toast.error("Import a valid .qlo.json encrypted bundle file.");
-      return;
-    }
-    if (file.type && !["application/json", "text/plain"].includes(file.type.toLowerCase())) {
-      toast.error(`Unsupported bundle MIME type: ${file.type}`);
+    if (file.size > 512 * 1024 || !file.name.toLowerCase().endsWith(".json")) {
+      toast.error("Select a valid .qlo.json bundle under 512 KB.");
       return;
     }
     try {
-      const raw = await file.text();
-      const imported = await importAndVerifyQloBundle(raw);
-      const updated = await listVaultEntries();
-      setEntries(updated);
-      setSelectedEntry(imported);
-      setDecryptedClaim(null);
-      setAccessError("");
-      toast.success("Verified .qlo.json CIDv1 + 248-bit commitment & imported into vault");
+      await importAndVerifyQloBundle(await file.text());
+      showStatus("Bundle verified", "done");
+      await refreshHospitalInbox(hospitalAddr, false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to verify bundle");
+      toast.error(err instanceof Error ? err.message : "Bundle verification failed");
     }
   };
 
-  const handleUnwrapAndDecrypt = async () => {
-    if (!selectedEntry) {
-      toast.error("Select or import an encrypted record first");
-      return;
-    }
-    setAccessError("");
-    setProverOutput(null);
-    setProveStage("idle");
-    try {
-      let encryptedDekHex = "";
-      let recIdStr = selectedEntry.recordId || "";
-
-      if (IS_CHAIN_DEPLOYED && publicClient) {
-        try {
-          const recId = (await publicClient.readContract({
-            address: CONTRACTS.HealthRecords.address,
-            abi: CONTRACTS.HealthRecords.abi,
-            functionName: "commitmentToRecordId",
-            args: [selectedEntry.recordCommitmentHex],
-          })) as bigint;
-          if (recId > 0n) {
-            recIdStr = recId.toString();
-            const [expiresAt, dekBytes] = (await publicClient.readContract({
-              address: CONTRACTS.HealthRecords.address,
-              abi: CONTRACTS.HealthRecords.abi,
-              functionName: "getGrant",
-              args: [recId, hospitalAddr as `0x${string}`],
-            })) as [bigint, `0x${string}`];
-            if (expiresAt === 0n || !dekBytes || dekBytes === "0x") {
-              throw new Error(
-                "ACCESS DENIED: Patient grant missing, expired, or revoked on-chain."
-              );
-            }
-            encryptedDekHex = dekBytes;
-          }
-        } catch (chainErr) {
-          if (chainErr instanceof Error && chainErr.message.startsWith("ACCESS DENIED")) {
-            throw chainErr;
-          }
-        }
-      }
-      if (!encryptedDekHex) {
-        const remote = await fetchRelayState();
-        const mirror = remote ?? loadLocalChainMirror();
-        const rec = mirror.records.find(
-          (r) => r.recordCommitmentHex.toLowerCase() === selectedEntry.recordCommitmentHex.toLowerCase()
-        );
-        if (!rec) throw new Error("Record not registered in consent registry yet.");
-        recIdStr = rec.recordId;
-        const grant = mirror.grants[`${rec.recordId}:${hospitalAddr.toLowerCase()}`];
-        const now = Math.floor(Date.now() / 1000);
-        if (!grant || grant.expiresAt <= now) {
-          throw new Error(
-            "ACCESS DENIED: Patient grant missing, expired, or revoked (PatientAccessNotActive)."
-          );
-        }
-        encryptedDekHex = grant.encryptedDekHex;
-        const updatedMirror = await postRelayAction({
-          action: "logAccess",
-          recordId: rec.recordId,
-          hospitalAddress: hospitalAddr,
-        });
-        if (!updatedMirror) {
-          mirror.auditLogs = [
-            {
-              id: `acc-${Date.now()}`,
-              kind: "accessed",
-              title: `Hospital Accessed Record #${rec.recordId}`,
-              detail: `Unwrapped ECDH DEK for ${hospitalAddr}`,
-              timestamp: new Date().toLocaleTimeString(),
-            },
-            ...mirror.auditLogs,
-          ];
-          saveLocalChainMirror(mirror);
-        }
-      }
-
-      const kp = await getOrCreateHospitalKeypair(hospitalAddr);
-      const rawDek = await unwrapDekForHospital(encryptedDekHex, kp.privateJwk);
-      const plain = await decryptClinicalPayload<Cms1500Claim>(selectedEntry.envelope, rawDek);
-      setDecryptedClaim(plain);
-      appendLog(`Unwrapped ECDH DEK for Record #${recIdStr} — CMS-1500 decrypted locally`, "ok");
-      toast.success("DEK unwrapped & clinical record decrypted locally");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Access blocked";
-      setDecryptedClaim(null);
-      setAccessError(msg);
-      appendLog(msg, "err");
-      toast.error(msg);
-    }
-  };
-
-  const handleLogAccessAudit = async () => {
-    if (!selectedEntry || txBusy) return;
+  const handleLogAccessAudit = async (row: ClaimRowState) => {
+    if (txBusy) return;
     setTxBusy(true);
     try {
       if (IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain) {
         await ensureSepoliaChain(roles.chainId, switchChainAsync);
-        const recId = (await publicClient.readContract({
-          address: CONTRACTS.HealthRecords.address,
-          abi: CONTRACTS.HealthRecords.abi,
-          functionName: "commitmentToRecordId",
-          args: [selectedEntry.recordCommitmentHex],
-        })) as bigint;
-        if (recId === 0n) throw new Error("Record not registered on Ethereum Sepolia");
-        const { hash } = await preflightSimulateAndWrite({
-          publicClient,
-          account: address,
-          address: CONTRACTS.HealthRecords.address,
-          abi: CONTRACTS.HealthRecords.abi as Abi,
-          functionName: "logAccess",
-          args: [recId],
-          writeContractAsync,
-        });
-        appendLog(`Logged RecordAccessed(${recId.toString()}) on Ethereum Sepolia: ${hash}`, "ok");
-        toast.success("Logged immutable RecordAccessed audit event on Ethereum Sepolia");
+        const recId = await readContractSafe<bigint>(publicClient, "HealthRecords", "commitmentToRecordId", [row.entry.recordCommitmentHex]);
+        if (recId === 0n) throw new Error("Record not registered on Sepolia");
+        await preflightSimulateAndWrite({ publicClient, account: address, address: CONTRACTS.HealthRecords.address, abi: CONTRACTS.HealthRecords.abi as Abi, functionName: "logAccess", args: [recId], writeContractAsync });
+        showStatus("Access audit logged", "done", `Record #${recId.toString()}`);
       } else {
-        const remote = await fetchRelayState();
-        const mirror = remote ?? loadLocalChainMirror();
-        const rec = mirror.records.find(
-          (r) => r.recordCommitmentHex.toLowerCase() === selectedEntry.recordCommitmentHex.toLowerCase()
-        );
-        const recId = rec?.recordId ?? selectedEntry.recordId ?? "?";
-        const updatedMirror = await postRelayAction({
-          action: "logAccess",
-          recordId: recId,
-          hospitalAddress: hospitalAddr,
-        });
-        if (!updatedMirror) {
-          mirror.auditLogs = [
-            {
-              id: `log-acc-${Date.now()}`,
-              kind: "accessed",
-              title: `Explicit Access Audit Logged — Record #${recId}`,
-              detail: `HealthRecords.logAccess(${recId}) verified for ${hospitalAddr}`,
-              timestamp: new Date().toLocaleTimeString(),
-            },
-            ...mirror.auditLogs,
-          ];
-          saveLocalChainMirror(mirror);
-        }
+        const recId = row.recordId || "?";
+        await postRelayAction({ action: "logAccess", recordId: recId, hospitalAddress: hospitalAddr });
         window.dispatchEvent(new Event("storage"));
-        appendLog(`Explicit RecordAccessed(${recId}) audit entry recorded`, "ok");
-        toast.success(`Logged RecordAccessed audit entry for Record #${recId}`);
+        showStatus("Access audit logged", "done", `Record #${recId}`);
       }
     } catch (err) {
       const msg = decodeContractError(err);
-      appendLog(msg, "err");
+      showStatus("Audit log failed", "error", msg);
       toast.error(msg);
     } finally {
       setTxBusy(false);
     }
   };
 
-  const handleProve = async () => {
-    if (!selectedEntry || !decryptedClaim) {
-      toast.error("Decrypt an authorized record first.");
-      return;
-    }
-
-    setProveStage("building_witness");
-    setProverOutput(null);
-    appendLog("Building 20-signal Poseidon Merkle witness...", "info");
-
-    try {
-      let priorSpentWei = 0n;
-      let claimTimestampOverride: bigint | undefined;
-      const commitmentBigInt = BigInt(canonicalFixtures.activePolicy.commitment);
-      if (IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain) {
-        const [spent, latestBlock, onChainRoot] = await Promise.all([
-          publicClient.readContract({
-            address: CONTRACTS.ClaimsVault.address,
-            abi: CONTRACTS.ClaimsVault.abi,
-            functionName: "policySpent",
-            args: [commitmentBigInt],
-          }) as Promise<bigint>,
-          publicClient.getBlock({ blockTag: "latest" }),
-          publicClient.readContract({
-            address: CONTRACTS.HospitalRegistry.address,
-            abi: CONTRACTS.HospitalRegistry.abi,
-            functionName: "hospitalRoot",
-          }) as Promise<bigint>,
-        ]);
-        priorSpentWei = spent;
-        claimTimestampOverride = latestBlock.timestamp;
-        if (onChainRoot !== BigInt(canonicalFixtures.hospitalRoot)) {
-          appendLog(
-            "WARNING: On-chain HospitalRegistry.hospitalRoot() differs from local canonicalFixtures.json.",
-            "warn"
-          );
-        } else {
-          appendLog(
-            `Synced live Ethereum Sepolia block clock (${latestBlock.timestamp.toString()}) & root`,
-            "info"
-          );
-        }
-      } else {
-        const remote = await fetchRelayState();
-        const mirror = remote ?? loadLocalChainMirror();
-        priorSpentWei = BigInt(
-          mirror.policySpentWei[canonicalFixtures.activePolicy.commitment] ?? "0"
-        );
-      }
-
-      const input = await buildCircuitInputFromClaim({
-        claim: decryptedClaim,
-        recordCommitment: BigInt(selectedEntry.recordCommitmentHex),
-        hospitalAddress: hospitalAddr,
-        priorPolicySpentWei: priorSpentWei,
-        claimTimestampOverride,
-      });
-
-      const out = await generateClaimProof(input, (stage) => {
-        setProveStage(stage);
-        if (stage === "loading_artifacts") appendLog("Loading /zk/ClaimValidity.wasm + .zkey...", "info");
-        if (stage === "computing_witness") appendLog("Generating Groth16 BN254 witness & pairing proof...", "warn");
-        if (stage === "verifying_locally") appendLog("Verifying Groth16 proof locally...", "info");
-      });
-
-      setProverOutput(out);
-      appendLog(
-        `Groth16 proof verified locally in ${out.elapsedMs}ms (priorSpent=${formatWeiToEth(priorSpentWei)} ETH)`,
-        "ok"
-      );
-      toast.success(`Groth16 proof generated & verified in ${out.elapsedMs}ms!`);
-    } catch (err) {
-      setProveStage("failed");
-      const msg = err instanceof Error ? err.message : "Proving failed closed";
-      appendLog(`FAIL-CLOSED CIRCUIT REJECTION: ${msg}`, "err");
-      toast.error("Circuit failed closed — predicate violation detected!");
-    }
-  };
-
-  const handleSettle = async () => {
-    if (!proverOutput || !selectedEntry || txBusy) return;
-    const { pA, pB, pC, pubSignals, rawCalldataHex } = proverOutput.solidity;
+  const handleSettle = async (row: ClaimRowState) => {
+    if (!row.proverOutput || txBusy) return;
+    const key = row.entry.recordCommitmentHex.toLowerCase();
+    const { pA, pB, pC, pubSignals, rawCalldataHex } = row.proverOutput.solidity;
+    const amountFmt = formatWeiToEth(pubSignals[3], 4);
     setTxBusy(true);
+    patchRow(key, { status: "settling" });
+    showStatus(`Settling +${amountFmt} ETH…`, "working", `Record #${row.recordId}`);
+
     try {
-      const amountFmt = formatWeiToEth(pubSignals[3], 4);
       if (IS_CHAIN_DEPLOYED && address && publicClient && !roles.wrongChain) {
         await ensureSepoliaChain(roles.chainId, switchChainAsync);
-        const { hash } = await preflightSimulateAndWrite({
-          publicClient,
-          account: address,
-          address: CONTRACTS.ClaimsVault.address,
-          abi: CONTRACTS.ClaimsVault.abi as Abi,
-          functionName: "submitClaim",
-          args: [pA, pB, pC, pubSignals],
-          writeContractAsync,
-        });
-        setSettledAmountEth(amountFmt);
-        setSettledTx(hash);
+        const { hash } = await preflightSimulateAndWrite({ publicClient, account: address, address: CONTRACTS.ClaimsVault.address, abi: CONTRACTS.ClaimsVault.abi as Abi, functionName: "submitClaim", args: [pA, pB, pC, pubSignals], writeContractAsync });
+        patchRow(key, { status: "settled", amountEth: amountFmt, settledTxHash: hash, isOnChainTx: true });
+        showStatus(`Settled +${amountFmt} ETH`, "done", `Record #${row.recordId}`);
         await Promise.all([syncMetrics(), roles.refetch()]);
-        appendLog(`Ethereum Sepolia Tx Settled: ${hash}`, "ok");
-        toast.success("Claim settled on Ethereum Sepolia — ETH transferred to Hospital!");
       } else {
-        const nullifierStr = pubSignals[2].toString();
-        const policyStr = pubSignals[1].toString();
-        const amount = pubSignals[3];
-        const pseudoHash = ("0x" +
-          Array.from(crypto.getRandomValues(new Uint8Array(32)))
-            .map((b) => b.toString(16).padStart(2, "0"))
-            .join("")) as `0x${string}`;
-
-        const relayed = await postRelayAction({
-          action: "settle",
-          recordCommitmentHex: selectedEntry.recordCommitmentHex,
-          hospitalAddress: hospitalAddr,
-          policyCommitment: policyStr,
-          nullifier: nullifierStr,
-          amountWei: amount.toString(),
-          rawCalldataHex,
-          pubSignals: proverOutput.publicSignals,
-          txHash: pseudoHash,
-        });
-
-        if (!relayed) {
-          const mirror = loadLocalChainMirror();
-          const recId = mirror.records.find(
-            (r) => r.recordCommitmentHex.toLowerCase() === selectedEntry.recordCommitmentHex.toLowerCase()
-          )?.recordId;
-          const grant = recId ? mirror.grants[`${recId}:${hospitalAddr.toLowerCase()}`] : null;
-          if (!grant || grant.expiresAt <= Math.floor(Date.now() / 1000)) {
-            throw new Error("ClaimsVault.PatientAccessNotActive()");
-          }
-          if (mirror.nullifierUsed[nullifierStr]) {
-            throw new Error("ClaimsVault.NullifierAlreadyUsed()");
-          }
-          if (BigInt(mirror.insurerEscrowWei) < amount) {
-            throw new Error("ClaimsVault.InsufficientEscrow()");
-          }
-
-          mirror.nullifierUsed[nullifierStr] = true;
-          mirror.policySpentWei[policyStr] = (
-            BigInt(mirror.policySpentWei[policyStr] ?? "0") + amount
-          ).toString();
-          mirror.insurerEscrowWei = (BigInt(mirror.insurerEscrowWei) - amount).toString();
-          mirror.settledClaims = [
-            {
-              txHash: pseudoHash,
-              nullifier: nullifierStr,
-              policyCommitment: policyStr,
-              recordCommitmentHex: selectedEntry.recordCommitmentHex,
-              hospital: hospitalAddr,
-              amountWei: amount.toString(),
-              settledAt: Math.floor(Date.now() / 1000),
-              rawCalldataHex,
-              pubSignals: proverOutput.publicSignals,
-            },
-            ...mirror.settledClaims,
-          ];
-          mirror.auditLogs = [
-            {
-              id: `settle-${Date.now()}`,
-              kind: "settled",
-              title: `Claim Settled (+${amountFmt} ETH)`,
-              detail: `Nullifier ${nullifierStr.slice(0, 16)}... | Zero PHI emitted`,
-              timestamp: new Date().toLocaleTimeString(),
-              txHash: pseudoHash,
-            },
-            ...mirror.auditLogs,
-          ];
-          saveLocalChainMirror(mirror);
-        }
-
+        const pseudoHash = ("0x" + Array.from(crypto.getRandomValues(new Uint8Array(32))).map((b) => b.toString(16).padStart(2, "0")).join("")) as `0x${string}`;
+        const relayed = await postRelayAction({ action: "settle", recordCommitmentHex: row.entry.recordCommitmentHex, hospitalAddress: hospitalAddr, policyCommitment: pubSignals[1].toString(), nullifier: pubSignals[2].toString(), amountWei: pubSignals[3].toString(), rawCalldataHex, pubSignals: row.proverOutput.publicSignals, txHash: pseudoHash });
+        if (!relayed) settleInLocalMirror(row, hospitalAddr, pseudoHash);
         window.dispatchEvent(new Event("storage"));
-        setSettledAmountEth(amountFmt);
-        setSettledTx(pseudoHash);
+        patchRow(key, { status: "settled", amountEth: amountFmt, settledTxHash: pseudoHash, isOnChainTx: false });
+        showStatus(`Settled +${amountFmt} ETH`, "done", `Record #${row.recordId}`);
         await syncMetrics(relayed);
-        appendLog(`Settled ${amountFmt} ETH (0 PHI bytes in calldata)`, "ok");
-        toast.success(`Auto-settled ${amountFmt} ETH to Hospital!`);
+      }
+      if (rowsRef.current.some((r) => r.entry.recordCommitmentHex.toLowerCase() !== key && r.status === "ready")) {
+        const mirror = (await fetchRelayState()) ?? loadLocalChainMirror();
+        runAutonomousPipeline(rowsRef.current.map((r) => r.entry), hospitalAddr, mirror, true).catch(() => undefined);
       }
     } catch (err) {
       const msg = decodeContractError(err);
-      appendLog(`ON-CHAIN REVERT: ${msg}`, "err");
+      patchRow(key, msg.includes("PatientAccessNotActive") ? REVOKED_PATCH : msg.includes("NullifierAlreadyUsed") ? { status: "settled" } : { status: "ready" });
+      showStatus("Settlement reverted", "error", msg);
       toast.error(msg);
     } finally {
       setTxBusy(false);
     }
   };
-
-  const runAttackScenario = async (kind: AttackId) => {
-    setActiveAttack(kind);
-    setAttackResult({ status: "idle", detail: "Running live cryptographic policy check..." });
-    try {
-      await executeHospitalGuardrailCheck({
-        kind,
-        hospitalAddr,
-        selectedEntry,
-        decryptedClaim,
-        proverOutput,
-        publicClient,
-      });
-    } catch (err) {
-      const msg = decodeContractError(err);
-      setAttackResult({ status: "blocked", detail: msg });
-      appendLog(`ATTACK BLOCKED [${kind.toUpperCase()}]: ${msg}`, "err");
-    }
-  };
-
-  const completeness = decryptedClaim ? validateCms1500Completeness(decryptedClaim) : null;
 
   return (
     <div className="space-y-6">
@@ -730,62 +389,23 @@ export default function HospitalPage() {
         onChainKeyRegistered={onChainKeyRegistered}
         refreshingInbox={refreshingInbox}
         txBusy={txBusy}
-        hasDecrypted={Boolean(decryptedClaim)}
-        hasProved={Boolean(proverOutput)}
-        hasSettled={Boolean(settledTx)}
         onRefreshInbox={() => refreshHospitalInbox(hospitalAddr, false)}
         onRegisterHospitalPubKey={handleRegisterHospitalPubKey}
       />
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <HospitalRecordQueueCard
-          hospitalAddr={hospitalAddr}
-          onChangeHospitalAddr={setHospitalAddr}
-          entries={entries}
-          selectedEntry={selectedEntry}
-          onSelectEntry={(found) => {
-            setSelectedEntry(found);
-            setDecryptedClaim(null);
-            setAccessError("");
-          }}
-          onUnwrapAndDecrypt={handleUnwrapAndDecrypt}
-          txBusy={txBusy}
-          accessStatus={accessStatus}
-          accessExpiresAt={accessExpiresAt}
-          matchedProvider={matchedProvider}
-          decryptedClaim={decryptedClaim}
-          onMatchFacilityNpi={(npi) =>
-            setDecryptedClaim((prev) => (prev ? { ...prev, renderingNpi: npi } : prev))
-          }
-          completenessValid={Boolean(completeness?.valid)}
-          accessError={accessError}
-          onLogAccessAudit={handleLogAccessAudit}
-          onImportBundle={handleImportBundle}
-        />
-
-        <HospitalProverCard
-          proveStage={proveStage}
-          proverOutput={proverOutput}
-          decryptedClaim={decryptedClaim}
-          hospitalAddr={hospitalAddr}
-          txBusy={txBusy}
-          chainSettleBlocked={roles.wrongChain}
-          onProve={handleProve}
-          onSettle={handleSettle}
-          settledTx={settledTx}
-          settledAmountEth={settledAmountEth}
-          terminalLines={terminalLines}
-        />
-      </div>
-
-      <EnterpriseVerificationDock
-        activeAttack={activeAttack}
-        attackResult={attackResult}
-        onRunScenario={runAttackScenario}
-        standardsTab={standardsTab}
-        onChangeStandardsTab={setStandardsTab}
-        decryptedClaim={decryptedClaim}
+      <ClaimsQueue
+        rows={rows}
         hospitalAddr={hospitalAddr}
+        walletConnected={Boolean(address)}
+        onChangeHospitalAddr={setHospitalAddr}
+        refreshing={refreshingInbox}
+        txBusy={txBusy}
+        chainSettleBlocked={roles.wrongChain}
+        settledClaimsCount={settledClaimsCount}
+        providerRevenueEth={providerRevenueEth}
+        onRefresh={() => refreshHospitalInbox(hospitalAddr, false)}
+        onSettle={handleSettle}
+        onImportBundle={handleImportBundle}
+        onLogAccessAudit={handleLogAccessAudit}
       />
     </div>
   );

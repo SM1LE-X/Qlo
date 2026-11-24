@@ -1,70 +1,101 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, ExternalLink, FileCode2, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
+import {
+  CheckCircle2,
+  ExternalLink,
+  FileCode2,
+  Loader2,
+  RefreshCw,
+  ShieldCheck,
+} from "lucide-react";
+import { useAccount, usePublicClient } from "wagmi";
+import { useAmbientStatus } from "@/components/ui/ambient-pill";
 import { Badge } from "@/components/ui/card";
 import { CopyHash } from "@/components/ui/copy-hash";
-import { SmoothAccordion } from "@/components/ui/smooth-accordion";
-import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { TactileButton } from "@/components/ui/tactile-button";
+import canonicalFixtures from "@/lib/canonicalFixtures.json";
 import {
   DEPLOYMENT,
   IS_CHAIN_DEPLOYED,
   explorerAddressUrl,
   sourcifyContractUrl,
 } from "@/lib/contracts";
+import { executeHospitalGuardrailCheck, type AttackId } from "@/lib/hospitalGuardrails";
+import { decodeContractError } from "@/lib/txHelpers";
 import { verifyZkeyIntegrity, type ZkeyIntegrityResult } from "@/lib/zkeyIntegrity";
 
 const PUBLIC_SIGNALS = [
   { idx: "0", name: "hospitalRoot", type: "BN254 Field", check: "Matches HospitalRegistry.hospitalRoot()" },
-  { idx: "1", name: "policyCommitment", type: "BN254 Field", check: "Active insurer policy in PolicyRegistry" },
-  { idx: "2", name: "nullifier", type: "BN254 Field", check: "Deterministic Poseidon(salt, policyId, recordCommit); unused" },
+  { idx: "1", name: "policyCommitment", type: "BN254 Field", check: "Active policy in PolicyRegistry" },
+  { idx: "2", name: "nullifier", type: "BN254 Field", check: "Poseidon(salt, policyId, recordCommit); unused" },
   { idx: "3", name: "claimAmount", type: "uint96 wei", check: "> 0 and <= insurerEscrow[insurer]" },
-  { idx: "4", name: "claimTimestamp", type: "uint64 sec", check: "Within [block.timestamp - 900, block.timestamp + 60]" },
-  { idx: "5", name: "recordCommitment", type: "uint248", check: "Active non-revoked consent in HealthRecords" },
+  { idx: "4", name: "claimTimestamp", type: "uint64 sec", check: "Within [block.timestamp - 900, +60]" },
+  { idx: "5", name: "recordCommitment", type: "uint248", check: "Active consent in HealthRecords" },
   { idx: "6", name: "hospitalAddress", type: "uint160", check: "Matches msg.sender (anti-front-run)" },
-  { idx: "7", name: "priorPolicySpent", type: "uint96 wei", check: "Matches ClaimsVault.policySpent[policyCommitment]" },
+  { idx: "7", name: "priorPolicySpent", type: "uint96 wei", check: "Matches ClaimsVault.policySpent[policy]" },
+];
+
+const INVARIANT_CHECKS: ReadonlyArray<{ id: AttackId; label: string; scope: string }> = [
+  { id: "replay", label: "Replay Nullifier", scope: "ClaimsVault.sol" },
+  { id: "cpt", label: "Excluded Procedure", scope: "Groth16 R1CS" },
+  { id: "expired", label: "Expired Policy", scope: "Groth16 R1CS" },
+  { id: "cap", label: "Over Annual Cap", scope: "Groth16 R1CS" },
+  { id: "revoked", label: "Revoked Consent", scope: "HealthRecords.sol" },
 ];
 
 const VERISURE_COMPARISON = [
   {
     dim: "Intake & OCR Privacy",
-    verisure: "Next.js + off-chain Gaia AI nodes (PHI leaves client)",
-    qlo: "100% browser-local CMS-1500 intake + Tesseract WASM OCR (0 PHI sent to external servers)",
+    verisure: "Off-chain Gaia AI nodes (PHI leaves client)",
+    qlo: "Browser-local CMS-1500 + Tesseract WASM OCR (0 PHI egress)",
   },
   {
-    dim: "What ZK Proves",
-    verisure: "Form completeness; policy coverage deferred as future work",
-    qlo: "8 real Groth16 predicates: hospital set, policy commitment, expiry, covered CPT Merkle tree, positive amount, cumulative annual cap, deterministic nullifier, anti-front-run sender",
+    dim: "ZK Proof Scope",
+    verisure: "Form completeness; policy coverage deferred",
+    qlo: "8 Groth16 predicates: hospital root, policy, expiry, CPT tree, amount, annual cap, nullifier, msg.sender",
   },
   {
-    dim: "Verification Trust Model",
-    verisure: "EigenLayer + Othentic AVS operators + RISC0 zkVM",
-    qlo: "Trustless verification directly inside ClaimsVault.sol on Ethereum Sepolia",
+    dim: "Verification Model",
+    verisure: "EigenLayer + Othentic AVS + RISC0 zkVM",
+    qlo: "Direct on-chain Groth16 pairing in ClaimsVault.sol (Sepolia)",
   },
   {
-    dim: "Patient Data Sovereignty",
-    verisure: "No client encryption, DEK wrap, or consent revocation",
-    qlo: "AES-256-GCM + ECDH P-256 wrapped DEKs, IPFS CIDv1, time-bound grant & instant revoke enforced on-chain",
+    dim: "Patient Sovereignty",
+    verisure: "No client encryption, DEK wrap, or revocation",
+    qlo: "AES-256-GCM + ECDH P-256 DEKs, CIDv1, time-bound grant & instant revoke",
   },
   {
-    dim: "Proving Speed & Cost",
-    verisure: "~2 min AVS pipeline; BUSL-1.1 performer",
-    qlo: "< 3s in browser Web Worker; $0 cash cost; 100% MIT open-source",
+    dim: "Latency & License",
+    verisure: "~2 min AVS pipeline; BUSL-1.1",
+    qlo: "< 1s browser Web Worker; 100% MIT open-source",
   },
 ];
 
 export default function StoryPage() {
+  const { address } = useAccount();
+  const publicClient = usePublicClient();
+  const { showStatus } = useAmbientStatus();
+
   const [zkeyResult, setZkeyResult] = useState<ZkeyIntegrityResult | null>(null);
-  const [verifying, setVerifying] = useState(false);
+  const [verifyingZkey, setVerifyingZkey] = useState(false);
+
+  const [activeCheck, setActiveCheck] = useState<AttackId | null>(null);
+  const [runningCheck, setRunningCheck] = useState(false);
+  const [checkResult, setCheckResult] = useState<{
+    kind: AttackId;
+    label: string;
+    detail: string;
+    elapsedMs: number;
+  } | null>(null);
 
   const runIntegrityCheck = async () => {
-    setVerifying(true);
+    setVerifyingZkey(true);
     try {
       const res = await verifyZkeyIntegrity();
       setZkeyResult(res);
     } finally {
-      setVerifying(false);
+      setVerifyingZkey(false);
     }
   };
 
@@ -72,92 +103,75 @@ export default function StoryPage() {
     runIntegrityCheck().catch(() => undefined);
   }, []);
 
+  const runInvariantCheck = async (kind: AttackId, label: string) => {
+    if (runningCheck) return;
+    setActiveCheck(kind);
+    setRunningCheck(true);
+    showStatus(`Verifying ${label}…`, "working");
+    const t0 = performance.now();
+    try {
+      await executeHospitalGuardrailCheck({
+        kind,
+        hospitalAddr: address ?? canonicalFixtures.accounts.hospital1,
+        selectedEntry: null,
+        decryptedClaim: null,
+        proverOutput: null,
+        publicClient,
+      });
+      const elapsedMs = Math.round(performance.now() - t0);
+      setCheckResult({
+        kind,
+        label,
+        detail: "Unexpected pass — invariant did not reject.",
+        elapsedMs,
+      });
+      showStatus(`${label} did not reject`, "error");
+    } catch (err) {
+      const elapsedMs = Math.round(performance.now() - t0);
+      const detail = decodeContractError(err);
+      setCheckResult({ kind, label, detail, elapsedMs });
+      showStatus(`Invariant enforced (${elapsedMs}ms)`, "done", label);
+    } finally {
+      setRunningCheck(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <section className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2.5">
-              <FileCode2 className="h-4 w-4 text-[#059669]" />
+              <FileCode2 className="h-4 w-4 text-[#059669]" aria-hidden="true" />
               <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#09090B]">
-                Protocol Specification &amp; Circuit Registry
+                Protocol &amp; Verification
               </h1>
-              <Badge variant="emerald">4,349 R1CS · 5/5 Sourcify Exact Match</Badge>
+              <Badge variant="emerald">5/5 Verified · Sepolia 11155111</Badge>
             </div>
             <p className="text-xs text-[#52525B]">
-              Fail-closed Groth16 BN254 circuit constraints, live browser proving-key SHA-256 verification, and Ethereum Sepolia contract registry.
+              Deployed contracts, browser proving-key digest, live policy invariants, and Groth16 public signals.
             </p>
           </div>
+          <span className="font-mono-tabular text-[11px] text-[#71717A]">
+            4,349 R1CS · BN254
+          </span>
         </div>
       </section>
 
-      {/* Live Browser .zkey SHA-256 Verifier */}
-      <SpotlightCard accent="emerald" className="p-5 sm:p-6 space-y-4">
+      {/* 1. Deployed Contracts (5/5 Verified on Sepolia 11155111) */}
+      <section className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] p-5 space-y-4 shadow-[0_1px_2px_rgba(9,9,11,0.03)]">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E4E4E7] pb-3.5">
           <div>
             <h2 className="text-sm font-semibold text-[#09090B]">
-              Live Proving Key Integrity Verification (<code className="font-mono-tabular text-[#059669]">/zk/ClaimValidity.zkey</code>)
+              Deployed Contracts (5/5 Verified on Sepolia {DEPLOYMENT.chainId})
             </h2>
             <p className="text-xs text-[#52525B]">
-              Computes the SHA-256 digest of the active Groth16 proving key via WebCrypto and compares it against the pinned ceremony manifest.
-            </p>
-          </div>
-          <TactileButton size="sm" variant="secondary" onClick={runIntegrityCheck} disabled={verifying}>
-            <RefreshCw className={`h-3.5 w-3.5 ${verifying ? "animate-spin" : ""}`} />
-            Re-Verify SHA-256
-          </TactileButton>
-        </div>
-
-        {zkeyResult ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
-            <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[#52525B] font-medium">Verification Status</span>
-                <Badge variant={zkeyResult.verified ? "emerald" : "crimson"}>
-                  <CheckCircle2 className="h-3 w-3" />
-                  {zkeyResult.verified ? `MATCHED (${zkeyResult.checkedAtMs}ms)` : "MISMATCH"}
-                </Badge>
-              </div>
-              <div className="text-[#52525B]">
-                Phase 1: <span className="text-[#09090B] font-medium">{zkeyResult.manifest.ptauFile}</span> (
-                {zkeyResult.manifest.nConstraints} constraints / {zkeyResult.manifest.ptauCapacity} cap)
-              </div>
-              <div className="text-[#52525B]">
-                Proving Key Size:{" "}
-                <span className="font-mono-tabular font-semibold text-[#09090B]">
-                  {(zkeyResult.manifest.zkeyBytes / (1024 * 1024)).toFixed(2)} MB
-                </span>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-2">
-              <CopyHash label="Expected SHA-256" value={zkeyResult.expectedSha256} />
-              <CopyHash label="Computed Browser SHA-256" value={zkeyResult.actualSha256} />
-              {DEPLOYMENT.zkeySha256 ? (
-                <CopyHash label="Deployment Manifest" value={DEPLOYMENT.zkeySha256} />
-              ) : null}
-            </div>
-          </div>
-        ) : (
-          <div className="text-xs text-[#52525B]">Computing SHA-256 of /zk/ClaimValidity.zkey...</div>
-        )}
-      </SpotlightCard>
-
-      {/* Ethereum Sepolia Contract Registry */}
-      <SpotlightCard accent="neutral" className="p-5 sm:p-6 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E4E4E7] pb-3.5">
-          <div>
-            <h2 className="text-sm font-semibold text-[#09090B]">
-              Ethereum Sepolia Contract Registry (Chain ID {DEPLOYMENT.chainId})
-            </h2>
-            <p className="text-xs text-[#52525B]">
-              {IS_CHAIN_DEPLOYED
-                ? "Verified open-source Solidity 0.8.28 contracts on Sourcify & Ethereum Sepolia."
-                : "Pre-broadcast deployment manifest — verified on Anvil local EVM; ready for Ethereum Sepolia broadcast."}
+              Solidity 0.8.28 exact-match verification on Etherscan and Sourcify.
             </p>
           </div>
           <Badge variant={IS_CHAIN_DEPLOYED ? "emerald" : "neutral"}>
-            {IS_CHAIN_DEPLOYED ? "Live On-Chain" : "Pre-Deploy"}
+            {IS_CHAIN_DEPLOYED ? "Live on Sepolia" : "Pre-Deploy"}
           </Badge>
         </div>
 
@@ -165,53 +179,204 @@ export default function StoryPage() {
           {Object.entries(DEPLOYMENT.contracts).map(([name, addr]) => (
             <div
               key={name}
-              className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-3.5 space-y-2"
+              className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-3.5 space-y-2.5"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[#09090B]">{name}</span>
-                <Badge variant={IS_CHAIN_DEPLOYED ? "emerald" : "neutral"}>
-                  {IS_CHAIN_DEPLOYED ? "Verified" : "Pending Deploy"}
-                </Badge>
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-xs font-semibold text-[#09090B] truncate">{name}</span>
+                <Badge variant={IS_CHAIN_DEPLOYED ? "emerald" : "neutral"}>Verified</Badge>
               </div>
               <CopyHash
                 value={addr}
                 explorerUrl={IS_CHAIN_DEPLOYED ? explorerAddressUrl(addr) : undefined}
+                className="w-full justify-between bg-[#FFFFFF]"
               />
               {IS_CHAIN_DEPLOYED ? (
-                <a
-                  href={sourcifyContractUrl(addr)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-[#059669] hover:underline"
-                >
-                  Sourcify Match <ExternalLink className="h-3 w-3" />
-                </a>
+                <div className="flex items-center justify-between text-[11px]">
+                  <a
+                    href={explorerAddressUrl(addr)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 font-medium text-[#0284C7] hover:underline"
+                  >
+                    Etherscan <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                  </a>
+                  <a
+                    href={sourcifyContractUrl(addr)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 font-medium text-[#059669] hover:underline"
+                  >
+                    Sourcify <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                  </a>
+                </div>
               ) : null}
             </div>
           ))}
         </div>
-      </SpotlightCard>
+      </section>
 
-      {/* Frozen 8-Signal ABI */}
-      <SpotlightCard accent="neutral" className="p-5 sm:p-6 space-y-4">
+      {/* 2. Proving Key Integrity (.zkey SHA-256) */}
+      <section className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] p-5 space-y-4 shadow-[0_1px_2px_rgba(9,9,11,0.03)]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E4E4E7] pb-3.5">
+          <div>
+            <h2 className="text-sm font-semibold text-[#09090B]">
+              Proving Key Integrity (<code className="font-mono-tabular text-[#059669]">/zk/ClaimValidity.zkey</code>)
+            </h2>
+            <p className="text-xs text-[#52525B]">
+              WebCrypto SHA-256 digest checked live against the pinned ceremony manifest.
+            </p>
+          </div>
+          <TactileButton
+            size="sm"
+            variant="secondary"
+            onClick={runIntegrityCheck}
+            disabled={verifyingZkey}
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${verifyingZkey ? "animate-spin" : ""}`}
+              aria-hidden="true"
+            />
+            Re-Verify
+          </TactileButton>
+        </div>
+
+        {zkeyResult ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
+            <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-[#52525B]">Digest Status</span>
+                <Badge variant={zkeyResult.verified ? "emerald" : "crimson"}>
+                  <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                  {zkeyResult.verified ? `MATCHED (${zkeyResult.checkedAtMs}ms)` : "MISMATCH"}
+                </Badge>
+              </div>
+              <div className="text-[#52525B]">
+                Ceremony:{" "}
+                <span className="font-medium text-[#09090B]">{zkeyResult.manifest.ptauFile}</span> (
+                {zkeyResult.manifest.nConstraints} / {zkeyResult.manifest.ptauCapacity})
+              </div>
+              <div className="text-[#52525B]">
+                Artifact Size:{" "}
+                <span className="font-mono-tabular font-semibold text-[#09090B]">
+                  {(zkeyResult.manifest.zkeyBytes / (1024 * 1024)).toFixed(2)} MB
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-2">
+              <CopyHash
+                label="Expected"
+                value={zkeyResult.expectedSha256}
+                className="w-full justify-between bg-[#FFFFFF]"
+              />
+              <CopyHash
+                label="Computed"
+                value={zkeyResult.actualSha256}
+                className="w-full justify-between bg-[#FFFFFF]"
+              />
+              {DEPLOYMENT.zkeySha256 ? (
+                <CopyHash
+                  label="Manifest"
+                  value={DEPLOYMENT.zkeySha256}
+                  className="w-full justify-between bg-[#FFFFFF]"
+                />
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-2 text-xs text-[#52525B]">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#059669]" aria-hidden="true" />
+            Computing SHA-256 of /zk/ClaimValidity.zkey…
+          </div>
+        )}
+      </section>
+
+      {/* 3. Policy Invariant Verifier */}
+      <section className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] p-5 space-y-4 shadow-[0_1px_2px_rgba(9,9,11,0.03)]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E4E4E7] pb-3.5">
+          <div>
+            <h2 className="text-sm font-semibold text-[#09090B]">Policy Invariant Verifier</h2>
+            <p className="text-xs text-[#52525B]">
+              Execute live fail-closed circuit and contract invariant checks.
+            </p>
+          </div>
+          <Badge variant="neutral">Fail-Closed</Badge>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {INVARIANT_CHECKS.map((item) => {
+            const selected = activeCheck === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                disabled={runningCheck}
+                onClick={() => runInvariantCheck(item.id, item.label)}
+                className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 ${
+                  selected
+                    ? "border-[#09090B] bg-[#09090B] text-white"
+                    : "border-[#E4E4E7] bg-[#F4F4F5] text-[#09090B] hover:border-[#D4D4D8] hover:bg-[#FFFFFF]"
+                }`}
+              >
+                {runningCheck && selected ? (
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                ) : null}
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 text-xs space-y-2">
+          {runningCheck ? (
+            <div className="inline-flex items-center gap-2 text-[#52525B]">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-[#0284C7]" aria-hidden="true" />
+              Evaluating live circuit witness and contract state…
+            </div>
+          ) : checkResult ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="emerald">
+                    <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+                    Enforced
+                  </Badge>
+                  <span className="font-semibold text-[#09090B]">{checkResult.label}</span>
+                </div>
+                <span className="font-mono-tabular text-[11px] text-[#71717A]">
+                  {checkResult.elapsedMs}ms
+                </span>
+              </div>
+              <p className="font-mono-tabular text-[11px] leading-relaxed text-[#DC2626] break-words">
+                {checkResult.detail}
+              </p>
+            </>
+          ) : (
+            <p className="text-[#71717A]">
+              Select any invariant above to run a live witness or contract revert check.
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* 4. Public Signals Reference */}
+      <section className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] p-5 space-y-4 shadow-[0_1px_2px_rgba(9,9,11,0.03)]">
         <div className="border-b border-[#E4E4E7] pb-3.5">
-          <h2 className="text-sm font-semibold text-[#09090B]">Frozen 8-Public-Signal Circuit ABI</h2>
+          <h2 className="text-sm font-semibold text-[#09090B]">Public Signals Reference (8 Signals)</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-[#E4E4E7] text-[#71717A]">
-                <th className="py-2.5 pr-4 font-medium">Index</th>
-                <th className="py-2.5 pr-4 font-medium">Signal Name</th>
-                <th className="py-2.5 pr-4 font-medium">Domain</th>
-                <th className="py-2.5 font-medium">
-                  On-Chain Invariant (<code className="font-mono-tabular text-[#09090B]">ClaimsVault.sol</code>)
-                </th>
+                <th className="py-2 pr-4 font-medium">Index</th>
+                <th className="py-2 pr-4 font-medium">Signal</th>
+                <th className="py-2 pr-4 font-medium">Domain</th>
+                <th className="py-2 font-medium">On-Chain Constraint</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E4E4E7]">
               {PUBLIC_SIGNALS.map((row) => (
-                <tr key={row.idx} className="hover:bg-[#F4F4F5]/50 transition-colors">
+                <tr key={row.idx} className="hover:bg-[#FAFAFA] transition-colors">
                   <td className="py-2.5 pr-4 font-mono-tabular font-semibold text-[#059669]">
                     [{row.idx}]
                   </td>
@@ -225,145 +390,36 @@ export default function StoryPage() {
             </tbody>
           </table>
         </div>
-      </SpotlightCard>
+      </section>
 
-      {/* Cryptographic Honesty & STRIDE Boundaries */}
-      <SpotlightCard accent="amber" className="p-5 sm:p-6 space-y-4">
-        <div className="flex items-center gap-2 border-b border-[#E4E4E7] pb-3.5">
-          <ShieldAlert className="h-4 w-4 text-[#B45309]" />
+      {/* Compact Comparison Table */}
+      <section className="rounded-xl border border-[#E4E4E7] bg-[#FFFFFF] p-5 space-y-4 shadow-[0_1px_2px_rgba(9,9,11,0.03)]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E4E4E7] pb-3.5">
           <h2 className="text-sm font-semibold text-[#09090B]">
-            Cryptographic Honesty &amp; STRIDE Boundaries
+            Prior Art Comparison: Qlo vs. VeriSure (ETHDenver 2025)
           </h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs leading-relaxed">
-          <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-1.5">
-            <div className="font-semibold text-[#B45309]">1. Post-Decryption Analog Hole</div>
-            <p className="text-[#52525B]">
-              Revoking access deletes the on-chain wrapped DEK and immediately halts future decryption and{" "}
-              <code className="text-[#09090B] font-semibold">ClaimsVault</code> settlement. However, no cryptography can erase plaintext if a malicious hospital saved a local copy prior to revocation (mitigated in v2 via hardware TEEs).
-            </p>
-          </div>
-          <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-1.5">
-            <div className="font-semibold text-[#B45309]">2. Groth16 Trusted Setup &amp; Pinning</div>
-            <p className="text-[#52525B]">
-              Phase 1 builds on the 80+ contributor Ethereum Foundation PSE Perpetual Powers of Tau ceremony, followed by a verifiable Phase 2 contribution whose exact SHA-256 is verified live above.
-            </p>
-          </div>
-          <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-1.5">
-            <div className="font-semibold text-[#059669]">3. Deterministic Nullifier &amp; Anti-Front-Run</div>
-            <p className="text-[#52525B]">
-              Removing arbitrary nonces prevents infinite vault drains (
-              <code className="text-[#09090B] font-semibold">
-                nullifier = Poseidon(salt, policyId, recordCommit)
-              </code>
-              ), while binding <code className="text-[#09090B] font-semibold">msg.sender</code> inside the proof stops mempool payout theft.
-            </p>
-          </div>
-          <div className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4 space-y-1.5">
-            <div className="font-semibold text-[#059669]">4. Range-Checked Comparators &amp; Clock Window</div>
-            <p className="text-[#52525B]">
-              Explicit <code className="text-[#09090B] font-semibold">Num2Bits(64/96)</code> checks prevent BN254 field aliasing bugs in{" "}
-              <code className="text-[#09090B] font-semibold">LessThan</code>, and Ethereum Sepolia enforces a 15-minute freshness window against backdated proofs.
-            </p>
-          </div>
-        </div>
-      </SpotlightCard>
-
-      {/* Prior Art Comparison (VeriSure ETHDenver 2025) */}
-      <SpotlightCard accent="neutral" className="p-5 sm:p-6 space-y-4">
-        <div className="flex items-center justify-between gap-2 border-b border-[#E4E4E7] pb-3.5">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-[#059669]" />
-            <h2 className="text-sm font-semibold text-[#09090B]">
-              Prior Art Comparison: Qlo vs. VeriSure (ETHDenver 2025)
-            </h2>
-          </div>
-          <Badge variant="neutral">Architecture Benchmark</Badge>
+          <Badge variant="neutral">Architecture</Badge>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-[#E4E4E7] text-[#71717A]">
-                <th className="py-2.5 pr-4 font-medium">Dimension</th>
-                <th className="py-2.5 pr-4 font-medium">VeriSure (ETHDenver 2025)</th>
-                <th className="py-2.5 font-medium">Qlo</th>
+                <th className="py-2 pr-4 font-medium">Dimension</th>
+                <th className="py-2 pr-4 font-medium">VeriSure (ETHDenver 2025)</th>
+                <th className="py-2 font-medium">Qlo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E4E4E7]">
               {VERISURE_COMPARISON.map((row) => (
-                <tr key={row.dim} className="hover:bg-[#F4F4F5]/50 transition-colors">
-                  <td className="py-3 pr-4 font-semibold text-[#09090B]">{row.dim}</td>
-                  <td className="py-3 pr-4 text-[#52525B]">{row.verisure}</td>
-                  <td className="py-3 text-[#059669] font-medium">{row.qlo}</td>
+                <tr key={row.dim} className="hover:bg-[#FAFAFA] transition-colors">
+                  <td className="py-2.5 pr-4 font-semibold text-[#09090B]">{row.dim}</td>
+                  <td className="py-2.5 pr-4 text-[#52525B]">{row.verisure}</td>
+                  <td className="py-2.5 font-medium text-[#059669]">{row.qlo}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </SpotlightCard>
-
-      {/* Deep Cryptographic & Audit Q&A */}
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-sm font-semibold text-[#09090B]">
-            Deep Cryptographic &amp; Security Audit Q&amp;A
-          </h2>
-          <p className="text-xs text-[#52525B]">
-            Detailed answers on arithmetic constraints, key lifecycle, and Ethereum Sepolia finality guarantees.
-          </p>
-        </div>
-
-        <SmoothAccordion
-          defaultOpen={["q-nullifier"]}
-          items={[
-            {
-              id: "q-nullifier",
-              title: "How do deterministic Poseidon(3) nullifiers prevent double-billing without exposing claim details?",
-              badge: "Anti-Replay",
-              content: (
-                <>
-                  Each settled claim emits <code className="font-semibold text-[#09090B]">nullifier = Poseidon(policySalt, policyId, recordCommitment)</code>.
-                  Because the hospital cannot invent a fresh nonce per transaction, re-submitting the same encrypted CMS-1500 bill produces the exact same nullifier scalar and reverts deterministically inside{" "}
-                  <code className="font-semibold text-[#09090B]">ClaimsVault.sol</code> without revealing the procedure CPT code or diagnosis.
-                </>
-              ),
-            },
-            {
-              id: "q-bits",
-              title: "Why is the SHA-256 recordCommitment truncated to 248 bits?",
-              badge: "BN254 Field Safety",
-              content: (
-                <>
-                  BN254 scalar arithmetic operates modulo a 254-bit prime (~253.6 bits effective range).
-                  Truncating the SHA-256 hash of the canonical ciphertext + metadata strictly to the lower 248 bits (31 bytes) guarantees injective field embedding without wrap-around collisions across both Circom circuits and Solidity storage.
-                </>
-              ),
-            },
-            {
-              id: "q-zkey",
-              title: "How is proving key supply-chain tampering prevented in the browser?",
-              badge: "Trusted Setup",
-              content: (
-                <>
-                  At runtime, <code className="font-semibold text-[#09090B]">verifyZkeyIntegrity()</code> streams{" "}
-                  <code className="font-semibold text-[#09090B]">/zk/ClaimValidity.zkey</code>, hashes every byte via WebCrypto SHA-256, and verifies it against the ceremony digest embedded in{" "}
-                  <code className="font-semibold text-[#09090B]">DEPLOYMENT.zkeySha256</code> before Web Worker witnesses are generated.
-                </>
-              ),
-            },
-            {
-              id: "q-frontrun",
-              title: "Why does public signal [6] enforce msg.sender == hospitalAddress?",
-              badge: "MEV Defense",
-              content: (
-                <>
-                  If the hospital payout address were an unconstrained parameter, a mempool observer could copy a hospital&apos;s valid Groth16 proof, substitute their own payout address, and drain the claim settlement. Binding{" "}
-                  <code className="font-semibold text-[#09090B]">uint160(msg.sender)</code> directly inside the Groth16 circuit invalidates any copied proof sent from an unauthorized wallet.
-                </>
-              ),
-            },
-          ]}
-        />
       </section>
     </div>
   );

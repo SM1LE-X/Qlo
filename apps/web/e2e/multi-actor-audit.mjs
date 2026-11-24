@@ -180,15 +180,9 @@ async function main() {
     });
 
     await patientPage.goto(`${BASE_URL}/patient`, { waitUntil: "networkidle" });
-    await patientPage.selectOption("#preset-select", { index: 0 });
-    await patientPage.getByRole("button", { name: /Run Sample Bill OCR/i }).click();
-    await patientPage.waitForSelector("text=7/7 Ready", { timeout: 30000 });
-    await patientPage.getByRole("button", { name: /Encrypt Record on Device|Encrypted Locally/i }).click();
-    await patientPage.waitForSelector("text=AES-256 Locked", { timeout: 10000 });
-    await patientPage.getByRole("button", { name: /Save Fingerprint On-Chain/i }).click();
-    await patientPage.waitForSelector("text=/Saved \\(#\\d+\\)/i", { timeout: 10000 });
-    await patientPage.getByRole("button", { name: /Grant Access/i }).click();
-    await patientPage.waitForSelector("text=Access Granted", { timeout: 10000 });
+    await patientPage.getByRole("button", { name: /Attach recent visit/i }).click();
+    await patientPage.getByRole("menuitem", { name: /Cardiac STEMI/i }).click();
+    await patientPage.waitForSelector("text=/Active · \\d+:\\d{2}/", { timeout: 45000 });
 
     assert.ok(relayVaultBodies.length > 0, "Expected Patient to push ciphertext envelope to relay");
     for (const rawBody of relayVaultBodies) {
@@ -198,59 +192,50 @@ async function main() {
       );
     }
 
-    // 4. Hospital Browser refreshes inbox across isolated session -> Unwraps -> FHIR/X12 837P -> Groth16 -> Settle
+    // 4. Hospital Browser refreshes inbox across isolated session -> Auto-Unwrap + Auto-Prove -> FHIR/X12 837P -> 1-Click Settle
     console.log(
-      "[multi-actor] 4/6 Hospital refreshing cross-browser inbox, verifying FHIR/X12 & settling..."
+      "[multi-actor] 4/6 Hospital refreshing cross-browser inbox, verifying auto-prove, FHIR/X12 & settling..."
     );
     await hospitalPage.getByRole("button", { name: /Refresh Records/i }).click();
     await hospitalPage.waitForFunction(
       () => {
-        const sel = document.querySelector("#vault-select");
-        return Boolean(sel && sel.value && sel.value.startsWith("0x"));
+        const btns = Array.from(document.querySelectorAll("button"));
+        return btns.some((b) => b.textContent?.trim() === "Settle" && !b.disabled);
       },
       null,
-      { timeout: 10000 }
+      { timeout: 25000 }
     );
 
-    await hospitalPage.getByRole("button", { name: /Unlock & View Patient Record/i }).click();
+    await hospitalPage.getByRole("button", { name: /^Inspect$/i }).first().click();
     await hospitalPage.waitForSelector("text=Decrypted Clinical Encounter", { timeout: 10000 });
-    await hospitalPage.locator("button", { hasText: /HL7 FHIR R4 & X12 837P/i }).click();
+    await hospitalPage.getByRole("tab", { name: /HL7 FHIR R4/i }).click();
     await hospitalPage.waitForSelector("text=/\"resourceType\":\\s*\"Claim\"/", { timeout: 5000 });
-    await hospitalPage.locator("button", { hasText: /^ANSI X12 837P$/i }).click();
+    await hospitalPage.getByRole("tab", { name: /ANSI X12 837P/i }).click();
     await hospitalPage.waitForSelector("text=/ST\\*837\\*/", { timeout: 5000 });
+    await hospitalPage.getByRole("button", { name: /Close encounter drawer/i }).click();
 
-    await hospitalPage.getByRole("button", { name: /Generate ZK Proof/i }).click();
-    await hospitalPage.waitForSelector("text=/Proof Ready \\(\\d+ms\\)/", { timeout: 25000 });
-    await hospitalPage.getByRole("button", { name: /Submit Claim & Receive ETH/i }).click();
-    await hospitalPage.waitForSelector("text=Settlement Confirmation", { timeout: 10000 });
+    await hospitalPage.locator("button:not([disabled])", { hasText: /^Settle$/ }).first().click();
+    await hospitalPage.waitForSelector("text=/Settled \\(\\+0\\.0100 ETH\\)/", { timeout: 10000 });
 
-    // 5. Insurer Browser opens -> sees settled claim & 0 PHI verified automatically
+    // 5. Insurer Browser opens -> sees settled claim & slide-over ProofDrawer 0 PHI verified automatically
     console.log(
       "[multi-actor] 5/6 Opening isolated Insurer Treasury context & verifying settlement sync..."
     );
     await insurerPage.goto(`${BASE_URL}/insurer`, { waitUntil: "networkidle" });
+    await insurerPage.getByRole("button", { name: /835 ERA/i }).first().waitFor({ timeout: 10000 });
+    await insurerPage.getByRole("button", { name: /^Proof$/i }).first().click();
     await insurerPage.waitForSelector("text=approvedHospitalRoot", { timeout: 10000 });
     await insurerPage.waitForSelector("text=0 Medical Bytes Found", { timeout: 10000 });
-    await insurerPage.getByRole("button", { name: /835 ERA/i }).first().waitFor({ timeout: 5000 });
 
-    // 6. Cross-Browser Revocation Check (Patient revokes -> Hospital reloads & is blocked)
+    // 6. Cross-Browser Revocation Check (Patient revokes -> Hospital reloads & sees Access revoked)
     console.log(
       "[multi-actor] 6/6 Testing live cross-browser revocation (Patient -> Hospital blocked)..."
     );
-    await patientPage.getByRole("button", { name: /^Revoke$/i }).click();
+    await patientPage.getByRole("button", { name: /^Revoke$/i }).first().click();
     await patientPage.waitForSelector("text=Not Shared", { timeout: 10000 });
 
     await hospitalPage.reload({ waitUntil: "networkidle" });
-    await hospitalPage.waitForFunction(
-      () => {
-        const sel = document.querySelector("#vault-select");
-        return Boolean(sel && sel.value && sel.value.startsWith("0x"));
-      },
-      null,
-      { timeout: 10000 }
-    );
-    await hospitalPage.getByRole("button", { name: /Unlock & View Patient Record/i }).click();
-    await hospitalPage.locator("#hospital-queue").getByText(/ACCESS DENIED/i).waitFor({ state: "visible", timeout: 10000 });
+    await hospitalPage.waitForSelector("text=Access revoked", { timeout: 10000 });
 
     assert.equal(bag.consoleErrors.length, 0, `Console errors: ${bag.consoleErrors.join(" | ")}`);
     assert.equal(

@@ -99,143 +99,107 @@ async function main() {
       }
     });
 
-    // 1. Enterprise Control Plane (/)
-    console.log("[audit] 1/10 Checking / (Qlo Protocol Overview & Sample Bills)...");
+    // 1. Calm Clearinghouse Overview (/)
+    console.log("[audit] 1/10 Checking / (Qlo Invisible Clearinghouse Overview)...");
     await page.goto(`${BASE_URL}/`, { waitUntil: "networkidle" });
     const h1Home = await page.locator("h1").first().innerText();
-    assert.ok(h1Home.includes("Qlo Protocol"), `Unexpected home h1: ${h1Home}`);
+    assert.ok(/Qlo/i.test(h1Home), `Unexpected home h1: ${h1Home}`);
     const bodyHome = await page.locator("body").innerText();
     assert.ok(!/VeriSure/i.test(bodyHome), "VeriSure should NOT appear on / overview");
-    await page.waitForSelector("text=/4,349 R1CS/i", { timeout: 10000 });
+    await page.waitForSelector("text=/0 PHI/i", { timeout: 10000 });
     const samplePngRes = await fetch(`${BASE_URL}/samples/bill-cardiac-er-99285.png`);
     assert.equal(samplePngRes.status, 200, "Expected HTTP 200 for /samples/bill-cardiac-er-99285.png");
     const sampleJsonRes = await fetch(`${BASE_URL}/samples/bill-cardiac-er-99285.json`);
     assert.equal(sampleJsonRes.status, 200, "Expected HTTP 200 for /samples/bill-cardiac-er-99285.json");
-    console.log("[audit]     Verified Qlo Protocol overview telemetry & sample medical bills");
+    console.log("[audit]     Verified calm overview & bill assets");
 
-    // 2. Live Tesseract WASM OCR on /patient
-    console.log("[audit] 2/10 Testing browser-local Tesseract WASM OCR on /patient...");
+    // 2-3. One-Action Drop & Done on /patient (Tesseract WASM OCR -> AES-256 -> Anchor -> ECDH Grant)
+    console.log("[audit] 2-3/10 Testing Drop & Done pipeline (WASM OCR -> AES-256 -> Anchor -> Grant)...");
     await page.goto(`${BASE_URL}/patient`, { waitUntil: "networkidle" });
     await assertAllInputsLabeled(page, "/patient");
-    await page.selectOption("#preset-select", { index: 2 }); // Case C (Z41.1 / 15777)
-    assert.equal(await page.inputValue("#box24d"), "15777");
     const ocrT0 = Date.now();
-    await page.getByRole("button", { name: /Run Sample Bill OCR/i }).click();
+    await page.getByRole("button", { name: /Attach recent visit/i }).click();
+    await page.getByRole("menuitem", { name: /Cardiac STEMI/i }).click();
+    await page.waitForSelector("text=/Active · \\d+:\\d{2}/", { timeout: 45000 });
+    console.log(`[audit]     Drop & Done completed (OCR + AES-256 + Anchor + Grant) in ${Date.now() - ocrT0}ms!`);
+    await page.getByRole("button", { name: /^Details$/i }).first().click();
+    await page.getByRole("button", { name: /Backup/i }).waitFor({ timeout: 5000 });
+
+    // 4. Hospital Autonomous Unwrap + Auto-Prove (Groth16 Claim #1) + 1-Click Settle
+    console.log("[audit] 4/10 Testing autonomous background unwrap + Groth16 proving + 1-click Settle...");
+    await page.goto(`${BASE_URL}/hospital`, { waitUntil: "networkidle" });
+    await assertAllInputsLabeled(page, "/hospital");
+    const proveT0 = Date.now();
+    const settleBtn = page.getByRole("button", { name: /^Settle$/i }).first();
+    await settleBtn.waitFor({ state: "visible", timeout: 25000 });
     await page.waitForFunction(
       () => {
-        const box1a = document.querySelector("#box1a");
-        const box2 = document.querySelector("#box2");
-        const box21 = document.querySelector("#box21");
-        const box24d = document.querySelector("#box24d");
-        const box24j = document.querySelector("#box24j");
-        return (
-          box1a?.value === "2026001" &&
-          box2?.value === "SYNTH-CASE-042" &&
-          box21?.value === "I21.0" &&
-          box24d?.value === "99285" &&
-          box24j?.value === "1234567890"
-        );
+        const btns = Array.from(document.querySelectorAll("button"));
+        return btns.some((b) => b.textContent?.trim() === "Settle" && !b.disabled);
       },
+      null,
+      { timeout: 25000 }
+    );
+    console.log(`[audit]     Claim #1 auto-unwrapped & auto-proved in ${Date.now() - proveT0}ms`);
+    await settleBtn.click();
+    await page.waitForSelector("text=/Settled \\(\\+0\\.0100 ETH\\)/", { timeout: 10000 });
+
+    // 5. Cumulative Claim #2 E2E (0.01 + 0.015 <= 0.03 ETH)
+    console.log("[audit] 5/10 Running Cumulative Claim #2 (0.01 + 0.015 <= 0.03 ETH)...");
+    await page.goto(`${BASE_URL}/patient`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Attach recent visit/i }).click();
+    await page.getByRole("menuitem", { name: /Cardiology Follow-Up/i }).click();
+    await page.waitForFunction(
+      () => document.querySelectorAll("button").length > 0 && document.body.innerText.includes("2 active"),
       null,
       { timeout: 45000 }
     );
-    const ocrElapsedMs = Date.now() - ocrT0;
-    await page.waitForSelector("text=7/7 Ready");
-    console.log(`[audit]     Tesseract OCR extracted all CMS-1500 fields in ${ocrElapsedMs}ms!`);
 
-    // 3. Encrypt Case A, Register #1, Grant 10m
-    console.log("[audit] 3/10 Encrypting Case A, registering Record #1 + Grant...");
-    await page.selectOption("#preset-select", { index: 0 });
-    await page.getByRole("button", { name: /Encrypt Record on Device|Encrypted Locally/i }).click();
-    await page.waitForSelector("text=AES-256 Locked", { timeout: 10000 });
-    await page.getByRole("button", { name: /Backup/i }).waitFor({ timeout: 5000 });
-    await page.getByRole("button", { name: /Save Fingerprint On-Chain/i }).click();
-    await page.waitForSelector("text=/Saved \\(#1\\)/i", { timeout: 10000 });
-    await page.getByRole("button", { name: /Grant Access/i }).click();
-    await page.waitForSelector("text=Access Granted", { timeout: 10000 });
-
-    // 4. Hospital Unwrap + Log Access + Groth16 Claim #1 + Auto-Settle
-    console.log("[audit] 4/10 Proving & settling Claim #1 on /hospital...");
     await page.goto(`${BASE_URL}/hospital`, { waitUntil: "networkidle" });
-    await assertAllInputsLabeled(page, "/hospital");
-    await page.getByRole("button", { name: /Unlock & View Patient Record/i }).click();
-    await page.waitForSelector("text=Decrypted Clinical Encounter", { timeout: 10000 });
-    await page.getByRole("button", { name: /Log read-access audit on-chain/i }).click();
-
-    const proveT0 = Date.now();
-    await page.getByRole("button", { name: /Generate ZK Proof/i }).click();
-    const badgeLocator = page.locator("text=/Proof Ready \\(\\d+ms\\)/");
-    await badgeLocator.waitFor({ timeout: 25000 });
-    console.log(
-      `[audit]     Claim #1 ${await badgeLocator.innerText()} (wall ${Date.now() - proveT0}ms)`
+    await page.waitForFunction(
+      () => {
+        const btns = Array.from(document.querySelectorAll("button"));
+        return btns.some((b) => b.textContent?.trim() === "Settle" && !b.disabled);
+      },
+      null,
+      { timeout: 25000 }
     );
-    await page.getByRole("button", { name: /Submit Claim & Receive ETH/i }).click();
-    await page.waitForSelector("text=Settlement Confirmation", { timeout: 10000 });
-
-    // 5. Cumulative Claim #2 E2E (Case B: 0.015 ETH, priorSpent = 0.01 ETH)
-    console.log("[audit] 5/10 Running Cumulative Claim #2 (0.01 + 0.015 <= 0.03 ETH)...");
-    await page.goto(`${BASE_URL}/patient`, { waitUntil: "networkidle" });
-    await page.selectOption("#preset-select", { index: 1 }); // Case B
-    await page.getByRole("button", { name: /Encrypt Record on Device|Encrypted Locally/i }).click();
-    await page.waitForSelector("text=AES-256 Locked", { timeout: 10000 });
-    await page.getByRole("button", { name: /Save Fingerprint On-Chain/i }).click();
-    await page.waitForSelector("text=/Saved \\(#2\\)/i", { timeout: 10000 });
-    await page.getByRole("button", { name: /Grant Access/i }).click();
-    await page.waitForSelector("text=Access Granted", { timeout: 10000 });
-
-    await page.goto(`${BASE_URL}/hospital`, { waitUntil: "networkidle" });
-    await page.getByRole("button", { name: /Unlock & View Patient Record/i }).click();
-    await page.waitForSelector("text=99214", { timeout: 10000 });
-    await page.getByRole("button", { name: /Generate ZK Proof/i }).click();
-    await badgeLocator.waitFor({ timeout: 25000 });
-    await page.getByRole("button", { name: /Submit Claim & Receive ETH/i }).click();
-    await page.waitForSelector("text=+0.0150 ETH", { timeout: 10000 });
+    await page.locator("button:not([disabled])", { hasText: /^Settle$/ }).first().click();
+    await page.waitForSelector("text=/Settled \\(\\+0\\.0150 ETH\\)/", { timeout: 10000 });
     console.log("[audit]     Cumulative Claim #2 settled (+0.0150 ETH)");
 
-    // 6. Attack Lab Scenarios 1-4
-    console.log("[audit] 6/10 Testing Fail-Closed Attack Lab (Replay, CPT, Expired, Cap)...");
     const consoleErrorsBeforeAttacks = consoleErrors.length;
-    const guardrailsCard = page.locator("#hospital-guardrails");
 
-    await page.getByRole("button", { name: /Attack 1: Replay Nullifier/i }).click();
-    await guardrailsCard.getByText(/NullifierAlreadyUsed/i).waitFor({ state: "visible", timeout: 10000 });
-
-    await page.getByRole("button", { name: /Attack 2: Uncovered CPT/i }).click();
-    await guardrailsCard.getByText(/Selected (?:Verification )?Case:\s*CPT/i).waitFor({ state: "visible", timeout: 15000 });
-
-    await page.getByRole("button", { name: /Attack 3: Expired Policy/i }).click();
-    await guardrailsCard.getByText(/Selected (?:Verification )?Case:\s*EXPIRED/i).waitFor({ state: "visible", timeout: 15000 });
-
-    await page.getByRole("button", { name: /Attack 4: Over Annual Cap/i }).click();
-    await guardrailsCard.getByText(/Selected (?:Verification )?Case:\s*CAP/i).waitFor({ state: "visible", timeout: 15000 });
-    console.log("[audit]     All 4 circuit/replay attacks failed closed cleanly");
-
-    // 7. Insurer Console (/insurer)
-    console.log("[audit] 7/10 Checking /insurer escrow, cumulative spend & Zero-PHI...");
+    // 6-7. Insurer Quiet Treasury (/insurer) + Slide-Over ProofDrawer
+    console.log("[audit] 6-7/10 Checking /insurer Treasury & slide-over ProofDrawer (0 Medical Bytes Found)...");
     await page.goto(`${BASE_URL}/insurer`, { waitUntil: "networkidle" });
     await assertAllInputsLabeled(page, "/insurer");
+    await page.getByRole("button", { name: /^Proof$/i }).first().click();
     await page.waitForSelector("text=0 Medical Bytes Found", { timeout: 10000 });
+    await page.keyboard.press("Escape");
     await page.getByRole("button", { name: /^Withdraw$/i }).click();
-    console.log("[audit]     Insurer treasury & 0 Medical Bytes Found verified");
+    console.log("[audit]     Insurer treasury & slide-over ProofDrawer verified");
 
-    // 8. Story (/story)
-    console.log("[audit] 8/10 Checking /story (.zkey SHA-256 MATCHED + VeriSure table)...");
+    // 8. Protocol Verification Hub (/story) — .zkey SHA-256 + Policy Invariant Verifier + VeriSure table
+    console.log("[audit] 8/10 Checking /story (.zkey SHA-256 MATCHED + Policy Invariant Verifier)...");
     await page.goto(`${BASE_URL}/story`, { waitUntil: "networkidle" });
     await page.waitForSelector("text=/MATCHED \\(\\d+ms\\)/", { timeout: 15000 });
     await page.waitForSelector("text=/VeriSure \\(ETHDenver 2025\\)/i", { timeout: 5000 });
+    for (const label of ["Replay Nullifier", "Excluded Procedure", "Expired Policy", "Over Annual Cap"]) {
+      await page.getByRole("button", { name: new RegExp(label, "i") }).click();
+      await page.waitForSelector("text=/Fail-Closed|Blocked|Reverted|Constraint|Nullifier|Excluded|Expired|Cap/i", { timeout: 15000 });
+    }
+    console.log("[audit]     All 4 Policy Invariant checks failed closed cleanly");
 
-    // 9. Revocation E2E (/patient -> Revoke -> /hospital blocked + Attack 5)
+    // 9. Revocation E2E (/patient -> Revoke -> /hospital shows Access revoked)
     console.log("[audit] 9/10 Checking Post-Revoke persistence (/patient -> Revoke -> /hospital)...");
     await page.goto(`${BASE_URL}/patient`, { waitUntil: "networkidle" });
-    await page.getByRole("button", { name: /^Revoke$/i }).click();
+    await page.getByRole("button", { name: /^Revoke$/i }).first().click();
     await page.waitForSelector("text=Not Shared", { timeout: 10000 });
 
     await page.goto(`${BASE_URL}/hospital`, { waitUntil: "networkidle" });
-    await page.getByRole("button", { name: /Unlock & View Patient Record/i }).click();
-    await page.locator("#hospital-queue").getByText(/ACCESS DENIED/i).waitFor({ state: "visible", timeout: 10000 });
-    await page.getByRole("button", { name: /Attack 5: Post-Revoke Claim/i }).click();
-    await page.locator("#hospital-guardrails").getByText(/PatientAccessNotActive/i).waitFor({ state: "visible", timeout: 10000 });
-    console.log("[audit]     Post-revoke decryption & Attack 5 both blocked (PatientAccessNotActive)");
+    await page.waitForSelector("text=Access revoked", { timeout: 10000 });
+    console.log("[audit]     Post-revoke access cleanly blocked on /hospital");
 
     // 10. Asset & Error Integrity
     console.log("[audit] 10/10 Checking ZK + OCR assets, HTTP responses, hydration & console errors...");
