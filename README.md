@@ -1,8 +1,8 @@
-# Qlo Protocol — Zero-Knowledge Health Insurance Claims & Patient-Sovereign Medical Records
+# Qlo Protocol - Zero-Knowledge Health Insurance Claims & Patient-Sovereign Medical Records
 
 **Qlo is a decentralized zero-knowledge health insurance clearinghouse and patient-sovereign encrypted medical record vault live on Ethereum Sepolia (`Chain ID 11155111`).**
 
-Hospitals prove clinical claim validity, policy coverage, hospital accreditation, and cumulative annual coverage limits in **sub-second Groth16 BN254 zero-knowledge proofs (`4,349` R1CS constraints, `8` frozen public signals)** inside a browser Web Worker—receiving atomic native ETH payouts from `ClaimsVault.sol` while exposing **0 bytes of Protected Health Information (PHI)** on-chain. Patients scan medical bills locally via **100% browser-local Tesseract.js WASM OCR**, encrypt records in **WebCrypto AES-256-GCM**, anchor 248-bit SHA-256 commitments + IPFS CIDv1 digests on-chain, and grant time-bound, revocable **ECDH P-256** wrapped Data Encryption Keys (DEKs) to accredited hospitals.
+Hospitals prove clinical claim validity, policy coverage, hospital accreditation, and cumulative annual coverage limits in **sub-second Groth16 BN254 zero-knowledge proofs (`4,349` R1CS constraints, `8` frozen public signals)** inside a browser Web Worker receiving atomic native ETH payouts from `ClaimsVault.sol` while exposing **0 bytes of Protected Health Information (PHI)** on-chain. Patients scan medical bills locally via **100% browser-local Tesseract.js WASM OCR**, encrypt records in **WebCrypto AES-256-GCM**, anchor 248-bit SHA-256 commitments + IPFS CIDv1 digests on-chain, and grant time-bound, revocable **ECDH P-256** wrapped Data Encryption Keys (DEKs) to accredited hospitals.
 
 ---
 
